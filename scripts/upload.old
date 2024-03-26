@@ -1,0 +1,67 @@
+function Add-Blobs {
+
+    param
+    (
+        $StorageAccountName = "storqra2f23aqljtm",
+        $RootDirectory = "./images",
+        $ContainerName = "uploads"
+    )
+
+     $imageFormats = @{}
+     $imageFormats['B96B3CAB-0728-11D3-9D7B-0000F81EF32E'] = 'image/bitmap'
+     $imageFormats['B96B3CAF-0728-11D3-9D7B-0000F81EF32E'] = 'image/png'
+     $imageFormats['B96B3CB0-0728-11D3-9D7B-0000F81EF32E'] = 'image/gif'
+     $imageFormats['B96B3CAE-0728-11D3-9D7B-0000F81EF32E'] = 'image/jpeg'
+     $imageFormats['B96B3CB1-0728-11D3-9D7B-0000F81EF32E'] = 'image/tiff'
+
+    Get-ChildItem -Path $RootDirectory -Recurse -File -Filter *.jpg | ForEach-Object {
+        $collection = $_.Directory.Parent.Name
+        $album = $_.Directory.Name
+        $name = $_.Name
+        $mimeType = ''
+
+        Add-Type -AssemblyName System.Drawing
+        $image = New-Object System.Drawing.Bitmap $_.FullName
+
+        $decoders = [System.Drawing.Imaging.ImageCodecInfo]::GetImageDecoders()
+        foreach($decoder in $decoders) {
+            if ($image.RawFormat.Guid -eq $decoder.FormatID) {
+                $mimeType = $decoder.mimeType
+            }
+        }
+
+        $blobFullName = "$collection/$album/$name"
+        $ratio = $($image.Width)/$($image.Height)
+        $roundedRatio = [math]::Round($ratio, 2)
+        
+        "Collection: $collection"
+        "Album: $album"
+        "Width: $($image.Width)"
+        "Height: $($image.Height)"
+        "Name: $blobFullName"
+
+        az storage blob upload `
+            --account-name $storageAccountName `
+            --container-name $ContainerName `
+            --name $blobFullName `
+            --auth-mode login `
+            --file $_.FullName `
+            --content-type $mimeType `
+            --metadata Width=$($image.Width) Height=$($image.Height) Name=$blobFullName Ratio=$roundedRatio `
+            --tags Collection=$collection Album=$album Name=$blobFullName `
+            --overwrite
+    }
+}
+function Remove-Blobs {
+    param
+    (
+        $StorageAccountName = "storqra2f23aqljtm",
+        $Containers = @('uploads', 'images', 'thumbs')
+    )
+
+    foreach ($container in $Containers) {
+        "Removing Blobs in container: $container"
+        az storage blob delete-batch -s $container --account-name $StorageAccountName
+    }
+}
+
