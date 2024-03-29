@@ -44,29 +44,29 @@ func main() {
 	port := fmt.Sprintf(":%s", servicePort)
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("/", photoHandler(credential))
-	mux.HandleFunc("/collections", collectionHandler(credential))
-	mux.HandleFunc("/albums", albumHandler(credential))
+	mux.HandleFunc("GET /collections", collectionsHandler(credential))
+	mux.HandleFunc("GET /collections/{collection}/albums", albumsHandler(credential))
+	mux.HandleFunc("GET /collections/{collection}/albums/{album}", albumPhotosHandler(credential))
 
 	slog.Info("server listening", "name", serviceName, "port", port)
 	http.ListenAndServe(port, mux)
 }
 
-func photoHandler(credential *azidentity.DefaultAzureCredential) http.HandlerFunc {
+func albumPhotosHandler(credential *azidentity.DefaultAzureCredential) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		slog.Info("Request", "Body", r.Body)
 		slog.Info("Request", "Method", r.Method)
 		slog.Info("Raw Paths", "RawPath", r.URL.RawPath)
 		slog.Info("QueryString", "Query", r.URL.Query())
 
-		collection := r.URL.Query().Get("Collection")
+		collection := r.PathValue("collection")
 		if collection == "" {
-			slog.Error("empty queryString", "name", "Collection")
+			slog.Error("empty queryString", "name", "collection")
 		}
 
-		album := r.URL.Query().Get("Album")
-		if album == "" {
-			slog.Error("empty queryString", "name", "Album")
+		album := r.PathValue("album")
+		if collection == "" {
+			slog.Error("empty queryString", "name", "album")
 		}
 
 		// get photos with matching collection & album tags
@@ -114,7 +114,7 @@ func photoHandler(credential *azidentity.DefaultAzureCredential) http.HandlerFun
 	}
 }
 
-func collectionHandler(credential *azidentity.DefaultAzureCredential) http.HandlerFunc {
+func collectionsHandler(credential *azidentity.DefaultAzureCredential) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		slog.Info("Request", "Body", r.Body)
 		slog.Info("Request", "Method", r.Method)
@@ -171,25 +171,20 @@ func collectionHandler(credential *azidentity.DefaultAzureCredential) http.Handl
 	}
 }
 
-func albumHandler(credential *azidentity.DefaultAzureCredential) http.HandlerFunc {
+func albumsHandler(credential *azidentity.DefaultAzureCredential) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		slog.Info("Request", "Body", r.Body)
 		slog.Info("Request", "Method", r.Method)
 		slog.Info("Raw Paths", "RawPath", r.URL.RawPath)
 		slog.Info("QueryString", "Query", r.URL.Query())
-
-		collection := r.URL.Query().Get("Collection")
+		
+		collection := r.PathValue("collection")
 		if collection == "" {
-			slog.Error("empty queryString", "name", "Collection")
+			slog.Error("empty queryString", "name", "collection")
 		}
 
-		album := r.URL.Query().Get("Album")
-		if album == "" {
-			slog.Error("empty queryString", "name", "Album")
-		}
-
-		// get photos with matching collection tags
-		query := fmt.Sprintf("@container='%s' and Collection='%s' and Album='%s' and IsCollectionImage='true'", imagesContainerName, collection, album)
+		// get album placeholder photos with matching tags
+		query := fmt.Sprintf("@container='%s' and Collection='%s' and IsAlbumImage='true'", imagesContainerName, collection)
 		filteredBlobs, err := queryBlobsByTags(credential, query)
 		if err != nil {
 			slog.Error("Error getting blobs by tags", "error", err)
@@ -279,5 +274,3 @@ func queryBlobsByTags(credential *azidentity.DefaultAzureCredential, query strin
 	}
 	return blobs, nil
 }
-
-
