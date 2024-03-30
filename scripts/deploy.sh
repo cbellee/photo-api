@@ -98,20 +98,20 @@ if [[ $skipBuild != 1 ]]; then
 fi
 
 az deployment group create \
---resource-group $RG_NAME \
---name 'infra-deployment' \
---template-file ../infra/main.bicep \
---parameters ../infra/main.parameters.json \
---parameters location=$LOCATION \
---parameters tag=$TAG \
---parameters acrName=$ACR_NAME \
---parameters uploadsContainerName=$UPLOADS_CONTAINER_NAME \
---parameters uploadsStorageQueueName=$UPLOADS_QUEUE_NAME \
---parameters imagesStorageQueueName=$IMAGES_QUEUE_NAME \
---parameters thumbsContainerName=$THUMBS_CONTAINER_NAME \
---parameters imagesContainerName=$IMAGES_CONTAINER_NAME \
---parameters maxThumbHeight=$MAX_THUMB_HEIGHT \
---parameters maxThumbWidth=$MAX_THUMB_WIDTH \
---parameters maxImageHeight=$MAX_IMAGE_HEIGHT \
---parameters maxImageWidth=$MAX_IMAGE_WIDTH \
---parameters grpcMaxRequestSizeMb=$GRPC_MAX_REQUEST_SIZE_MB
+	--resource-group $RG_NAME \
+	--name 'infra-deployment' \
+	--template-file ../infra/main.bicep \
+	--parameters ../infra/main.parameters.json \
+	--parameters location=$LOCATION \
+	--parameters tag=$TAG \
+	--parameters acrName=$ACR_NAME \
+	--parameters uploadsContainerName=$UPLOADS_CONTAINER_NAME \
+	--parameters uploadsStorageQueueName=$UPLOADS_QUEUE_NAME \
+	--parameters imagesStorageQueueName=$IMAGES_QUEUE_NAME \
+	--parameters thumbsContainerName=$THUMBS_CONTAINER_NAME \
+	--parameters imagesContainerName=$IMAGES_CONTAINER_NAME \
+	--parameters maxThumbHeight=$MAX_THUMB_HEIGHT \
+	--parameters maxThumbWidth=$MAX_THUMB_WIDTH \
+	--parameters maxImageHeight=$MAX_IMAGE_HEIGHT \
+	--parameters maxImageWidth=$MAX_IMAGE_WIDTH \
+	--parameters grpcMaxRequestSizeMb=$GRPC_MAX_REQUEST_SIZE_MB

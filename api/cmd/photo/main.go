@@ -45,7 +45,7 @@ func main() {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /collections", collectionsHandler(credential))
-	mux.HandleFunc("GET /collections/{collection}/albums", albumsHandler(credential))
+	mux.HandleFunc("GET /collections/{collection}/albums", collectionAlbums(credential))
 	mux.HandleFunc("GET /collections/{collection}/albums/{album}", albumPhotosHandler(credential))
 
 	slog.Info("server listening", "name", serviceName, "port", port)
@@ -171,7 +171,7 @@ func collectionsHandler(credential *azidentity.DefaultAzureCredential) http.Hand
 	}
 }
 
-func albumsHandler(credential *azidentity.DefaultAzureCredential) http.HandlerFunc {
+func collectionAlbums(credential *azidentity.DefaultAzureCredential) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		slog.Info("Request", "Body", r.Body)
 		slog.Info("Request", "Method", r.Method)
