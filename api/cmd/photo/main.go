@@ -44,9 +44,9 @@ func main() {
 	port := fmt.Sprintf(":%s", servicePort)
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("GET /collections/", collectionsHandler(credential))
-	mux.HandleFunc("GET /collections/{collection}/albums/", albumsHandler(credential))
-	mux.HandleFunc("GET /collections/{collection}/albums/{album}/", albumPhotosHandler(credential))
+	mux.HandleFunc("GET /collections", collectionsHandler(credential))
+	mux.HandleFunc("GET /collections/{collection}/albums", albumsHandler(credential))
+	mux.HandleFunc("GET /collections/{collection}/albums/{album}", albumPhotosHandler(credential))
 
 	slog.Info("server listening", "name", serviceName, "port", port)
 	http.ListenAndServe(port, mux)
