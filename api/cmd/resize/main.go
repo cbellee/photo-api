@@ -23,7 +23,6 @@ var (
 	storageConfig = models.StorageConfig{
 		StorageAccount:       utils.GetEnvValue("STORAGE_ACCOUNT_NAME", ""),
 		StorageContainer:     utils.GetEnvValue("STORAGE_CONTAINER_NAME", ""),
-		ThumbsContainerName:  utils.GetEnvValue("THUMBS_CONTAINER_NAME", "thumbs"),
 		UploadsContainerName: utils.GetEnvValue("THUMBS_CONTAINER_NAME", "uploads"),
 		ImagesContainerName:  utils.GetEnvValue("THUMBS_CONTAINER_NAME", "images"),
 		Suffix:               "blob.core.windows.net",
@@ -61,14 +60,6 @@ func main() {
 
 func ResizeHandler(ctx context.Context, in *common.BindingEvent) (out []byte, err error) {
 	// get env Vars
-	mth, err := strconv.Atoi(utils.GetEnvValue("MAX_THUMB_HEIGHT", "300"))
-	if err != nil {
-		slog.Error(err.Error())
-	}
-	mtw, err := strconv.Atoi(utils.GetEnvValue("MAX_THUMB_WIDTH", "300"))
-	if err != nil {
-		slog.Error(err.Error())
-	}
 	mih, err := strconv.Atoi(utils.GetEnvValue("MAX_IMAGE_HEIGHT", "1200"))
 	if err != nil {
 		slog.Error(err.Error())
@@ -117,6 +108,7 @@ func ResizeHandler(ctx context.Context, in *common.BindingEvent) (out []byte, er
 		return nil, err
 	}
 
+	// get tags
 	tags, err := utils.GetBlobTags(blobPath, container, storageConfig.StorageAccount, storageConfig.Suffix)
 	if err != nil {
 		slog.Error("error getting blob tags", "blob", blobPath, "error", err)
@@ -124,6 +116,7 @@ func ResizeHandler(ctx context.Context, in *common.BindingEvent) (out []byte, er
 	}
 	slog.Info("found blob tags", "blob_path", blobPath, "tags", tags)
 
+	// get metadata
 	metadata, err := utils.GetBlobMetadata(blobPath, container, storageConfig.StorageAccount, storageConfig.Suffix)
 	if err != nil {
 		slog.Error("error getting blob metadata", "blob", blobPath, "error", err)
@@ -131,47 +124,26 @@ func ResizeHandler(ctx context.Context, in *common.BindingEvent) (out []byte, er
 	}
 	slog.Info("found blob metadata", "blob_path", blobPath, "metadata", metadata)
 
-	slog.Info("blob to resize", "blob_path", blobPath, "original_size", fmt.Sprint(len(blobStream.Bytes())))
-	thumbBytes, err := utils.ResizeImage(blobStream.Bytes(), evt.Data.ContentType, blobPath, mth, mtw)
-	if err != nil {
-		slog.Error("error resizing image", "blob_path", blobPath, "error", err)
-		return nil, err
-	}
-
-	imgSize := len(thumbBytes)
-	slog.Info("resized blob", "blob_path", blobPath, "new_size", imgSize)
-
-	blobName, blobPrefix := utils.GetBlobNameAndPrefix(blobPath)
-
-	tags["IsThumb"] = "true"
-	tags["ThumbUrl"] = fmt.Sprintf("https://%s.%s/%s/%s", storageConfig.StorageAccount, storageConfig.Suffix, storageConfig.ThumbsContainerName, blobPath)
+	// add tags
+	blobName, _ := utils.GetBlobNameAndPrefix(blobPath)
 	tags["Url"] = fmt.Sprintf("https://%s.%s/%s/%s", storageConfig.StorageAccount, storageConfig.Suffix, storageConfig.ImagesContainerName, blobPath)
-	tags["Name"] = blobPrefix
+	//tags["Name"] = blobPrefix
+
 	slog.Info("added blob tags", "blob_name", blobName, "tags", tags)
-
-	// write thumbnail to blob storage
-
-	// add image size to existing tags
-	imgSizeStr := strconv.Itoa(imgSize)
-	metadata["Size"] = imgSizeStr
-
 	slog.Info("added blob metadata", "blob_name", blobName, "metadata", metadata)
 
-	err = utils.SaveBlobStreamWithTagsAndMetadata(ctx, thumbBytes, blobPath, storageConfig.ThumbsContainerName, storageConfig.StorageAccount, storageConfig.Suffix, tags, metadata)
-	if err != nil {
-		slog.Error("error saving blob", "blob_path", blobPath, "error", err)
-		return nil, err
-	}
-
-	// resize main image
+	// resize image
 	imgBytes, err := utils.ResizeImage(blobStream.Bytes(), evt.Data.ContentType, blobPath, mih, miw)
 	if err != nil {
 		slog.Error("error resizing image", "blob_path", blobPath, "error", err)
 		return nil, err
 	}
 
-	tags["IsThumb"] = "false"
+	imgSize := len(imgBytes)
+	imgSizeStr := strconv.Itoa(imgSize)
+	metadata["Size"] = imgSizeStr
 
+	// save resized image
 	err = utils.SaveBlobStreamWithTagsAndMetadata(ctx, imgBytes, blobPath, storageConfig.ImagesContainerName, storageConfig.StorageAccount, storageConfig.Suffix, tags, metadata)
 	if err != nil {
 		slog.Error("error saving blob", "blob_path", blobPath, "error", err)

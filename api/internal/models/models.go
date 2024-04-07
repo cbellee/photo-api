@@ -13,6 +13,13 @@ type StorageConfig struct {
 	Suffix               string
 }
 
+type MetaData struct {
+	Description string `json:"description"`
+	Name        string `json:"name"`
+	Collection  string `json:"collection"`
+	Album       string `json:"album`
+}
+
 type Blob struct {
 	Name     string
 	Path     string

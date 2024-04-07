@@ -1,6 +1,10 @@
 param location string
 param acrName string
 param tag string
+param staticWebAppName string
+param staticWebAppLocation string = 'eastasia'
+param domainName string = 'gallery.bellee.net'
+param repoUrl string = 'https://github.com/cbellee/photo-spa'
 
 param resizeApiName string
 param resizeApiPort string
@@ -471,7 +475,7 @@ module rbacBlobPermission 'modules/rbac.bicep' = {
   }
 }
  */
- 
+
 resource uploadsStorageQueueDaprComponent 'Microsoft.App/managedEnvironments/daprComponents@2022-06-01-preview' = {
   dependsOn: [
     containerAppEnvModule
@@ -622,5 +626,17 @@ resource imagesStorageDaprComponent 'Microsoft.App/managedEnvironments/daprCompo
   }
 }
 
+module staticWebApp 'modules/staticwebapp.bicep' = {
+  name: 'module-static-web-app'
+  params: {
+    containerAppName: staticWebAppName
+    domainName: domainName
+    location: staticWebAppLocation
+    repoUrl: repoUrl
+    name: 'photo-spa'
+  }
+}
+
 output resizeUrl string = resizeApi.properties.configuration.ingress.fqdn
 output storageAccount string = storModule.outputs.name
+output webAPpUrl string = staticWebApp.outputs.url
