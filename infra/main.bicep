@@ -1,7 +1,7 @@
 param location string
 param acrName string
 param tag string
-param staticWebAppName string
+param staticWebAppName string = 'photo-spa'
 param staticWebAppLocation string = 'eastasia'
 param domainName string = 'gallery.bellee.net'
 param repoUrl string = 'https://github.com/cbellee/photo-spa'
