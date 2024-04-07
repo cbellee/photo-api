@@ -105,7 +105,7 @@ func GetEnvValue(key, fallback string) string {
 	return fallback
 }
 
-func GetBlobDirectories(containerClient *container.Client, ctx context.Context, opt container.ListBlobsHierarchyOptions, m map[string][]string) map[string][]string {
+func GetBlobDirectories(credential *azidentity.DefaultAzureCredential, containerClient *container.Client, ctx context.Context, opt container.ListBlobsHierarchyOptions, m map[string][]string) map[string][]string {
 	pager := containerClient.NewListBlobsHierarchyPager("/", &opt)
 
 	for pager.More() {
@@ -125,21 +125,15 @@ func GetBlobDirectories(containerClient *container.Client, ctx context.Context, 
 				opt := container.ListBlobsHierarchyOptions{
 					Prefix: prefix.Name,
 				}
-				GetBlobDirectories(containerClient, ctx, opt, m)
+				GetBlobDirectories(credential, containerClient, ctx, opt, m)
 			}
 		}
 	}
 	return m
 }
 
-func GetBlobTags(blobPath string, container string, storageAccount string, storageAccountSuffix string) (tags map[string]string, err error) {
+func GetBlobTags(credential *azidentity.DefaultAzureCredential, blobPath string, container string, storageAccount string, storageAccountSuffix string) (tags map[string]string, err error) {
 	ctx := context.Background()
-
-	credential, err := azidentity.NewDefaultAzureCredential(nil)
-	if err != nil {
-		slog.Error("invalid credentials", "error", err)
-		return nil, err
-	}
 
 	// check blob exists by trying to get blob properties
 	storageUrl := fmt.Sprintf("https://%s.%s", storageAccount, storageAccountSuffix)
@@ -173,14 +167,8 @@ func GetBlobTags(blobPath string, container string, storageAccount string, stora
 	return tags, nil
 }
 
-func GetBlobMetadata(blobPath string, container string, storageAccount string, storageAccountSuffix string) (metadata map[string]string, err error) {
+func GetBlobMetadata(credential *azidentity.DefaultAzureCredential, blobPath string, container string, storageAccount string, storageAccountSuffix string) (metadata map[string]string, err error) {
 	ctx := context.Background()
-
-	credential, err := azidentity.NewDefaultAzureCredential(nil)
-	if err != nil {
-		slog.Error("invalid credentials", "error", err)
-		return nil, err
-	}
 
 	// check blob exists by trying to get blob properties
 	storageUrl := fmt.Sprintf("https://%s.%s", storageAccount, storageAccountSuffix)
@@ -257,42 +245,8 @@ func GetBlobTagList(blobClient *azblob.Client, containerName string, ctx context
 	return blobTagMap
 }
 
-/* func GetBlobMetadata(blobClient *azblob.Client, containerName string, ctx context.Context) map[string][]string {
-	pager := blobClient.NewListBlobsFlatPager(containerName, &azblob.ListBlobsFlatOptions{
-		Include: container.ListBlobsInclude{
-			Deleted:  false,
-			Versions: false,
-			Metadata: true,
-			Tags:     true,
-		},
-	})
-
-	metadataMap := make(map[string][]string)
-
-	for pager.More() {
-		resp, err := pager.NextPage(ctx)
-		if err != nil {
-			slog.Error("error while listing blobs", "error", err)
-			break
-		}
-
-		for _, _blob := range resp.Segment.BlobItems {
-			if !Contains(metadataMap[*_blob.Metadata["collection"]], *_blob.Metadata["album"]) {
-				metadataMap[*_blob.Metadata["collection"]] = append(metadataMap[*_blob.Metadata["collection"]], *_blob.Metadata["album"])
-			}
-		}
-	}
-	return metadataMap
-} */
-
-func GetBlobStream(ctx context.Context, blobPath string, container string, storageAccount string, storageAccountSuffix string) (bytes.Buffer, error) {
+func GetBlobStream(credential *azidentity.DefaultAzureCredential, ctx context.Context, blobPath string, container string, storageAccount string, storageAccountSuffix string) (bytes.Buffer, error) {
 	buffer := bytes.Buffer{}
-
-	credential, err := azidentity.NewDefaultAzureCredential(nil)
-	if err != nil {
-		slog.Error("invalid credentials", "error", err)
-		return buffer, err
-	}
 
 	// check blob exists by trying to get blob properties
 	storageUrl := fmt.Sprintf("https://%s.%s", storageAccount, storageAccountSuffix)
@@ -332,13 +286,8 @@ func GetBlobStream(ctx context.Context, blobPath string, container string, stora
 	return buffer, nil
 }
 
-func SaveBlobStreamWithTagsAndMetadata(ctx context.Context, blobBytes []byte, blobPath string, container string, storageAccount string, storageAccountSuffix string, tags map[string]string, metadata map[string]string) (err error) {
-	credential, err := azidentity.NewDefaultAzureCredential(nil)
-	if err != nil {
-		slog.Error("invalid credentials", "error", err)
-		return err
-	}
-
+func SaveBlobStreamWithTagsAndMetadata(credential *azidentity.DefaultAzureCredential, ctx context.Context, blobBytes []byte, blobPath string, container string, storageAccount string, storageAccountSuffix string, tags map[string]string, metadata map[string]string) (err error) {
+	
 	storageUrl := fmt.Sprintf("https://%s.%s", storageAccount, storageAccountSuffix)
 	blobUrl := fmt.Sprintf("%s/%s/%s", storageUrl, container, blobPath)
 	blockBlob, err := blockblob.NewClient(blobUrl, credential, nil)

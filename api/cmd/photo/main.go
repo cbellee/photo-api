@@ -20,10 +20,10 @@ import (
 
 // vars
 var (
-	serviceName         = utils.GetEnvValue("SERVICE_NAME", "photoService")
-	servicePort         = utils.GetEnvValue("SERVICE_PORT", "8080")
+	serviceName          = utils.GetEnvValue("SERVICE_NAME", "photoService")
+	servicePort          = utils.GetEnvValue("SERVICE_PORT", "8080")
 	uploadsContainerName = "uploads"
-	storageConfig       = models.StorageConfig{
+	storageConfig        = models.StorageConfig{
 		StorageAccount: utils.GetEnvValue("STORAGE_ACCOUNT_NAME", "storqra2f23aqljtm"),
 		Suffix:         "blob.core.windows.net",
 	}
@@ -172,6 +172,7 @@ func uploadPhotoHandler(credential *azidentity.DefaultAzureCredential) http.Hand
 			}
 
 			utils.SaveBlobStreamWithTagsAndMetadata(
+				credential,
 				ctx,
 				buf.Bytes(),
 				fileNameWithPrefix,
@@ -186,10 +187,10 @@ func uploadPhotoHandler(credential *azidentity.DefaultAzureCredential) http.Hand
 
 func collectionsHandler(credential *azidentity.DefaultAzureCredential) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		slog.Info("Request", "Body", r.Body)
+/* 		slog.Info("Request", "Body", r.Body)
 		slog.Info("Request", "Method", r.Method)
 		slog.Info("Raw Paths", "RawPath", r.URL.RawPath)
-		slog.Info("QueryString", "Query", r.URL.Query())
+		slog.Info("QueryString", "Query", r.URL.Query()) */
 
 		// get photos with matching collection tags
 		query := fmt.Sprintf("@container='%s' and IsCollectionImage='true'", uploadsContainerName)
@@ -217,7 +218,7 @@ func collectionsHandler(credential *azidentity.DefaultAzureCredential) http.Hand
 				slog.Error("error converting string 'ratio' to float", "error", err)
 			}
 
-			tags, err := utils.GetBlobTags(r.Name, uploadsContainerName, storageConfig.StorageAccount, storageConfig.Suffix)
+			tags, err := utils.GetBlobTags(credential, r.Name, uploadsContainerName, storageConfig.StorageAccount, storageConfig.Suffix)
 			if err != nil {
 				slog.Error("error getting blob tagd", "error", err, "blobpath", r.Path)
 			}
@@ -243,10 +244,10 @@ func collectionsHandler(credential *azidentity.DefaultAzureCredential) http.Hand
 
 func collectionAlbums(credential *azidentity.DefaultAzureCredential) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		slog.Info("Request", "Body", r.Body)
+/* 		slog.Info("Request", "Body", r.Body)
 		slog.Info("Request", "Method", r.Method)
 		slog.Info("Raw Paths", "RawPath", r.URL.RawPath)
-		slog.Info("QueryString", "Query", r.URL.Query())
+		slog.Info("QueryString", "Query", r.URL.Query()) */
 
 		collection := r.PathValue("collection")
 		if collection == "" {
@@ -279,7 +280,7 @@ func collectionAlbums(credential *azidentity.DefaultAzureCredential) http.Handle
 				slog.Error("error converting string 'ratio' to float", "error", err)
 			}
 
-			tags, err := utils.GetBlobTags(r.Name, uploadsContainerName, storageConfig.StorageAccount, storageConfig.Suffix)
+			tags, err := utils.GetBlobTags(credential, r.Name, uploadsContainerName, storageConfig.StorageAccount, storageConfig.Suffix)
 			if err != nil {
 				slog.Error("error getting blob tagd", "error", err, "blobpath", r.Path)
 			}
@@ -328,7 +329,7 @@ func queryBlobsByTags(credential *azidentity.DefaultAzureCredential, query strin
 			t[*tag.Key] = *tag.Value
 		}
 
-		md, err := utils.GetBlobMetadata(*_blob.Name, *_blob.ContainerName, storageConfig.StorageAccount, storageConfig.Suffix)
+		md, err := utils.GetBlobMetadata(credential, *_blob.Name, *_blob.ContainerName, storageConfig.StorageAccount, storageConfig.Suffix)
 		if err != nil {
 			slog.Error("error getting metadata", "blobPath", blobPath, "error", err)
 		}

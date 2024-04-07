@@ -11,6 +11,7 @@ import (
 	"strings"
 	"utils"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/dapr/go-sdk/service/common"
 	daprd "github.com/dapr/go-sdk/service/grpc"
 )
@@ -59,6 +60,12 @@ func main() {
 }
 
 func ResizeHandler(ctx context.Context, in *common.BindingEvent) (out []byte, err error) {
+	credential, err := azidentity.NewDefaultAzureCredential(nil)
+	if err != nil {
+		slog.Error("invalid credentials", "error", err)
+		return
+	}
+
 	// get env Vars
 	mih, err := strconv.Atoi(utils.GetEnvValue("MAX_IMAGE_HEIGHT", "1200"))
 	if err != nil {
@@ -102,14 +109,14 @@ func ResizeHandler(ctx context.Context, in *common.BindingEvent) (out []byte, er
 
 	slog.Info("tag data", "container", container, "blob_path", blobPath, "Album", album, "Collection", collection)
 
-	blobStream, err := utils.GetBlobStream(ctx, blobPath, container, storageConfig.StorageAccount, storageConfig.Suffix)
+	blobStream, err := utils.GetBlobStream(credential, ctx, blobPath, container, storageConfig.StorageAccount, storageConfig.Suffix)
 	if err != nil {
 		slog.Error("error getting blob stream", "blob", blobPath, "error", err)
 		return nil, err
 	}
 
 	// get tags
-	tags, err := utils.GetBlobTags(blobPath, container, storageConfig.StorageAccount, storageConfig.Suffix)
+	tags, err := utils.GetBlobTags(credential, blobPath, container, storageConfig.StorageAccount, storageConfig.Suffix)
 	if err != nil {
 		slog.Error("error getting blob tags", "blob", blobPath, "error", err)
 		return nil, err
@@ -117,7 +124,7 @@ func ResizeHandler(ctx context.Context, in *common.BindingEvent) (out []byte, er
 	slog.Info("found blob tags", "blob_path", blobPath, "tags", tags)
 
 	// get metadata
-	metadata, err := utils.GetBlobMetadata(blobPath, container, storageConfig.StorageAccount, storageConfig.Suffix)
+	metadata, err := utils.GetBlobMetadata(credential, blobPath, container, storageConfig.StorageAccount, storageConfig.Suffix)
 	if err != nil {
 		slog.Error("error getting blob metadata", "blob", blobPath, "error", err)
 		return nil, err
@@ -144,7 +151,7 @@ func ResizeHandler(ctx context.Context, in *common.BindingEvent) (out []byte, er
 	metadata["Size"] = imgSizeStr
 
 	// save resized image
-	err = utils.SaveBlobStreamWithTagsAndMetadata(ctx, imgBytes, blobPath, storageConfig.ImagesContainerName, storageConfig.StorageAccount, storageConfig.Suffix, tags, metadata)
+	err = utils.SaveBlobStreamWithTagsAndMetadata(credential, ctx, imgBytes, blobPath, storageConfig.ImagesContainerName, storageConfig.StorageAccount, storageConfig.Suffix, tags, metadata)
 	if err != nil {
 		slog.Error("error saving blob", "blob_path", blobPath, "error", err)
 		return nil, err
