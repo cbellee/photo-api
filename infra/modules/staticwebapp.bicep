@@ -2,14 +2,17 @@ param location string
 param repoUrl string
 param domainName string
 param containerAppName string = 'photo'
-param name string = 'photo-spa'
+param name string = 'spa'
+
+var suffix = uniqueString(resourceGroup().id)
+var spaName = '${name}-${suffix}'
 
 resource containerApp 'Microsoft.App/containerApps@2023-11-02-preview' existing = {
   name: containerAppName
 }
 
 resource spa 'Microsoft.Web/staticSites@2023-01-01' = {
-  name: name
+  name: spaName
   location: location
   sku: {
     name: 'Standard'
@@ -36,12 +39,11 @@ resource spa_default 'Microsoft.Web/staticSites/basicAuth@2023-01-01' = {
 resource spa_domainName 'Microsoft.Web/staticSites/customDomains@2023-01-01' = {
   parent: spa
   name: domainName
-  properties: {}
 }
 
 resource spa_backend 'Microsoft.Web/staticSites/linkedBackends@2023-01-01' = {
   parent: spa
-  name: 'api-backend'
+  name: 'photo-api-backend'
   properties: {
     backendResourceId: containerApp.id
   }

@@ -1,10 +1,10 @@
 param location string
 param acrName string
 param tag string
-param staticWebAppName string = 'photo-spa'
 param staticWebAppLocation string = 'eastasia'
 param domainName string = 'gallery.bellee.net'
 param repoUrl string = 'https://github.com/cbellee/photo-spa'
+param dnsZoneResourceGroupName string = 'external-dns-zones-rg'
 
 param resizeApiName string
 param resizeApiPort string
@@ -626,15 +626,28 @@ resource imagesStorageDaprComponent 'Microsoft.App/managedEnvironments/daprCompo
   }
 }
 
+module cname 'modules/dns.bicep' = {
+  name: 'cname-module'
+  scope: resourceGroup(dnsZoneResourceGroupName)
+  params: {
+    containerAppFqdn: photoApi.properties.configuration.ingress.fqdn
+    domainName: 'bellee.net'
+    subdomainName: 'gallery'
+  }
+}
+
 module staticWebApp 'modules/staticwebapp.bicep' = {
   name: 'module-static-web-app'
   params: {
-    containerAppName: staticWebAppName
+    containerAppName: photoApiName
     domainName: domainName
     location: staticWebAppLocation
     repoUrl: repoUrl
     name: 'photo-spa'
   }
+  dependsOn: [
+    cname
+  ]
 }
 
 output resizeUrl string = resizeApi.properties.configuration.ingress.fqdn
