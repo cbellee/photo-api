@@ -289,7 +289,6 @@ func GetBlobStream(credential *azidentity.DefaultAzureCredential, ctx context.Co
 	}
 
 	slog.Info("blob stream", "blob_url", blobUrl, "bytes_read", bytesRead)
-	//return buffer.Bytes(), nil
 	return buffer, nil
 }
 
@@ -300,6 +299,7 @@ func SaveBlobStreamWithTagsAndMetadata(credential *azidentity.DefaultAzureCreden
 	blockBlob, err := blockblob.NewClient(blobUrl, credential, nil)
 	if err != nil {
 		slog.Error("error creating block blob client", "blob_url", blobUrl, "error", err)
+		return err
 	}
 
 	md := make(map[string]*string)
@@ -327,10 +327,10 @@ func GetBlobNameAndPrefix(blobPath string) (string, string) {
 	slog.Info("blob_split", "split", blobSplit)
 
 	blobName := blobSplit[len(blobSplit)-1]
-	slog.Info("blob_name", blobName)
+	slog.Info("blob_name", "name", blobName)
 
 	blobPrefix := fmt.Sprintf("%s/%s/%s", blobSplit[len(blobSplit)-3], blobSplit[len(blobSplit)-2], blobSplit[len(blobSplit)-1])
-	slog.Info("blob_prefix", blobPrefix)
+	slog.Info("blob_prefix", "prefix", blobPrefix)
 	return blobName, blobPrefix
 }
 
