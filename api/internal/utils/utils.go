@@ -25,24 +25,31 @@ import (
 	"golang.org/x/image/draw"
 )
 
-func ResizeImage(imgBytes []byte, imageFormat string, blobName string, maxHeight int, maxWidth int) (img []byte, err error) {
+func ResizeImage(imgBytes []byte, imageFormat string, blobName string, maxHeight int, maxWidth int) (img []byte, h int, w int, err error) {
 	var dst *image.RGBA
 	var buf = new(bytes.Buffer)
 
 	src, _, err := image.Decode(bytes.NewReader(imgBytes))
 	if err != nil {
-		return buf.Bytes(), err
+		return buf.Bytes(), 0, 0, err
 	}
 
 	height := src.Bounds().Dy()
 	width := src.Bounds().Dx()
 
+	var outWidth = 0
+	var outHeight = 0
+
 	if height > width { // if height > width, then the image is portrait so resize height to maxHeight
 		newWidth := maxHeight * width / height
+		outWidth = newWidth
+		outHeight = height
 		dst = image.NewRGBA((image.Rect(0, 0, newWidth, maxHeight)))
 		slog.Info("resizing image", "name", blobName, "original_height", height, "original_width", width, "new_height", maxHeight, "new_width", newWidth)
 	} else { // if height <= width, then the image is landscape or square so resize width to maxWidth
 		newHeight := maxWidth * height / width
+		outWidth = newHeight
+		outHeight = width
 		dst = image.NewRGBA((image.Rect(0, 0, maxWidth, newHeight)))
 		slog.Info("resizing image", "name", blobName, "original_height", height, "original_width", width, "new_height", newHeight, "new_width", maxWidth)
 	}
@@ -56,7 +63,7 @@ func ResizeImage(imgBytes []byte, imageFormat string, blobName string, maxHeight
 		err := jpeg.Encode(buf, dst, nil)
 		if err != nil {
 			slog.Error("error encoding jpeg", "name", blobName, "error", err)
-			return nil, err
+			return nil, 0, 0, err
 		}
 	case "image/png":
 		slog.Info("encoding jpeg", "name", blobName, "format", imageFormat)
@@ -65,7 +72,7 @@ func ResizeImage(imgBytes []byte, imageFormat string, blobName string, maxHeight
 		err := png.Encode(buf, dst)
 		if err != nil {
 			slog.Error("error encoding png", "name", blobName, "error", err)
-			return nil, err
+			return nil, 0, 0, err
 		}
 	case "image/gif":
 		slog.Info("encoding jpeg", "name", blobName, "format", imageFormat)
@@ -74,10 +81,10 @@ func ResizeImage(imgBytes []byte, imageFormat string, blobName string, maxHeight
 		err := gif.Encode(buf, dst, nil)
 		if err != nil {
 			slog.Error("error encoding gif", "name", blobName, "error", err)
-			return nil, err
+			return nil, 0, 0, err
 		}
 	}
-	return buf.Bytes(), nil
+	return buf.Bytes(), outHeight, outWidth, err
 }
 
 func ConvertToEvent(b *common.BindingEvent) (models.Event, error) {
@@ -287,7 +294,7 @@ func GetBlobStream(credential *azidentity.DefaultAzureCredential, ctx context.Co
 }
 
 func SaveBlobStreamWithTagsAndMetadata(credential *azidentity.DefaultAzureCredential, ctx context.Context, blobBytes []byte, blobPath string, container string, storageAccount string, storageAccountSuffix string, tags map[string]string, metadata map[string]string) (err error) {
-	
+
 	storageUrl := fmt.Sprintf("https://%s.%s", storageAccount, storageAccountSuffix)
 	blobUrl := fmt.Sprintf("%s/%s/%s", storageUrl, container, blobPath)
 	blockBlob, err := blockblob.NewClient(blobUrl, credential, nil)

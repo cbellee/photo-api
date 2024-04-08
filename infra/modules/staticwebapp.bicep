@@ -1,7 +1,7 @@
 param location string
 param repoUrl string
 param domainName string
-param containerAppName string = 'photo'
+param containerAppName string
 param name string = 'spa'
 
 var suffix = uniqueString(resourceGroup().id)

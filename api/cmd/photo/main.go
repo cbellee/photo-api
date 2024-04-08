@@ -6,7 +6,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"image"
 	"io"
+	"log"
 	"log/slog"
 	"models"
 	"net/http"
@@ -23,6 +25,7 @@ var (
 	serviceName          = utils.GetEnvValue("SERVICE_NAME", "photoService")
 	servicePort          = utils.GetEnvValue("SERVICE_PORT", "8080")
 	uploadsContainerName = "uploads"
+	imagesContainerName  = "images"
 	storageConfig        = models.StorageConfig{
 		StorageAccount: utils.GetEnvValue("STORAGE_ACCOUNT_NAME", "storqra2f23aqljtm"),
 		Suffix:         "blob.core.windows.net",
@@ -61,10 +64,7 @@ func enableCors(w *http.ResponseWriter) {
 
 func albumPhotosHandler(credential *azidentity.DefaultAzureCredential) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		slog.Info("Request", "Body", r.Body)
-		slog.Info("Request", "Method", r.Method)
-		slog.Info("Raw Paths", "RawPath", r.URL.RawPath)
-		slog.Info("QueryString", "Query", r.URL.Query())
+		enableCors(&w)
 
 		collection := r.PathValue("collection")
 		if collection == "" {
@@ -77,7 +77,7 @@ func albumPhotosHandler(credential *azidentity.DefaultAzureCredential) http.Hand
 		}
 
 		// get photos with matching collection & album tags
-		query := fmt.Sprintf("@container='%s' and Collection='%s' and Album='%s'", uploadsContainerName, collection, album)
+		query := fmt.Sprintf("@container='%s' and Collection='%s' and Album='%s'", imagesContainerName, collection, album)
 		filteredBlobs, err := queryBlobsByTags(credential, query)
 		if err != nil {
 			slog.Error("Error getting blobs by tags", "error", err)
@@ -97,17 +97,11 @@ func albumPhotosHandler(credential *azidentity.DefaultAzureCredential) http.Hand
 				slog.Error("error converting string 'height' to int", "error", err)
 			}
 
-			ratio, err := strconv.ParseFloat(r.MetaData["Ratio"], 32)
-			if err != nil {
-				slog.Error("error converting string 'ratio' to float", "error", err)
-			}
-
 			photo := models.Photo{
 				Src:        r.Path,
 				Name:       r.Name,
 				Width:      int32(width),
 				Height:     int32(height),
-				Ratio:      float32(ratio),
 				Album:      r.Tags["Album"],
 				Collection: r.Tags["Collection"],
 			}
@@ -148,12 +142,13 @@ func uploadPhotoHandler(credential *azidentity.DefaultAzureCredential) http.Hand
 		if err != nil {
 			slog.Error("error marshalling json", "error", err)
 		}
+
 		slog.Info("json data", "data", md)
 
 		for i := 0; i < len(r.MultipartForm.File["files"]); i++ {
 			f := r.MultipartForm.File["files"][i]
 
-			fileNameWithPrefix := fmt.Sprintf("%s/%s/%s", "trips", "perth", f.Filename)
+			fileNameWithPrefix := fmt.Sprintf("%s/%s/%s", collection, album, f.Filename)
 
 			tags := make(map[string]string)
 			tags["Name"] = fileNameWithPrefix
@@ -171,6 +166,16 @@ func uploadPhotoHandler(credential *azidentity.DefaultAzureCredential) http.Hand
 				slog.Error("error copying to buffer", "filename", f.Filename, "error", err)
 			}
 
+			img, _, err := image.DecodeConfig(bytes.NewReader(buf.Bytes()))
+			if err != nil {
+				log.Fatalln(err)
+			}
+
+			metadata := make(map[string]string)
+			metadata["Height"] = fmt.Sprint(img.Height)
+			metadata["Width"] = fmt.Sprint(img.Width)
+			metadata["Size"] = strconv.Itoa(int(f.Size))
+
 			utils.SaveBlobStreamWithTagsAndMetadata(
 				credential,
 				ctx,
@@ -180,20 +185,17 @@ func uploadPhotoHandler(credential *azidentity.DefaultAzureCredential) http.Hand
 				storageConfig.StorageAccount,
 				storageConfig.Suffix,
 				tags,
-				nil)
+				metadata)
 		}
 	}
 }
 
 func collectionsHandler(credential *azidentity.DefaultAzureCredential) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-/* 		slog.Info("Request", "Body", r.Body)
-		slog.Info("Request", "Method", r.Method)
-		slog.Info("Raw Paths", "RawPath", r.URL.RawPath)
-		slog.Info("QueryString", "Query", r.URL.Query()) */
+		enableCors(&w)
 
 		// get photos with matching collection tags
-		query := fmt.Sprintf("@container='%s' and IsCollectionImage='true'", uploadsContainerName)
+		query := fmt.Sprintf("@container='%s' and IsCollectionImage='true'", imagesContainerName)
 		filteredBlobs, err := queryBlobsByTags(credential, query)
 		if err != nil {
 			slog.Error("Error getting blobs by tags", "error", err)
@@ -213,12 +215,7 @@ func collectionsHandler(credential *azidentity.DefaultAzureCredential) http.Hand
 				slog.Error("error converting string 'height' to int", "error", err)
 			}
 
-			ratio, err := strconv.ParseFloat(r.MetaData["Ratio"], 32)
-			if err != nil {
-				slog.Error("error converting string 'ratio' to float", "error", err)
-			}
-
-			tags, err := utils.GetBlobTags(credential, r.Name, uploadsContainerName, storageConfig.StorageAccount, storageConfig.Suffix)
+			tags, err := utils.GetBlobTags(credential, r.Name, imagesContainerName, storageConfig.StorageAccount, storageConfig.Suffix)
 			if err != nil {
 				slog.Error("error getting blob tagd", "error", err, "blobpath", r.Path)
 			}
@@ -228,7 +225,6 @@ func collectionsHandler(credential *azidentity.DefaultAzureCredential) http.Hand
 				Name:       r.Name,
 				Width:      int32(width),
 				Height:     int32(height),
-				Ratio:      float32(ratio),
 				Album:      tags["Album"],
 				Collection: tags["Collection"],
 			}
@@ -244,10 +240,7 @@ func collectionsHandler(credential *azidentity.DefaultAzureCredential) http.Hand
 
 func collectionAlbums(credential *azidentity.DefaultAzureCredential) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-/* 		slog.Info("Request", "Body", r.Body)
-		slog.Info("Request", "Method", r.Method)
-		slog.Info("Raw Paths", "RawPath", r.URL.RawPath)
-		slog.Info("QueryString", "Query", r.URL.Query()) */
+		enableCors(&w)
 
 		collection := r.PathValue("collection")
 		if collection == "" {
@@ -255,7 +248,7 @@ func collectionAlbums(credential *azidentity.DefaultAzureCredential) http.Handle
 		}
 
 		// get album placeholder photos with matching tags
-		query := fmt.Sprintf("@container='%s' and Collection='%s' and IsAlbumImage='true'", uploadsContainerName, collection)
+		query := fmt.Sprintf("@container='%s' and Collection='%s' and IsAlbumImage='true'", imagesContainerName, collection)
 		filteredBlobs, err := queryBlobsByTags(credential, query)
 		if err != nil {
 			slog.Error("Error getting blobs by tags", "error", err)
@@ -275,12 +268,7 @@ func collectionAlbums(credential *azidentity.DefaultAzureCredential) http.Handle
 				slog.Error("error converting string 'height' to int", "error", err)
 			}
 
-			ratio, err := strconv.ParseFloat(r.MetaData["Ratio"], 32)
-			if err != nil {
-				slog.Error("error converting string 'ratio' to float", "error", err)
-			}
-
-			tags, err := utils.GetBlobTags(credential, r.Name, uploadsContainerName, storageConfig.StorageAccount, storageConfig.Suffix)
+			tags, err := utils.GetBlobTags(credential, r.Name, imagesContainerName, storageConfig.StorageAccount, storageConfig.Suffix)
 			if err != nil {
 				slog.Error("error getting blob tagd", "error", err, "blobpath", r.Path)
 			}
@@ -290,7 +278,6 @@ func collectionAlbums(credential *azidentity.DefaultAzureCredential) http.Handle
 				Name:       r.Name,
 				Width:      int32(width),
 				Height:     int32(height),
-				Ratio:      float32(ratio),
 				Album:      tags["Album"],
 				Collection: tags["Collection"],
 			}
@@ -321,7 +308,7 @@ func queryBlobsByTags(credential *azidentity.DefaultAzureCredential, query strin
 	}
 
 	for _, _blob := range resp.Blobs {
-		blobPath := fmt.Sprintf("https://%s.%s/%s/%s", storageConfig.StorageAccount, storageConfig.Suffix, uploadsContainerName, *_blob.Name)
+		blobPath := fmt.Sprintf("https://%s.%s/%s/%s", storageConfig.StorageAccount, storageConfig.Suffix, imagesContainerName, *_blob.Name)
 		slog.Info("blobPath", "path", blobPath)
 
 		t := make(map[string]string)
@@ -336,7 +323,7 @@ func queryBlobsByTags(credential *azidentity.DefaultAzureCredential, query strin
 
 		b := models.Blob{
 			Name:     *_blob.Name,
-			Path:     fmt.Sprintf("https://%s.%s/%s/%s", storageConfig.StorageAccount, storageConfig.Suffix, uploadsContainerName, *_blob.Name),
+			Path:     fmt.Sprintf("https://%s.%s/%s/%s", storageConfig.StorageAccount, storageConfig.Suffix, imagesContainerName, *_blob.Name),
 			Tags:     t,
 			MetaData: md,
 		}

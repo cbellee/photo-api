@@ -11,6 +11,8 @@ RG_NAME="go-photo-rg"
 SEMVER='0.1.0'
 REV=$(git rev-parse --short HEAD)
 TAG="$SEMVER-$REV"
+DOMAIN_NAME='bellee.net'
+SUBDOMAIN_NAME='gallery'
 
 DOMAIN_NAME="kainiindustries.net"
 PHOTO_APP_ID="api://a845082b-e22d-49a8-8abb-e8484609abd7"
@@ -114,4 +116,6 @@ az deployment group create \
 	--parameters maxThumbWidth=$MAX_THUMB_WIDTH \
 	--parameters maxImageHeight=$MAX_IMAGE_HEIGHT \
 	--parameters maxImageWidth=$MAX_IMAGE_WIDTH \
-	--parameters grpcMaxRequestSizeMb=$GRPC_MAX_REQUEST_SIZE_MB
+	--parameters grpcMaxRequestSizeMb=$GRPC_MAX_REQUEST_SIZE_MB \
+	--parameters domainName=$DOMAIN_NAME \
+	--parameters subDomainName=$SUBDOMAIN_NAME

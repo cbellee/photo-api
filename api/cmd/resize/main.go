@@ -131,24 +131,27 @@ func ResizeHandler(ctx context.Context, in *common.BindingEvent) (out []byte, er
 	}
 	slog.Info("found blob metadata", "blob_path", blobPath, "metadata", metadata)
 
-	// add tags
-	blobName, _ := utils.GetBlobNameAndPrefix(blobPath)
-	tags["Url"] = fmt.Sprintf("https://%s.%s/%s/%s", storageConfig.StorageAccount, storageConfig.Suffix, storageConfig.ImagesContainerName, blobPath)
-	//tags["Name"] = blobPrefix
-
-	slog.Info("added blob tags", "blob_name", blobName, "tags", tags)
-	slog.Info("added blob metadata", "blob_name", blobName, "metadata", metadata)
-
 	// resize image
-	imgBytes, err := utils.ResizeImage(blobStream.Bytes(), evt.Data.ContentType, blobPath, mih, miw)
+	imgBytes, height, width, err := utils.ResizeImage(blobStream.Bytes(), evt.Data.ContentType, blobPath, mih, miw)
 	if err != nil {
 		slog.Error("error resizing image", "blob_path", blobPath, "error", err)
 		return nil, err
 	}
 
+	// add metadata
 	imgSize := len(imgBytes)
 	imgSizeStr := strconv.Itoa(imgSize)
 	metadata["Size"] = imgSizeStr
+	metadata["Height"] = fmt.Sprint(height)
+	metadata["Width"] = fmt.Sprint(width)
+
+	blobName, _ := utils.GetBlobNameAndPrefix(blobPath)
+	slog.Info("added blob metadata", "blob_name", blobName, "metadata", metadata)
+
+	// add tags
+	tags["Url"] = fmt.Sprintf("https://%s.%s/%s/%s", storageConfig.StorageAccount, storageConfig.Suffix, storageConfig.ImagesContainerName, blobPath)
+
+	slog.Info("added blob tags", "blob_name", blobName, "tags", tags)
 
 	// save resized image
 	err = utils.SaveBlobStreamWithTagsAndMetadata(credential, ctx, imgBytes, blobPath, storageConfig.ImagesContainerName, storageConfig.StorageAccount, storageConfig.Suffix, tags, metadata)

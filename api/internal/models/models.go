@@ -32,7 +32,6 @@ type Photo struct {
 	Name        string    `json:"name"`
 	Width       int32     `json:"width"`
 	Height      int32     `json:"height"`
-	Ratio       float32   `json:"ratio"`
 	Album       string    `json:"album"`
 	Collection  string    `json:"collection"`
 	Description string    `json:"description"`

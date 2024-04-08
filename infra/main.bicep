@@ -2,7 +2,8 @@ param location string
 param acrName string
 param tag string
 param staticWebAppLocation string = 'eastasia'
-param domainName string = 'gallery.bellee.net'
+param domainName string
+param subDomainName string
 param repoUrl string = 'https://github.com/cbellee/photo-spa'
 param dnsZoneResourceGroupName string = 'external-dns-zones-rg'
 
@@ -631,8 +632,8 @@ module cname 'modules/dns.bicep' = {
   scope: resourceGroup(dnsZoneResourceGroupName)
   params: {
     containerAppFqdn: photoApi.properties.configuration.ingress.fqdn
-    domainName: 'bellee.net'
-    subdomainName: 'gallery'
+    domainName: domainName
+    subdomainName: subDomainName
   }
 }
 
@@ -640,7 +641,7 @@ module staticWebApp 'modules/staticwebapp.bicep' = {
   name: 'module-static-web-app'
   params: {
     containerAppName: photoApiName
-    domainName: domainName
+    domainName: '${subDomainName}.${domainName}'
     location: staticWebAppLocation
     repoUrl: repoUrl
     name: 'photo-spa'
