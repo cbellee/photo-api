@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"image"
-	"io"
 	"log"
 	"log/slog"
 	"models"
