@@ -36,10 +36,11 @@ resource spa_default 'Microsoft.Web/staticSites/basicAuth@2023-01-01' = {
   }
 }
 
+/* this dpesn't seem to work ATM...
 resource spa_domainName 'Microsoft.Web/staticSites/customDomains@2023-01-01' = {
   parent: spa
   name: domainName
-}
+} */
 
 resource spa_backend 'Microsoft.Web/staticSites/linkedBackends@2023-01-01' = {
   parent: spa

@@ -147,7 +147,6 @@ func uploadPhotoHandler(credential *azidentity.DefaultAzureCredential) http.Hand
 
 		for i := 0; i < len(r.MultipartForm.File["files"]); i++ {
 			f := r.MultipartForm.File["files"][i]
-
 			fileNameWithPrefix := fmt.Sprintf("%s/%s/%s", collection, album, f.Filename)
 
 			tags := make(map[string]string)

@@ -13,6 +13,7 @@ import (
 	"log/slog"
 	"math"
 	"models"
+	"net/http"
 	"os"
 	"strings"
 
@@ -308,10 +309,16 @@ func SaveBlobStreamWithTagsAndMetadata(credential *azidentity.DefaultAzureCreden
 		md[key] = &v
 	}
 
+	contentType := http.DetectContentType(blobBytes)
+	slog.Info("detected file content-type", "content_type", contentType)
+
 	slog.Info("uploading blob with tags and metadata", "url", blobUrl, "tags", tags, "metadata", md)
 	response, err := blockBlob.UploadStream(ctx, bytes.NewReader(blobBytes), &blockblob.UploadStreamOptions{
 		Tags:     tags,
 		Metadata: md,
+		HTTPHeaders: &blob.HTTPHeaders{
+			BlobContentType: &contentType,
+		},
 	})
 	if err != nil {
 		slog.Error("error uploading blob stream", "blob_url", blobUrl, "error", err)
