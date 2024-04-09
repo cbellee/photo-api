@@ -175,7 +175,7 @@ func uploadPhotoHandler(credential *azidentity.DefaultAzureCredential) http.Hand
 			metadata["Width"] = fmt.Sprint(img.Width)
 			metadata["Size"] = strconv.Itoa(int(f.Size))
 
-			utils.SaveBlobStreamWithTagsAndMetadata(
+			utils.SaveBlobStreamWithTagsMetadataAndContentType(
 				credential,
 				ctx,
 				buf.Bytes(),
@@ -184,7 +184,9 @@ func uploadPhotoHandler(credential *azidentity.DefaultAzureCredential) http.Hand
 				storageConfig.StorageAccount,
 				storageConfig.Suffix,
 				tags,
-				metadata)
+				metadata,
+				md[i].Type,
+			)
 		}
 	}
 }

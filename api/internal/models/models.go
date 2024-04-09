@@ -18,6 +18,7 @@ type MetaData struct {
 	Name        string `json:"name"`
 	Collection  string `json:"collection"`
 	Album       string `json:"album`
+	Type        string `json:"type"`
 }
 
 type Blob struct {

@@ -1,8 +1,12 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"image"
+	"io"
+	"log"
 	"log/slog"
 	"models"
 	"net/url"
@@ -135,21 +139,27 @@ func ResizeHandler(ctx context.Context, in *common.BindingEvent) (out []byte, er
 	numBytes := blobStream.Len()
 	slog.Info("blobStream buffer bytes", "numBytes", numBytes)
 
-	imgBytes, height, width, err := utils.ResizeImage(blobStream.Bytes(), evt.Data.ContentType, blobPath, mih, miw)
+	imgBytes, err := utils.ResizeImage(blobStream.Bytes(), evt.Data.ContentType, blobPath, mih, miw)
 	if err != nil {
 		slog.Error("error resizing image", "blob_path", blobPath, "error", err)
 		return nil, err
 	}
 
+	img, _, err := image.DecodeConfig(bytes.NewReader(imgBytes))
+	if err != nil {
+		log.Fatalln(err)
+	}
+
 	numImgBytes := len(imgBytes)
 	slog.Info("resized bytes", "numImageBytes", numImgBytes)
+	slog.Info("resized image dimensions", "height", img.Height, "width", img.Width)
 
 	// add metadata
 	imgSize := len(imgBytes)
 	imgSizeStr := strconv.Itoa(imgSize)
 	metadata["Size"] = imgSizeStr
-	metadata["Height"] = fmt.Sprint(height)
-	metadata["Width"] = fmt.Sprint(width)
+	metadata["Height"] = fmt.Sprint(img.Height)
+	metadata["Width"] = fmt.Sprint(img.Width)
 
 	blobName, _ := utils.GetBlobNameAndPrefix(blobPath)
 	slog.Info("added blob metadata", "blob_name", blobName, "metadata", metadata)
