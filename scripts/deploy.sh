@@ -38,7 +38,6 @@ FACE_API_IMAGE="$FACE_API_NAME:$TAG"
 
 UPLOADS_QUEUE_NAME='uploads'
 IMAGES_QUEUE_NAME='images'
-THUMBS_CONTAINER_NAME='thumbs'
 IMAGES_CONTAINER_NAME='images'
 UPLOADS_CONTAINER_NAME='uploads'
 
@@ -110,7 +109,6 @@ az deployment group create \
 	--parameters uploadsContainerName=$UPLOADS_CONTAINER_NAME \
 	--parameters uploadsStorageQueueName=$UPLOADS_QUEUE_NAME \
 	--parameters imagesStorageQueueName=$IMAGES_QUEUE_NAME \
-	--parameters thumbsContainerName=$THUMBS_CONTAINER_NAME \
 	--parameters imagesContainerName=$IMAGES_CONTAINER_NAME \
 	--parameters maxThumbHeight=$MAX_THUMB_HEIGHT \
 	--parameters maxThumbWidth=$MAX_THUMB_WIDTH \

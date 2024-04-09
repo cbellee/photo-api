@@ -16,7 +16,6 @@ param photoApiPort string
 
 param uploadsStorageQueueName string
 param imagesStorageQueueName string
-param thumbsContainerName string
 param imagesContainerName string
 param uploadsContainerName string
 
@@ -90,10 +89,6 @@ module storModule 'modules/stor.bicep' = {
     location: location
     name: storageAccountName
     containers: [
-      {
-        name: thumbsContainerName
-        publicAccess: 'Blob'
-      }
       {
         name: imagesContainerName
         publicAccess: 'Blob'
@@ -216,10 +211,6 @@ resource resizeApi 'Microsoft.App/containerApps@2023-04-01-preview' = {
             {
               name: 'UPLOADS_CONTAINER_BINDING'
               value: 'blob-${uploadsContainerName}'
-            }
-            {
-              name: 'THUMBS_CONTAINER_BINDING'
-              value: 'blob-${thumbsContainerName}'
             }
             {
               name: 'MAX_THUMB_HEIGHT'
@@ -559,36 +550,6 @@ resource uploadsStorageDaprComponent 'Microsoft.App/managedEnvironments/daprComp
       {
         name: 'container'
         value: uploadsContainerName
-      }
-    ]
-    scopes: [
-      resizeApiName
-    ]
-  }
-}
-
-resource thumbsStorageDaprComponent 'Microsoft.App/managedEnvironments/daprComponents@2022-06-01-preview' = {
-  dependsOn: [
-    containerAppEnvModule
-  ]
-  name: '${containerAppEnvName}/blob-${toLower(thumbsContainerName)}'
-  properties: {
-    componentType: 'bindings.azure.blobstorage'
-    version: 'v1'
-    ignoreErrors: false
-    initTimeout: '60s'
-    metadata: [
-      {
-        name: 'storageAccount'
-        value: storModule.outputs.name
-      }
-      {
-        name: 'storageAccessKey'
-        value: storModule.outputs.key
-      }
-      {
-        name: 'container'
-        value: thumbsContainerName
       }
     ]
     scopes: [

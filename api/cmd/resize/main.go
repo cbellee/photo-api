@@ -24,8 +24,8 @@ var (
 	storageConfig = models.StorageConfig{
 		StorageAccount:       utils.GetEnvValue("STORAGE_ACCOUNT_NAME", ""),
 		StorageContainer:     utils.GetEnvValue("STORAGE_CONTAINER_NAME", ""),
-		UploadsContainerName: utils.GetEnvValue("THUMBS_CONTAINER_NAME", "uploads"),
-		ImagesContainerName:  utils.GetEnvValue("THUMBS_CONTAINER_NAME", "images"),
+		UploadsContainerName: utils.GetEnvValue("UPLOADS_CONTAINER_NAME", "uploads"),
+		ImagesContainerName:  utils.GetEnvValue("IMAGES_CONTAINER_NAME", "images"),
 		Suffix:               "blob.core.windows.net",
 	}
 )
@@ -132,11 +132,17 @@ func ResizeHandler(ctx context.Context, in *common.BindingEvent) (out []byte, er
 	slog.Info("found blob metadata", "blob_path", blobPath, "metadata", metadata)
 
 	// resize image
+	numBytes := blobStream.Len()
+	slog.Info("blobStream buffer bytes", "numBytes", numBytes)
+
 	imgBytes, height, width, err := utils.ResizeImage(blobStream.Bytes(), evt.Data.ContentType, blobPath, mih, miw)
 	if err != nil {
 		slog.Error("error resizing image", "blob_path", blobPath, "error", err)
 		return nil, err
 	}
+
+	numImgBytes := len(imgBytes)
+	slog.Info("resized bytes", "numImageBytes", numImgBytes)
 
 	// add metadata
 	imgSize := len(imgBytes)
