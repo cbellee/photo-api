@@ -234,7 +234,7 @@ resource resizeApi 'Microsoft.App/containerApps@2023-04-01-preview' = {
             }
             {
               name: 'STORAGE_ACCOUNT_NAME'
-              value: storModule.outputs.name
+              value: '${storModule.outputs.name}.blob.${environment().suffixes.storage}'
             }
             {
               name: 'AZURE_CLIENT_ID'
@@ -344,7 +344,7 @@ resource photoApi 'Microsoft.App/containerApps@2023-04-01-preview' = {
             }
             {
               name: 'STORAGE_ACCOUNT_NAME'
-              value: storModule.outputs.name
+              value: '${storModule.outputs.name}.blob.${environment().suffixes.storage}'
             }
             {
               name: 'AZURE_CLIENT_ID'
@@ -588,7 +588,7 @@ resource imagesStorageDaprComponent 'Microsoft.App/managedEnvironments/daprCompo
   }
 }
 
-module cname 'modules/dns.bicep' = {
+/* module cname 'modules/dns.bicep' = {
   name: 'cname-module'
   scope: resourceGroup(dnsZoneResourceGroupName)
   params: {
@@ -610,8 +610,8 @@ module staticWebApp 'modules/staticwebapp.bicep' = {
   dependsOn: [
     cname
   ]
-}
+} */
 
 output resizeUrl string = resizeApi.properties.configuration.ingress.fqdn
 output storageAccount string = storModule.outputs.name
-output webAPpUrl string = staticWebApp.outputs.url
+// output webAPpUrl string = staticWebApp.outputs.url

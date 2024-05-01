@@ -15,6 +15,8 @@ DOMAIN_NAME='bellee.net'
 SUBDOMAIN_NAME='gallery'
 
 DOMAIN_NAME="kainiindustries.net"
+STORAGE_ACCOUNT_NAME="storqra2f23aqljtm.blob.core.windows.net"
+# STORAGE_ACCOUNT_NAME="127.0.0.1:10000/devstoreaccount1"
 PHOTO_APP_ID="api://a845082b-e22d-49a8-8abb-e8484609abd7"
 UPLOAD_APP_ID="api://18911b98-3bf5-4a05-a417-8a12e496c9e5"
 PHOTO_READ_SCOPE="${PHOTO_APP_ID}/Photo.Read"
@@ -117,3 +119,7 @@ az deployment group create \
 	--parameters grpcMaxRequestSizeMb=$GRPC_MAX_REQUEST_SIZE_MB \
 	--parameters domainName=$DOMAIN_NAME \
 	--parameters subDomainName=$SUBDOMAIN_NAME
+
+# az storage container create -n images --connection-string "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;QueueEndpoint=http://127.0.0.1:10001/devstoreaccount1;"
+# az storage container create -n uploads --connection-string "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;QueueEndpoint=http://127.0.0.1:10001/devstoreaccount1;"
+

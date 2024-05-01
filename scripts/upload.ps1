@@ -40,7 +40,7 @@ function Set-Image {
         --file $imageFullName `
         --content-type $mimeType `
         --metadata Width=$($image.Width) Height=$($image.Height) Name=$blobFullName Ratio=$roundedRatio `
-        --tags Collection=$collection Album=$album Name=$blobFullName IsCollectionImage=$isCollectionAlbumImage `
+        --tags Collection=$collection Album=$album Name=$blobFullName CollectionImage=$isCollectionAlbumImage `
         --overwrite
 }
 
