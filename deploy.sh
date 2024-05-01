@@ -62,8 +62,6 @@ ACR_NAME=$(az deployment group show --resource-group $RG_NAME --name 'acr-deploy
 
 if [[ $skipBuild != 1 ]]; then
 
-	cd ..
-
 	# build image in ACR
 	az acr login -n $ACR_NAME 
 
@@ -74,18 +72,12 @@ if [[ $skipBuild != 1 ]]; then
 	--build-arg SERVICE_PORT=$RESIZE_API_PORT \
 	-f ./Dockerfile .
 
-	echo "Pushing image - TAG: '$ACR_NAME.azurecr.io/$RESIZE_API_IMAGE'"
-	docker push "$ACR_NAME.azurecr.io/$RESIZE_API_IMAGE"
-
 	# photo API
 	echo "Building image - TAG: '$ACR_NAME.azurecr.io/$PHOTO_API_IMAGE'"
 	docker build -t "$ACR_NAME.azurecr.io/$PHOTO_API_IMAGE" \
 		--build-arg SERVICE_NAME=$PHOTO_API_NAME \
 		--build-arg SERVICE_PORT=$PHOTO_API_PORT \
 		-f ./Dockerfile .
-
-	echo "Pushing image - TAG: '$ACR_NAME.azurecr.io/$PHOTO_API_IMAGE'"
-	docker push "$ACR_NAME.azurecr.io/$PHOTO_API_IMAGE"
 
 	# face API
 	# echo "Building image - TAG: '$ACR_NAME.azurecr.io/$FACE_API_IMAGE'"
@@ -97,7 +89,6 @@ if [[ $skipBuild != 1 ]]; then
     # echo "Pushing image - TAG: '$ACR_NAME.azurecr.io/$FACE_API_IMAGE'"
 	# docker push "$ACR_NAME.azurecr.io/$FACE_API_IMAGE"
 
-	cd ./scripts
 fi
 
 az deployment group create \
