@@ -38,29 +38,6 @@ var (
 
 // main
 func main() {
-	/* 	// detect Azure Container App platform
-	   	var credential any
-	   	var err error
-
-	   	if _, ok := os.LookupEnv("CONTAINER_APP_NAME"); ok {
-	   		// Azure Container App host detected
-	   		// use managed identity for authentication to avoid default short timeout
-	   		slog.Info("Azure Container App environment detected, using 'ManagedIdentityCredential'")
-	   		credential, err = azidentity.NewManagedIdentityCredential(nil)
-	   		if err != nil {
-	   			slog.Error("invalid DefaultCredential", "error", err)
-	   			return
-	   		}
-	   	} else {
-	   		// any othger environment detected
-	   		slog.Info("Other environment detected, using 'DefaultCredential'")
-	   		credential, err = azidentity.NewDefaultAzureCredential(nil)
-	   		if err != nil {
-	   			slog.Error("invalid credentials", "error", err)
-	   			return
-	   		}
-	   	} */
-
 	// enable azure SDK logging
 	azlog.SetListener(func(event azlog.Event, s string) {
 		slog.Info("azlog", "event", event, "message", s)
