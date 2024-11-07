@@ -26,9 +26,12 @@ import (
 	"golang.org/x/image/draw"
 )
 
-func CreateAzureBlobClient(storageUrl string, isProduction bool) (client *azblob.Client, err error) {
+func CreateAzureBlobClient(storageUrl string, isProduction bool, azureClientId string) (client *azblob.Client, err error) {
 	if isProduction {
-		// Azure Container App host detected
+		if azureClientId == "" {
+			return nil, fmt.Errorf("azureClientId is required in production")
+		}
+
 		// use managed identity for authentication to avoid default short timeout
 		var err error
 		slog.Info("Azure Container App environment detected, using 'ManagedIdentityCredential'")

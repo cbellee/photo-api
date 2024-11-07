@@ -27,6 +27,7 @@ var (
 	serviceName          = utils.GetEnvValue("SERVICE_NAME", "photoService")
 	servicePort          = utils.GetEnvValue("SERVICE_PORT", "8080")
 	uploadsContainerName = utils.GetEnvValue("UPLOADS_CONTAINER_NAME", "uploads")
+	azureClientId		= utils.GetEnvValue("AZURE_CLIENT_ID", "")
 	imagesContainerName  = utils.GetEnvValue("IMAGES_CONTAINER_NAME", "images")
 	storageConfig        = models.StorageConfig{
 		StorageAccount:       utils.GetEnvValue("STORAGE_ACCOUNT_NAME", ""),
@@ -67,7 +68,7 @@ func main() {
 		slog.Info("'CONTAINER_APP_NAME' env var not found, running in local environment")
 	}
 
-	client, err := utils.CreateAzureBlobClient(storageUrl, isProduction)
+	client, err := utils.CreateAzureBlobClient(storageUrl, isProduction, azureClientId)
 	if err != nil {	
 		slog.Error("error creating blob client", "error", err)
 		return
