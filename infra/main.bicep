@@ -288,7 +288,11 @@ resource resizeApi 'Microsoft.App/containerApps@2023-11-02-preview' = {
             }
             {
               name: 'STORAGE_ACCOUNT_NAME'
-              value: '${storage.outputs.name}.blob.${environment().suffixes.storage}'
+              value: storage.outputs.name
+            }
+            {
+              name: 'STORAGE_ACCOUNT_SUFFIX'
+              value: environment().suffixes.storage
             }
             {
               name: 'AZURE_CLIENT_ID'
@@ -397,7 +401,11 @@ resource photoApi 'Microsoft.App/containerApps@2023-11-02-preview' = {
             }
             {
               name: 'STORAGE_ACCOUNT_NAME'
-              value: '${storage.outputs.name}.blob.${environment().suffixes.storage}'
+              value: storage.outputs.name
+            }
+            {
+              name: 'STORAGE_ACCOUNT_SUFFIX'
+              value: environment().suffixes.storage
             }
             {
               name: 'AZURE_CLIENT_ID'
