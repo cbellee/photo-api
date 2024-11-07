@@ -60,6 +60,8 @@ func main() {
 	// check if running in Azure Container App
 	if _, exists := os.LookupEnv("AZURE_CONTAINER_APP_NAME"); exists {
 		isProduction = true
+	} else {
+		slog.Info("AZURE_CONTAINER_APP_NAME not found, running in local environment")
 	}
 
 	client, err := utils.CreateAzureBLobClient(storageUrl, isProduction)
