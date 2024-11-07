@@ -50,7 +50,9 @@ func main() {
 		return
 	}
 
-	storageUrl := fmt.Sprintf("https://%s", storageConfig.StorageAccount, storageConfig.StorageAccountSuffix)
+	storageUrl := fmt.Sprintf("https://%s.%s", storageConfig.StorageAccount, storageConfig.StorageAccountSuffix)
+	slog.Info("storage url", "url", storageUrl)
+	
 	client, err := azblob.NewClient(storageUrl, credential, nil)
 	if err != nil {
 		slog.Error("error creating blob client", "error", err)
