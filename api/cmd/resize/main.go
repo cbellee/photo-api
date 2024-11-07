@@ -28,6 +28,7 @@ var (
 
 	storageConfig = models.StorageConfig{
 		StorageAccount:       utils.GetEnvValue("STORAGE_ACCOUNT_NAME", ""),
+		StorageAccountSuffix: utils.GetEnvValue("STORAGE_ACCOUNT_SUFFIX", "blob.core.windows.net"),
 		StorageContainer:     utils.GetEnvValue("STORAGE_CONTAINER_NAME", ""),
 		UploadsContainerName: utils.GetEnvValue("UPLOADS_CONTAINER_NAME", "uploads"),
 		ImagesContainerName:  utils.GetEnvValue("IMAGES_CONTAINER_NAME", "images"),
@@ -74,7 +75,7 @@ func ResizeHandler(ctx context.Context, in *common.BindingEvent) (out []byte, er
 		slog.Error("storage account name is required")
 		return
 	}
-	storageUrl := fmt.Sprintf("https://%s", storageConfig.StorageAccount)
+	storageUrl := fmt.Sprintf("https://%s.%s", storageConfig.StorageAccount, storageConfig.StorageAccountSuffix)
 
 	client, err := azblob.NewClient(storageUrl, credential, nil)
 	if err != nil {
