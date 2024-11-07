@@ -17,6 +17,7 @@ import (
 	"github.com/cbellee/photo-api/internal/models"
 	"github.com/cbellee/photo-api/internal/utils"
 
+	azlog "github.com/Azure/azure-sdk-for-go/sdk/azcore/log"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
 )
@@ -28,14 +29,46 @@ var (
 	uploadsContainerName = utils.GetEnvValue("UPLOADS_CONTAINER_NAME", "uploads")
 	imagesContainerName  = utils.GetEnvValue("IMAGES_CONTAINER_NAME", "images")
 	storageConfig        = models.StorageConfig{
-		StorageAccount: utils.GetEnvValue("STORAGE_ACCOUNT_NAME", ""),
+		StorageAccount:       utils.GetEnvValue("STORAGE_ACCOUNT_NAME", ""),
 		StorageAccountSuffix: utils.GetEnvValue("STORAGE_ACCOUNT_SUFFIX", "blob.core.windows.net"),
 	}
 	memoryLimitMb = int64(32)
+	isProduction  = false
 )
 
 // main
 func main() {
+	/* 	// detect Azure Container App platform
+	   	var credential any
+	   	var err error
+
+	   	if _, ok := os.LookupEnv("CONTAINER_APP_NAME"); ok {
+	   		// Azure Container App host detected
+	   		// use managed identity for authentication to avoid default short timeout
+	   		slog.Info("Azure Container App environment detected, using 'ManagedIdentityCredential'")
+	   		credential, err = azidentity.NewManagedIdentityCredential(nil)
+	   		if err != nil {
+	   			slog.Error("invalid DefaultCredential", "error", err)
+	   			return
+	   		}
+	   	} else {
+	   		// any othger environment detected
+	   		slog.Info("Other environment detected, using 'DefaultCredential'")
+	   		credential, err = azidentity.NewDefaultAzureCredential(nil)
+	   		if err != nil {
+	   			slog.Error("invalid credentials", "error", err)
+	   			return
+	   		}
+	   	} */
+
+	// enable azure SDK logging
+	azlog.SetListener(func(event azlog.Event, s string) {
+		slog.Info("azlog", "event", event, "message", s)
+	})
+
+	// include only azidentity credential logs
+	azlog.SetEvents(azidentity.EventAuthentication)
+
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		AddSource: true,
 		Level:     slog.LevelInfo,
@@ -44,17 +77,16 @@ func main() {
 
 	slog.Info("current storage account", "name", storageConfig.StorageAccount)
 
-	credential, err := azidentity.NewDefaultAzureCredential(nil)
-	if err != nil {
-		slog.Error("invalid credentials", "error", err)
-		return
-	}
-
 	storageUrl := fmt.Sprintf("https://%s.%s", storageConfig.StorageAccount, storageConfig.StorageAccountSuffix)
 	slog.Info("storage url", "url", storageUrl)
-	
-	client, err := azblob.NewClient(storageUrl, credential, nil)
-	if err != nil {
+
+	// check if running in Azure Container App
+	if _, exists := os.LookupEnv("AZURE_CONTAINER_APP_NAME"); exists {
+		isProduction = true
+	}
+
+	client, err := utils.CreateAzureBLobClient(storageUrl, isProduction)
+	if err != nil {	
 		slog.Error("error creating blob client", "error", err)
 		return
 	}
@@ -402,7 +434,7 @@ func queryBlobsByTags(client *azblob.Client, storageUrl string, query string) (b
 		}
 
 		b := models.Blob{
-			Name: *_blob.Name,
+			Name:     *_blob.Name,
 			Path:     fmt.Sprintf("%s/%s/%s", storageUrl, imagesContainerName, *_blob.Name),
 			Tags:     t,
 			MetaData: md,

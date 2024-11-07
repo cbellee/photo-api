@@ -17,6 +17,7 @@ import (
 
 	"github.com/cbellee/photo-api/internal/models"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blockblob"
@@ -24,6 +25,42 @@ import (
 	"github.com/dapr/go-sdk/service/common"
 	"golang.org/x/image/draw"
 )
+
+func CreateAzureBLobClient(storageUrl string, isProduction bool) (client *azblob.Client, err error) {
+	if isProduction {
+		// Azure Container App host detected
+		// use managed identity for authentication to avoid default short timeout
+		var err error
+		slog.Info("Azure Container App environment detected, using 'ManagedIdentityCredential'")
+		credential, err := azidentity.NewManagedIdentityCredential(nil)
+		if err != nil {
+			slog.Error("invalid DefaultCredential", "error", err)
+			return nil, err
+		} else {
+			client, err = azblob.NewClient(storageUrl, credential, nil)
+			if err != nil {
+				slog.Error("error creating blob client", "error", err)
+				return nil, err
+			}
+		}
+	} else {
+		// any othger environment detected
+		var err error
+		slog.Info("Other environment detected, using 'DefaultCredential'")
+		credential, err := azidentity.NewDefaultAzureCredential(nil)
+		if err != nil {
+			slog.Error("invalid credentials", "error", err)
+			return nil, err
+		} else {
+			client, err = azblob.NewClient(storageUrl, credential, nil)
+			if err != nil {
+				slog.Error("error creating blob client", "error", err)
+				return nil, err
+			}
+		}
+	}
+	return client, nil
+}
 
 func ResizeImage(imgBytes []byte, imageFormat string, blobName string, maxHeight int, maxWidth int) (img []byte, err error) {
 	var dst *image.RGBA
