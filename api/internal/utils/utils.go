@@ -26,7 +26,7 @@ import (
 	"golang.org/x/image/draw"
 )
 
-func CreateAzureBLobClient(storageUrl string, isProduction bool) (client *azblob.Client, err error) {
+func CreateAzureBlobClient(storageUrl string, isProduction bool) (client *azblob.Client, err error) {
 	if isProduction {
 		// Azure Container App host detected
 		// use managed identity for authentication to avoid default short timeout
@@ -386,6 +386,12 @@ func Contains(s []string, str string) bool {
 func RoundFloat(val float64, precision uint) float64 {
 	ratio := math.Pow(10, float64(precision))
 	return math.Round(val*ratio) / ratio
+}
+
+func DumpEnv() {
+	for _, e := range os.Environ() {
+        fmt.Print(e)
+	}
 }
 
 func GetExifData() {

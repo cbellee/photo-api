@@ -57,6 +57,9 @@ func main() {
 	storageUrl := fmt.Sprintf("https://%s.%s", storageConfig.StorageAccount, storageConfig.StorageAccountSuffix)
 	slog.Info("storage url", "url", storageUrl)
 
+	// Dump environment variables
+	utils.DumpEnv()
+
 	// check if running in Azure Container App
 	if _, exists := os.LookupEnv("AZURE_CONTAINER_APP_NAME"); exists {
 		isProduction = true
@@ -64,7 +67,7 @@ func main() {
 		slog.Info("AZURE_CONTAINER_APP_NAME not found, running in local environment")
 	}
 
-	client, err := utils.CreateAzureBLobClient(storageUrl, isProduction)
+	client, err := utils.CreateAzureBlobClient(storageUrl, isProduction)
 	if err != nil {	
 		slog.Error("error creating blob client", "error", err)
 		return
