@@ -3,9 +3,10 @@
 while getopts "ls" option; do
    case $option in
       l) localDockerBuild=1
-	  ;; # use '-l' cmdline flag to skip the ACR container build step & build locally
+	  ;; # use '-l' cmdline flag to build containers locally
 	  s) skipContainerBuild=1
-	  ;; # use '-s' cmdline flag to skip the container build step
+	  ;; # use '-s' cmdline flag to skip container build
+	  \?) echo "Invalid option: $OPTARG"
    esac
 done
 
@@ -19,19 +20,21 @@ RESIZE_API_NAME='resize'
 RESIZE_API_IMAGE="$RESIZE_API_NAME:$TAG"
 PHOTO_API_IMAGE="$PHOTO_API_NAME:$TAG"
 
+source .env
+
 az group create --location $LOCATION --name $RG_NAME
 
-if [[ $localDockerBuild != 1 && $skipContainerBuild != 1 ]]; then
+# create ACR
+echo "creating ACR"
+export ACR_NAME=$(az deployment group create \
+	--resource-group $RG_NAME \
+	--name 'acr-deployment' \
+	--template-file ./infra/modules/acr.bicep \
+	--query 'properties.outputs.acrName.value' \
+	--output tsv
+)
 
-	# create ACR
-	echo "creating ACR"
-	export ACR_NAME=$(az deployment group create \
-		--resource-group $RG_NAME \
-		--name 'acr-deployment' \
-		--template-file ./infra/modules/acr.bicep \
-		--query 'properties.outputs.acrName.value' \
-		--output tsv
-	)
+if [[ $localDockerBuild != 1 && $skipContainerBuild != 1 ]]; then
 
 	# resize API
 	echo "Building image in ACR - TAG: '$ACR_NAME.azurecr.io/$RESIZE_API_IMAGE'"
@@ -59,13 +62,6 @@ if [[ $localDockerBuild != 1 && $skipContainerBuild != 1 ]]; then
 
 elif [[ $localDockerBuild == 1 && $skipContainerBuild != 1 ]]; then
 
-	export ACR_NAME=$(az deployment group show \
-		--resource-group $RG_NAME \
-		--name 'acr-deployment' \
-		--query 'properties.outputs.acrName.value' \
-		--output tsv
-	)
-
 	# login to ACR
 	az acr login -n $ACR_NAME
 	
@@ -74,7 +70,6 @@ elif [[ $localDockerBuild == 1 && $skipContainerBuild != 1 ]]; then
 		--build-arg SERVICE_NAME=$RESIZE_API_NAME \
 		--build-arg SERVICE_PORT=$RESIZE_API_PORT \
 		-f ./Dockerfile .
-
 	echo "Pushing image - TAG: '$ACR_NAME.azurecr.io/$RESIZE_API_IMAGE'"
 	docker push "$ACR_NAME.azurecr.io/$RESIZE_API_IMAGE"
 
@@ -83,7 +78,6 @@ elif [[ $localDockerBuild == 1 && $skipContainerBuild != 1 ]]; then
 		--build-arg SERVICE_NAME=$PHOTO_API_NAME \
 		--build-arg SERVICE_PORT=$PHOTO_API_PORT \
 		-f ./Dockerfile .
-
 	echo "Pushing image - TAG: '$ACR_NAME.azurecr.io/$PHOTO_API_IMAGE'"
 	docker push "$ACR_NAME.azurecr.io/$PHOTO_API_IMAGE"
 
@@ -91,19 +85,11 @@ elif [[ $localDockerBuild == 1 && $skipContainerBuild != 1 ]]; then
 	#	--build-arg SERVICE_NAME=$FACE_API_NAME \
 	#	--build-arg SERVICE_PORT=$FACE_API_PORT \
 	#	-f ./Dockerfile-face-detection .
-
 	# echo "Pushing image - TAG: '$ACR_NAME.azurecr.io/$FACE_API_IMAGE'"
 	# docker push "$ACR_NAME.azurecr.io/$FACE_API_IMAGE"
 else
 	echo "skipping build..."
 fi
-
-export ACR_NAME=$(az deployment group show \
-	--resource-group $RG_NAME \
-	--name 'acr-deployment' \
-	--query 'properties.outputs.acrName.value' \
-	--output tsv
-)
 
 az deployment group create \
 	--resource-group $RG_NAME \
@@ -117,5 +103,4 @@ export STORAGE_ACCOUNT_NAME="$(az deployment group show \
 	--resource-group $RG_NAME \
 	--name 'infra-deployment' \
 	--query properties.outputs.storageAccountName.value \
-	-o tsv \
-).blob.core.windows.net"
+	-o tsv).blob.core.windows.net"

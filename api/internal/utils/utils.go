@@ -12,11 +12,11 @@ import (
 	"image/png"
 	"log/slog"
 	"math"
-	"github.com/cbellee/photo-api/internal/models"
 	"os"
 	"strings"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/cbellee/photo-api/internal/models"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blockblob"
@@ -105,7 +105,7 @@ func GetEnvValue(key, fallback string) string {
 	return fallback
 }
 
-func GetBlobDirectories(credential *azidentity.DefaultAzureCredential, containerClient *container.Client, ctx context.Context, opt container.ListBlobsHierarchyOptions, m map[string][]string) map[string][]string {
+func GetBlobDirectories(containerClient *container.Client, ctx context.Context, opt container.ListBlobsHierarchyOptions, m map[string][]string) map[string][]string {
 	pager := containerClient.NewListBlobsHierarchyPager("/", &opt)
 
 	for pager.More() {
@@ -125,30 +125,17 @@ func GetBlobDirectories(credential *azidentity.DefaultAzureCredential, container
 				opt := container.ListBlobsHierarchyOptions{
 					Prefix: prefix.Name,
 				}
-				GetBlobDirectories(credential, containerClient, ctx, opt, m)
+				GetBlobDirectories(containerClient, ctx, opt, m)
 			}
 		}
 	}
 	return m
 }
 
-func GetBlobTags(credential *azidentity.DefaultAzureCredential, blobPath string, container string, storageUrl string) (tags map[string]string, err error) {
+func GetBlobTags(client *azblob.Client, blobPath string, container string, storageUrl string) (tags map[string]string, err error) {
 	ctx := context.Background()
-
-	// check blob exists by trying to get blob properties
 	blobUrl := fmt.Sprintf("%s/%s/%s", storageUrl, container, blobPath)
-	blockBlob, err := blockblob.NewClient(blobUrl, credential, nil)
-
-	if err != nil {
-		slog.Error("error creating block blob client", "blob_url", blobUrl, "error", err)
-		return nil, err
-	}
-
-	_, err = blockBlob.GetProperties(ctx, nil)
-	if err != nil {
-		slog.Error("error getting blob properties", "blob_url", blobUrl, "error", err)
-		return nil, err // blob doesn't exist
-	}
+	blockBlob := client.ServiceClient().NewContainerClient(container).NewBlockBlobClient(blobPath)
 
 	// get blob tags
 	tagResponse, err := blockBlob.GetTags(ctx, nil)
@@ -166,26 +153,18 @@ func GetBlobTags(credential *azidentity.DefaultAzureCredential, blobPath string,
 	return tags, nil
 }
 
-func GetBlobMetadata(credential *azidentity.DefaultAzureCredential, blobPath string, container string, storageUrl string) (metadata map[string]string, err error) {
+func GetBlobMetadata(client *azblob.Client, blobPath string, container string, storageUrl string) (metadata map[string]string, err error) {
 	ctx := context.Background()
-
-	// check blob exists by trying to get blob properties
 	blobUrl := fmt.Sprintf("%s/%s/%s", storageUrl, container, blobPath)
-	blockBlob, err := blockblob.NewClient(blobUrl, credential, nil)
+	blobClient := client.ServiceClient().NewContainerClient(container).NewBlockBlobClient(blobPath)
 
 	if err != nil {
 		slog.Error("error creating block blob client", "blob_url", blobUrl, "error", err)
 		return nil, err
 	}
 
-	_, err = blockBlob.GetProperties(ctx, nil)
-	if err != nil {
-		slog.Error("error getting blob properties", "blob_url", blobUrl, "error", err)
-		return nil, err // blob doesn't exist
-	}
-
 	// get blob tags
-	mdResponse, err := blockBlob.GetProperties(ctx, nil)
+	mdResponse, err := blobClient.GetProperties(ctx, nil)
 	if err != nil {
 		slog.Error("error getting blob metadata", "blob_url", blobUrl, "error", err)
 		return nil, err
@@ -201,14 +180,7 @@ func GetBlobMetadata(credential *azidentity.DefaultAzureCredential, blobPath str
 	return m, nil
 }
 
-func GetBlobTagList(credential *azidentity.DefaultAzureCredential, containerName string, storageUrl string, ctx context.Context) (map[string][]string, error) {
-
-	client, err := azblob.NewClient(storageUrl, credential, nil)
-	if err != nil {
-		slog.Error("error creating blob client", err)
-		return nil, err
-	}
-
+func GetBlobTagList(client *azblob.Client, containerName string, storageUrl string, ctx context.Context) (map[string][]string, error) {
 	pager := client.NewListBlobsFlatPager(containerName, &azblob.ListBlobsFlatOptions{
 		Include: container.ListBlobsInclude{
 			Deleted:  false,
@@ -250,19 +222,13 @@ func GetBlobTagList(credential *azidentity.DefaultAzureCredential, containerName
 	return blobTagMap, nil
 }
 
-func GetBlobStream(credential *azidentity.DefaultAzureCredential, ctx context.Context, blobPath string, container string, storageUrl string) (bytes.Buffer, error) {
+func GetBlobStream(client *azblob.Client, ctx context.Context, blobPath string, container string, storageUrl string) (bytes.Buffer, error) {
 	buffer := bytes.Buffer{}
-
-	// check blob exists by trying to get blob properties
 	blobUrl := fmt.Sprintf("%s/%s/%s", storageUrl, container, blobPath)
-	blockBlob, err := blockblob.NewClient(blobUrl, credential, nil)
+	blockBlob := client.ServiceClient().NewContainerClient(container).NewBlockBlobClient(blobPath)
 
-	if err != nil {
-		slog.Error("error creating block blob client", "blob_url", blobUrl, "error", err)
-		return buffer, err
-	}
-
-	_, err = blockBlob.GetProperties(ctx, nil)
+	// ensure blob exists
+	_, err := blockBlob.GetProperties(ctx, nil)
 	if err != nil {
 		slog.Error("error getting blob properties", "blob_url", blobUrl, "error", err)
 		return buffer, err // blob doesn't exist
@@ -289,15 +255,17 @@ func GetBlobStream(credential *azidentity.DefaultAzureCredential, ctx context.Co
 	return buffer, nil
 }
 
-func SaveBlobStreamWithTagsAndMetadata(credential *azidentity.DefaultAzureCredential, ctx context.Context, blobBytes []byte, blobPath string, container string, storageUrl string, tags map[string]string, metadata map[string]string) (err error) {
-
+func SaveBlobStreamWithTagsAndMetadata(
+	client *azblob.Client,
+	ctx context.Context,
+	blobBytes []byte,
+	blobPath string,
+	container string,
+	storageUrl string,
+	tags map[string]string,
+	metadata map[string]string) (err error) {
 	blobUrl := fmt.Sprintf("%s/%s/%s", storageUrl, container, blobPath)
-
-	blockBlob, err := blockblob.NewClient(blobUrl, credential, nil)
-	if err != nil {
-		slog.Error("error creating block blob client", "blob_url", blobUrl, "error", err)
-		return err
-	}
+	blockBlob := client.ServiceClient().NewContainerClient(container).NewBlockBlobClient(blobPath)
 
 	md := make(map[string]*string)
 	for key, value := range metadata {
@@ -319,17 +287,20 @@ func SaveBlobStreamWithTagsAndMetadata(credential *azidentity.DefaultAzureCreden
 	return nil
 }
 
-func SaveBlobStreamWithTagsMetadataAndContentType(credential *azidentity.DefaultAzureCredential, ctx context.Context, blobBytes []byte, blobPath string, container string, storageUrl string, tags map[string]string, metadata map[string]string, contentType string) (err error) {
+func SaveBlobStreamWithTagsMetadataAndContentType(
+	client *azblob.Client,
+	ctx context.Context,
+	blobBytes []byte,
+	blobPath string,
+	container string,
+	storageUrl string,
+	tags map[string]string,
+	metadata map[string]string,
+	contentType string) (err error) {
 
 	blobUrl := fmt.Sprintf("%s/%s/%s", storageUrl, container, blobPath)
-
+	blockBlob := client.ServiceClient().NewContainerClient(container).NewBlockBlobClient(blobPath)
 	slog.Info("content-type", "type", contentType)
-
-	blockBlob, err := blockblob.NewClient(blobUrl, credential, nil)
-	if err != nil {
-		slog.Error("error creating block blob client", "blob_url", blobUrl, "error", err)
-		return err
-	}
 
 	md := make(map[string]*string)
 	for key, value := range metadata {

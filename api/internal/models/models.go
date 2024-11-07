@@ -5,6 +5,7 @@ import "time"
 type StorageConfig struct {
 	StorgeURL            string
 	StorageAccount       string
+	StorageAccountSuffix string
 	StorageKey           string
 	StorageContainer     string
 	ThumbsContainerName  string
