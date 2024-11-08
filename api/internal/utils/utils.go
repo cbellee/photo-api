@@ -35,7 +35,13 @@ func CreateAzureBlobClient(storageUrl string, isProduction bool, azureClientId s
 		// use managed identity for authentication to avoid default short timeout
 		var err error
 		slog.Info("Azure Container App environment detected, using 'ManagedIdentityCredential'")
-		credential, err := azidentity.NewManagedIdentityCredential(nil)
+
+		clientId := azidentity.ClientID(azureClientId)
+		opt := azidentity.ManagedIdentityCredentialOptions{
+			ID: clientId,
+		}
+		
+		credential, err := azidentity.NewManagedIdentityCredential(&opt)
 		if err != nil {
 			slog.Error("invalid DefaultCredential", "error", err)
 			return nil, err
