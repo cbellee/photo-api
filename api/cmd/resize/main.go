@@ -15,27 +15,31 @@ import (
 	"github.com/cbellee/photo-api/internal/models"
 	"github.com/cbellee/photo-api/internal/utils"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	//"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
 	"github.com/dapr/go-sdk/service/common"
 	daprd "github.com/dapr/go-sdk/service/grpc"
 )
 
 var (
-	serviceName         = utils.GetEnvValue("SERVICE_NAME", "")
-	servicePort         = utils.GetEnvValue("SERVICE_PORT", "")
-	uploadsQueueBinding = utils.GetEnvValue("UPLOADS_QUEUE_BINDING", "")
+	serviceName          = utils.GetEnvValue("SERVICE_NAME", "")
+	servicePort          = utils.GetEnvValue("SERVICE_PORT", "")
+	uploadsQueueBinding  = utils.GetEnvValue("UPLOADS_QUEUE_BINDING", "")
+	//uploadsContainerName = utils.GetEnvValue("UPLOADS_CONTAINER_NAME", "uploads")
+	azureClientId        = utils.GetEnvValue("AZURE_CLIENT_ID", "")
+	//imagesContainerName  = utils.GetEnvValue("IMAGES_CONTAINER_NAME", "images")
 
 	storageConfig = models.StorageConfig{
 		StorageAccount:       utils.GetEnvValue("STORAGE_ACCOUNT_NAME", ""),
 		StorageAccountSuffix: utils.GetEnvValue("STORAGE_ACCOUNT_SUFFIX", "blob.core.windows.net"),
 		StorageContainer:     utils.GetEnvValue("STORAGE_CONTAINER_NAME", ""),
-		UploadsContainerName: utils.GetEnvValue("UPLOADS_CONTAINER_NAME", "uploads"),
-		ImagesContainerName:  utils.GetEnvValue("IMAGES_CONTAINER_NAME", "images"),
 	}
+	isProduction = false
+	client       *azblob.Client
 )
 
 func main() {
+	// create a new logger
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		AddSource: true,
 		Level:     slog.LevelInfo,
@@ -46,6 +50,21 @@ func main() {
 	s, err := daprd.NewService(port)
 	if err != nil {
 		slog.Error("failed to create daprd service", "error", err)
+		return
+	}
+
+	storageUrl := fmt.Sprintf("https://%s.%s", storageConfig.StorageAccount, storageConfig.StorageAccountSuffix)
+	slog.Info("storage url", "url", storageUrl)
+
+	if _, exists := os.LookupEnv("CONTAINER_APP_NAME"); exists {
+		isProduction = true
+	} else {
+		slog.Info("'CONTAINER_APP_NAME' env var not found, running in local environment")
+	}
+
+	client, err = utils.CreateAzureBlobClient(storageUrl, isProduction, azureClientId)
+	if err != nil {
+		slog.Error("error creating blob client", "error", err)
 		return
 	}
 
@@ -65,13 +84,14 @@ func main() {
 }
 
 func ResizeHandler(ctx context.Context, in *common.BindingEvent) (out []byte, err error) {
-	credential, err := azidentity.NewDefaultAzureCredential(nil)
+	//myCtx := context.WithValue(context.Background(), "client", client)
+	/* credential, err := azidentity.NewDefaultAzureCredential(nil)
 	if err != nil {
 		slog.Error("invalid credentials", "error", err)
 		return
-	}
+	} */
 
-	if storageConfig.StorageAccount == "" {
+	/* if storageConfig.StorageAccount == "" {
 		slog.Error("storage account name is required")
 		return
 	}
@@ -81,7 +101,11 @@ func ResizeHandler(ctx context.Context, in *common.BindingEvent) (out []byte, er
 	if err != nil {
 		slog.Error("error creating blob client", "error", err)
 		return
-	}
+	} */
+
+	//storageUrl := fmt.Sprintf("https://%s.%s", storageConfig.StorageAccount, storageConfig.StorageAccountSuffix)
+
+	// check if running in Azure Container App
 
 	// get env Vars
 	mih, err := strconv.Atoi(utils.GetEnvValue("MAX_IMAGE_HEIGHT", "1200"))
@@ -126,14 +150,14 @@ func ResizeHandler(ctx context.Context, in *common.BindingEvent) (out []byte, er
 
 	slog.Info("tag data", "container", container, "blob_path", blobPath, "Album", album, "Collection", collection)
 
-	blobStream, err := utils.GetBlobStream(client, ctx, blobPath, container, storageUrl)
+	blobStream, err := utils.GetBlobStream(client, ctx, blobPath, container, client.URL())
 	if err != nil {
 		slog.Error("error getting blob stream", "blob", blobPath, "error", err)
 		return nil, err
 	}
 
 	// get tags
-	tags, err := utils.GetBlobTags(client, blobPath, container, storageUrl)
+	tags, err := utils.GetBlobTags(client, blobPath, container, client.URL())
 	if err != nil {
 		slog.Error("error getting blob tags", "blob", blobPath, "error", err)
 		return nil, err
@@ -141,7 +165,7 @@ func ResizeHandler(ctx context.Context, in *common.BindingEvent) (out []byte, er
 	slog.Info("found blob tags", "blob_path", blobPath, "tags", tags)
 
 	// get metadata
-	metadata, err := utils.GetBlobMetadata(client, blobPath, container, storageUrl)
+	metadata, err := utils.GetBlobMetadata(client, blobPath, container, client.URL())
 	if err != nil {
 		slog.Error("error getting blob metadata", "blob", blobPath, "error", err)
 		return nil, err
@@ -179,12 +203,12 @@ func ResizeHandler(ctx context.Context, in *common.BindingEvent) (out []byte, er
 
 	// add tags
 	// tags["Url"] = fmt.Sprintf("https://%s/%s/%s", storageUrl, storageConfig.ImagesContainerName, blobPath)
-	tags["Url"] = fmt.Sprintf("%s/%s/%s", storageUrl, storageConfig.ImagesContainerName, blobPath)
+	tags["Url"] = fmt.Sprintf("%s/%s/%s", client.URL(), storageConfig.ImagesContainerName, blobPath)
 
 	slog.Info("added blob tags", "blob_name", blobName, "tags", tags)
 
 	// save resized image
-	err = utils.SaveBlobStreamWithTagsAndMetadata(client, ctx, imgBytes, blobPath, storageConfig.ImagesContainerName, storageUrl, tags, metadata)
+	err = utils.SaveBlobStreamWithTagsAndMetadata(client, ctx, imgBytes, blobPath, storageConfig.ImagesContainerName, client.URL(), tags, metadata)
 	if err != nil {
 		slog.Error("error saving blob", "blob_path", blobPath, "error", err)
 		return nil, err

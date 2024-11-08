@@ -59,7 +59,7 @@ func main() {
 	slog.Info("storage url", "url", storageUrl)
 
 	// Dump environment variables
-	utils.DumpEnv()
+	// utils.DumpEnv()
 
 	// check if running in Azure Container App
 	if _, exists := os.LookupEnv("CONTAINER_APP_NAME"); exists {
