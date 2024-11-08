@@ -1,4 +1,5 @@
 param location string = resourceGroup().location
+param isAdminUserEnabled bool = false
 
 @allowed([
   'Basic'
@@ -17,7 +18,7 @@ resource acr 'Microsoft.ContainerRegistry/registries@2023-11-01-preview' = {
     name: sku
   }
   properties: {
-    adminUserEnabled: true
+    adminUserEnabled: isAdminUserEnabled
   }
 }
 

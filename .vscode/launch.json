@@ -12,7 +12,8 @@
             "program": "${workspaceFolder}/api/cmd/photo/main.go",
             "env": {
                 "AZURE_TENANT_ID": "b9dcb86c-3d9f-4bc5-aba3-1de6cc56f6dc",
-                "STORAGE_ACCOUNT_NAME": "stor465uve6pto35e.blob.core.windows.net",
+                "STORAGE_ACCOUNT_NAME": "stor465uve6pto35e",
+                "STORAGE_ACCOUNT_SUFFIX": "blob.core.windows.net",
                 "UPLOADS_CONTAINER_NAME": "uploads",
                 "IMAGES_CONTAINER_NAME": "images",
             },

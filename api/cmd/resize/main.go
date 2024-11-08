@@ -27,7 +27,7 @@ var (
 	uploadsQueueBinding  = utils.GetEnvValue("UPLOADS_QUEUE_BINDING", "")
 	//uploadsContainerName = utils.GetEnvValue("UPLOADS_CONTAINER_NAME", "uploads")
 	azureClientId        = utils.GetEnvValue("AZURE_CLIENT_ID", "")
-	//imagesContainerName  = utils.GetEnvValue("IMAGES_CONTAINER_NAME", "images")
+	imagesContainerName  = utils.GetEnvValue("IMAGES_CONTAINER_NAME", "images")
 
 	storageConfig = models.StorageConfig{
 		StorageAccount:       utils.GetEnvValue("STORAGE_ACCOUNT_NAME", ""),
@@ -203,12 +203,12 @@ func ResizeHandler(ctx context.Context, in *common.BindingEvent) (out []byte, er
 
 	// add tags
 	// tags["Url"] = fmt.Sprintf("https://%s/%s/%s", storageUrl, storageConfig.ImagesContainerName, blobPath)
-	tags["Url"] = fmt.Sprintf("%s/%s/%s", client.URL(), storageConfig.ImagesContainerName, blobPath)
+	tags["Url"] = fmt.Sprintf("%s/%s/%s", client.URL(), imagesContainerName, blobPath)
 
 	slog.Info("added blob tags", "blob_name", blobName, "tags", tags)
 
 	// save resized image
-	err = utils.SaveBlobStreamWithTagsAndMetadata(client, ctx, imgBytes, blobPath, storageConfig.ImagesContainerName, client.URL(), tags, metadata)
+	err = utils.SaveBlobStreamWithTagsAndMetadata(client, ctx, imgBytes, blobPath, imagesContainerName, client.URL(), tags, metadata)
 	if err != nil {
 		slog.Error("error saving blob", "blob_path", blobPath, "error", err)
 		return nil, err

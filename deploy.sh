@@ -19,6 +19,7 @@ PHOTO_API_NAME='photo'
 RESIZE_API_NAME='resize'
 RESIZE_API_IMAGE="$RESIZE_API_NAME:$TAG"
 PHOTO_API_IMAGE="$PHOTO_API_NAME:$TAG"
+STATIC_WEBSITE_URL='https://stor465uve6pto35e.z8.web.core.windows.net'
 
 source .env
 
@@ -97,7 +98,8 @@ az deployment group create \
 	--template-file ./infra/main.bicep \
 	--parameters acrName=$ACR_NAME \
 	--parameters photoApiContainerImage="$ACR_NAME.azurecr.io/$PHOTO_API_IMAGE" \
-	--parameters resizeApiContainerImage="$ACR_NAME.azurecr.io/$RESIZE_API_IMAGE"
+	--parameters resizeApiContainerImage="$ACR_NAME.azurecr.io/$RESIZE_API_IMAGE" \
+	--parameters staticWebSiteUrl=$STATIC_WEBSITE_URL
 
 export STORAGE_ACCOUNT_NAME="$(az deployment group show \
 	--resource-group $RG_NAME \
