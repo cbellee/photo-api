@@ -1,7 +1,6 @@
 param acrName string
 param photoApiContainerImage string
 param resizeApiContainerImage string
-param staticWebSiteUrl string
 
 param tags object = {
   Environment: 'Dev'
@@ -357,7 +356,7 @@ resource photoApi 'Microsoft.App/containerApps@2023-11-02-preview' = {
           allowedOrigins: [
             'http://localhost:3000'
             'http://127.0.0.1:5173'
-            staticWebSiteUrl
+            storage.outputs.webEndpoint
           ]
           allowedHeaders: [
             'Access-Control-Allow-Origin'
@@ -533,3 +532,5 @@ module daprComponentUploadsStorageBlob 'daprComponent.bicep' = {
 }
 
 output storageAccountName string = storage.outputs.name
+output photoAppEndpoint string = photoApi.properties.configuration.ingress.fqdn
+output resizeAppEndpoint string = resizeApi.properties.configuration.ingress.fqdn

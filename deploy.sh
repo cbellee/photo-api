@@ -11,7 +11,7 @@ while getopts "ls" option; do
 done
 
 LOCATION='australiaeast'
-RG_NAME="photo-gallery-rg"
+RG_NAME="photo-app-rg"
 SEMVER='0.1.0'
 REV=$(git rev-parse --short HEAD)
 TAG="$SEMVER-$REV"
@@ -19,9 +19,10 @@ PHOTO_API_NAME='photo'
 RESIZE_API_NAME='resize'
 RESIZE_API_IMAGE="$RESIZE_API_NAME:$TAG"
 PHOTO_API_IMAGE="$PHOTO_API_NAME:$TAG"
-STATIC_WEBSITE_URL='https://stor465uve6pto35e.z8.web.core.windows.net'
-
-source .env
+AZURE_TENANT_ID='b9dcb86c-3d9f-4bc5-aba3-1de6cc56f6dc'
+STORAGE_ACCOUNT_SUFFIX='blob.core.windows.net'
+UPLOADS_CONTAINER_NAME='uploads'
+IMAGES_CONTAINER_NAME='images'
 
 az group create --location $LOCATION --name $RG_NAME
 
@@ -37,18 +38,18 @@ export ACR_NAME=$(az deployment group create \
 
 if [[ $localDockerBuild != 1 && $skipContainerBuild != 1 ]]; then
 
-	# resize API
-	echo "Building image in ACR - TAG: '$ACR_NAME.azurecr.io/$RESIZE_API_IMAGE'"
-	az acr build -r $ACR_NAME -t "$ACR_NAME.azurecr.io/$RESIZE_API_IMAGE" \
-		--build-arg SERVICE_NAME=$RESIZE_API_NAME \
-		--build-arg SERVICE_PORT=$RESIZE_API_PORT \
-		-f ./Dockerfile .
-
 	# photo API
 	echo "Building image in ACR - TAG: '$ACR_NAME.azurecr.io/$PHOTO_API_IMAGE'"
 		az acr build -r $ACR_NAME -t "$ACR_NAME.azurecr.io/$PHOTO_API_IMAGE" \
 		--build-arg SERVICE_NAME=$PHOTO_API_NAME \
 		--build-arg SERVICE_PORT=$PHOTO_API_PORT \
+		-f ./Dockerfile .
+
+	# resize API
+	echo "Building image in ACR - TAG: '$ACR_NAME.azurecr.io/$RESIZE_API_IMAGE'"
+	az acr build -r $ACR_NAME -t "$ACR_NAME.azurecr.io/$RESIZE_API_IMAGE" \
+		--build-arg SERVICE_NAME=$RESIZE_API_NAME \
+		--build-arg SERVICE_PORT=$RESIZE_API_PORT \
 		-f ./Dockerfile .
 
 	# face API
@@ -65,14 +66,6 @@ elif [[ $localDockerBuild == 1 && $skipContainerBuild != 1 ]]; then
 
 	# login to ACR
 	az acr login -n $ACR_NAME
-	
-	echo "Building image locally - TAG: '$ACR_NAME.azurecr.io/$RESIZE_API_IMAGE'"
-	docker build -t "$ACR_NAME.azurecr.io/$RESIZE_API_IMAGE" \
-		--build-arg SERVICE_NAME=$RESIZE_API_NAME \
-		--build-arg SERVICE_PORT=$RESIZE_API_PORT \
-		-f ./Dockerfile .
-	echo "Pushing image - TAG: '$ACR_NAME.azurecr.io/$RESIZE_API_IMAGE'"
-	docker push "$ACR_NAME.azurecr.io/$RESIZE_API_IMAGE"
 
 	echo "Building image locally - TAG: '$ACR_NAME.azurecr.io/$PHOTO_API_IMAGE'"
 	docker build -t "$ACR_NAME.azurecr.io/$PHOTO_API_IMAGE" \
@@ -81,6 +74,14 @@ elif [[ $localDockerBuild == 1 && $skipContainerBuild != 1 ]]; then
 		-f ./Dockerfile .
 	echo "Pushing image - TAG: '$ACR_NAME.azurecr.io/$PHOTO_API_IMAGE'"
 	docker push "$ACR_NAME.azurecr.io/$PHOTO_API_IMAGE"
+
+	echo "Building image locally - TAG: '$ACR_NAME.azurecr.io/$RESIZE_API_IMAGE'"
+	docker build -t "$ACR_NAME.azurecr.io/$RESIZE_API_IMAGE" \
+		--build-arg SERVICE_NAME=$RESIZE_API_NAME \
+		--build-arg SERVICE_PORT=$RESIZE_API_PORT \
+		-f ./Dockerfile .
+	echo "Pushing image - TAG: '$ACR_NAME.azurecr.io/$RESIZE_API_IMAGE'"
+	docker push "$ACR_NAME.azurecr.io/$RESIZE_API_IMAGE"
 
 	# docker build -t "$ACR_NAME.azurecr.io/$FACE_API_IMAGE" \
 	#	--build-arg SERVICE_NAME=$FACE_API_NAME \
@@ -98,11 +99,45 @@ az deployment group create \
 	--template-file ./infra/main.bicep \
 	--parameters acrName=$ACR_NAME \
 	--parameters photoApiContainerImage="$ACR_NAME.azurecr.io/$PHOTO_API_IMAGE" \
-	--parameters resizeApiContainerImage="$ACR_NAME.azurecr.io/$RESIZE_API_IMAGE" \
-	--parameters staticWebSiteUrl=$STATIC_WEBSITE_URL
+	--parameters resizeApiContainerImage="$ACR_NAME.azurecr.io/$RESIZE_API_IMAGE"
 
 export STORAGE_ACCOUNT_NAME="$(az deployment group show \
 	--resource-group $RG_NAME \
 	--name 'infra-deployment' \
 	--query properties.outputs.storageAccountName.value \
-	-o tsv).blob.core.windows.net"
+	-o tsv)"
+
+export PHOTO_APP_ENDPOINT_URI="$(az deployment group show \
+	--resource-group $RG_NAME \
+	--name 'infra-deployment' \
+	--query properties.outputs.photoAppEndpoint.value \
+	-o tsv)"
+
+export RESIZE_APP_ENDPOINT_URI="$(az deployment group show \
+	--resource-group $RG_NAME \
+	--name 'infra-deployment' \
+	--query properties.outputs.resizeAppEndpoint.value \
+	-o tsv)"
+
+# enable static website hosting
+az storage blob service-properties update --account-name $STORAGE_ACCOUNT_NAME --static-website --index-document index.html --404-document index.html
+
+cd ../photo-spa
+
+# replace tokens in apiConfig_template.js with actual values
+sed "s/{{AZURE_TENANT_ID}}/$AZURE_TENANT_ID/g ; \
+    s/{{STORAGE_ACCOUNT_NAME}}/$STORAGE_ACCOUNT_NAME/g ; \
+    s/{{STORAGE_ACCOUNT_SUFFIX}}/$STORAGE_ACCOUNT_SUFFIX/g ; \
+    s/{{PHOTO_APP_ENDPOINT_URI}}/$PHOTO_APP_ENDPOINT_URI/g" \
+    ./src/config/apiConfig_template.js > ./src/config/apiConfig.js
+
+# build javascript
+npm run build
+
+# enable azure storage static website
+az storage blob service-properties update --account-name $STORAGE_ACCOUNT_NAME --static-website --index-document index.html --404-document index.html
+
+# upload to Azure Blob Storage
+az storage azcopy blob upload --container '$web' --account-name $STORAGE_ACCOUNT_NAME --source './dist/*' --recursive
+
+cd ../photo-api

@@ -25,7 +25,6 @@ var (
 	serviceName          = utils.GetEnvValue("SERVICE_NAME", "")
 	servicePort          = utils.GetEnvValue("SERVICE_PORT", "")
 	uploadsQueueBinding  = utils.GetEnvValue("UPLOADS_QUEUE_BINDING", "")
-	//uploadsContainerName = utils.GetEnvValue("UPLOADS_CONTAINER_NAME", "uploads")
 	azureClientId        = utils.GetEnvValue("AZURE_CLIENT_ID", "")
 	imagesContainerName  = utils.GetEnvValue("IMAGES_CONTAINER_NAME", "images")
 

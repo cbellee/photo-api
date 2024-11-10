@@ -150,6 +150,7 @@ func albumPhotosHandler(client *azblob.Client, storageUrl string) http.HandlerFu
 				Height:     int32(height),
 				Album:      r.Tags["Album"],
 				Collection: r.Tags["Collection"],
+				Description: r.Tags["Description"],
 			}
 
 			photos = append(photos, photo)

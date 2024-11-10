@@ -80,3 +80,5 @@ resource blobContainers 'Microsoft.Storage/storageAccounts/blobServices/containe
 output name string = storage.name
 output id string = storage.id
 output key string = storage.listKeys().keys[0].value
+output blobEndpoint string = take(storage.properties.primaryEndpoints.blob, length(storage.properties.primaryEndpoints.blob) - 1)
+output webEndpoint string = take(storage.properties.primaryEndpoints.web, length(storage.properties.primaryEndpoints.web) - 1)
