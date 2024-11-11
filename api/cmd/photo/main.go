@@ -382,6 +382,7 @@ func collectionAlbums(client *azblob.Client, storageUrl string) http.HandlerFunc
 				Height:     int32(height),
 				Album:      tags["Album"],
 				Collection: tags["Collection"],
+				Description: tags["Description"],
 			}
 
 			photos = append(photos, photo)
@@ -397,6 +398,7 @@ func queryBlobsByTags(client *azblob.Client, storageUrl string, query string) (b
 	ctx := context.Background()
 	var blobs []models.Blob
 
+	
 	resp, err := client.ServiceClient().FilterBlobs(ctx, query, nil)
 	if err != nil {
 		slog.Error("error getting blobs by tags", "error", err)
@@ -407,8 +409,14 @@ func queryBlobsByTags(client *azblob.Client, storageUrl string, query string) (b
 		blobPath := fmt.Sprintf("%s/%s/%s", storageUrl, imagesContainerName, *_blob.Name)
 		slog.Info("blobPath", "path", blobPath)
 
+		tags, err := client.ServiceClient().NewContainerClient(imagesContainerName).NewBlobClient(*_blob.Name).GetTags(ctx, nil)
+		if err != nil {
+			slog.Error("error getting blob tags", "blobPath", blobPath, "error", err)
+			return nil, err
+		}
+
 		t := make(map[string]string)
-		for _, tag := range _blob.Tags.BlobTagSet {
+		for _, tag := range tags.BlobTagSet {
 			t[*tag.Key] = *tag.Value
 		}
 
