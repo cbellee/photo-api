@@ -409,15 +409,10 @@ func queryBlobsByTags(client *azblob.Client, storageUrl string, query string) (b
 		blobPath := fmt.Sprintf("%s/%s/%s", storageUrl, imagesContainerName, *_blob.Name)
 		slog.Info("blobPath", "path", blobPath)
 
-		tags, err := client.ServiceClient().NewContainerClient(imagesContainerName).NewBlobClient(*_blob.Name).GetTags(ctx, nil)
+		tags, err := utils.GetBlobTags(client, *_blob.Name, imagesContainerName, storageUrl)
 		if err != nil {
 			slog.Error("error getting blob tags", "blobPath", blobPath, "error", err)
 			return nil, err
-		}
-
-		t := make(map[string]string)
-		for _, tag := range tags.BlobTagSet {
-			t[*tag.Key] = *tag.Value
 		}
 
 		md, err := utils.GetBlobMetadata(client, *_blob.Name, *_blob.ContainerName, storageUrl)
@@ -428,7 +423,7 @@ func queryBlobsByTags(client *azblob.Client, storageUrl string, query string) (b
 		b := models.Blob{
 			Name:     *_blob.Name,
 			Path:     fmt.Sprintf("%s/%s/%s", storageUrl, imagesContainerName, *_blob.Name),
-			Tags:     t,
+			Tags:     tags,
 			MetaData: md,
 		}
 
