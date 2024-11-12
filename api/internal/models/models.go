@@ -14,11 +14,14 @@ type StorageConfig struct {
 }
 
 type MetaData struct {
-	Description string `json:"description"`
-	Name        string `json:"name"`
-	Collection  string `json:"collection"`
-	Album       string `json:"album"`
-	Type        string `json:"type"`
+	Description     string `json:"description"`
+	Name            string `json:"name"`
+	Collection      string `json:"collection"`
+	CollectionImage bool   `json:"collectionImage"`
+	AlbumImage      bool   `json:"albumImage"`
+	Album           string `json:"album"`
+	Type            string `json:"type"`
+	Size            int64  `json:"size"`
 }
 
 type Blob struct {

@@ -16,6 +16,7 @@ import (
 
 	"github.com/cbellee/photo-api/internal/models"
 	"github.com/cbellee/photo-api/internal/utils"
+	"github.com/rs/cors"
 
 	azlog "github.com/Azure/azure-sdk-for-go/sdk/azcore/log"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
@@ -27,7 +28,7 @@ var (
 	serviceName          = utils.GetEnvValue("SERVICE_NAME", "photoService")
 	servicePort          = utils.GetEnvValue("SERVICE_PORT", "8080")
 	uploadsContainerName = utils.GetEnvValue("UPLOADS_CONTAINER_NAME", "uploads")
-	azureClientId		= utils.GetEnvValue("AZURE_CLIENT_ID", "")
+	azureClientId        = utils.GetEnvValue("AZURE_CLIENT_ID", "")
 	imagesContainerName  = utils.GetEnvValue("IMAGES_CONTAINER_NAME", "images")
 	storageConfig        = models.StorageConfig{
 		StorageAccount:       utils.GetEnvValue("STORAGE_ACCOUNT_NAME", ""),
@@ -69,31 +70,28 @@ func main() {
 	}
 
 	client, err := utils.CreateAzureBlobClient(storageUrl, isProduction, azureClientId)
-	if err != nil {	
+	if err != nil {
 		slog.Error("error creating blob client", "error", err)
 		return
 	}
 
 	port := fmt.Sprintf(":%s", servicePort)
-	mux := http.NewServeMux()
+	api := http.NewServeMux()
 
-	mux.HandleFunc("GET /api", collectionsHandler(client, storageUrl))
-	mux.HandleFunc("GET /api/{collection}", collectionAlbums(client, storageUrl))
-	mux.HandleFunc("GET /api/{collection}/{album}", albumPhotosHandler(client, storageUrl))
-	mux.HandleFunc("POST /api/upload", uploadPhotoHandler(client, storageUrl))
-	mux.HandleFunc("GET /api/tags", tagListHandler(client, storageUrl))
+	api.HandleFunc("GET /api", collectionsHandler(client, storageUrl))
+	api.HandleFunc("GET /api/{collection}", collectionAlbums(client, storageUrl))
+	api.HandleFunc("GET /api/{collection}/{album}", albumPhotosHandler(client, storageUrl))
+	api.HandleFunc("POST /api/upload", uploadPhotoHandler(client, storageUrl))
+	api.HandleFunc("GET /api/tags", tagListHandler(client, storageUrl))
 
 	slog.Info("server listening", "name", serviceName, "port", port)
-	http.ListenAndServe(port, mux)
-}
-
-func enableCors(w *http.ResponseWriter) {
-	(*w).Header().Set("Access-Control-Allow-Origin", "*")
+	handler := cors.Default().Handler(api)
+	log.Fatal(http.ListenAndServe(port, handler))
 }
 
 func tagListHandler(client *azblob.Client, storageUrl string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		enableCors(&w)
+		
 		ctx := context.Background()
 
 		blobTagList, err := utils.GetBlobTagList(client, imagesContainerName, storageUrl, ctx)
@@ -111,7 +109,7 @@ func tagListHandler(client *azblob.Client, storageUrl string) http.HandlerFunc {
 
 func albumPhotosHandler(client *azblob.Client, storageUrl string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		enableCors(&w)
+		
 
 		collection := r.PathValue("collection")
 		if collection == "" {
@@ -144,12 +142,12 @@ func albumPhotosHandler(client *azblob.Client, storageUrl string) http.HandlerFu
 			}
 
 			photo := models.Photo{
-				Src:        r.Path,
-				Name:       r.Name,
-				Width:      int32(width),
-				Height:     int32(height),
-				Album:      r.Tags["Album"],
-				Collection: r.Tags["Collection"],
+				Src:         r.Path,
+				Name:        r.Name,
+				Width:       int32(width),
+				Height:      int32(height),
+				Album:       r.Tags["Album"],
+				Collection:  r.Tags["Collection"],
 				Description: r.Tags["Description"],
 			}
 
@@ -165,61 +163,17 @@ func albumPhotosHandler(client *azblob.Client, storageUrl string) http.HandlerFu
 
 func uploadPhotoHandler(client *azblob.Client, storageUrl string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-
 		ctx := context.Background()
-		enableCors(&w)
 
-		//r.PostFormValue("photos")
-		//r.PostFormValue("metadata")
+		if r.Body == nil {
+			http.Error(w, "no multipart form", http.StatusBadRequest)
+			return
+		}
 
 		err := r.ParseMultipartForm(memoryLimitMb << 20) // 32Mb max memory size limit
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 		}
-
-		var collection = ""
-		var album = ""
-		var albumImage = ""
-		var collectionImage = ""
-
-		if val, ok := r.MultipartForm.Value["collection"]; ok {
-			c := val
-			if len(c) <= 0 {
-				slog.Error("empty FormValue", "name", "collection")
-				http.Error(w, "empty FormValue", http.StatusBadRequest)
-			}
-			collection = c[0]
-		}
-
-		if val, ok := r.MultipartForm.Value["album"]; ok {
-			a := val
-			if len(a) <= 0 {
-				slog.Error("empty FormValue", "name", "album")
-				http.Error(w, "empty FormValue", http.StatusBadRequest)
-			}
-			album = a[0]
-		}
-
-		if val, ok := r.MultipartForm.Value["albumImage"]; ok {
-			ai := val
-			if len(ai) <= 0 {
-				slog.Error("empty FormValue", "name", "albumImage")
-				http.Error(w, "empty FormValue", http.StatusBadRequest)
-			}
-			albumImage = ai[0]
-		}
-
-		if val, ok := r.MultipartForm.Value["collectionImage"]; ok {
-			ci := val
-			if len(ci) <= 0 {
-				slog.Error("empty FormValue", "name", "collectionImage")
-				http.Error(w, "empty FormValue", http.StatusBadRequest)
-			}
-			collectionImage = ci[0]
-		}
-
-		slog.Info("CollectionImage", "value", collectionImage)
-		slog.Info("albumImage", "value", albumImage)
 
 		md := []models.MetaData{}
 		m := r.MultipartForm.Value["metadata"][0]
@@ -230,70 +184,67 @@ func uploadPhotoHandler(client *azblob.Client, storageUrl string) http.HandlerFu
 
 		slog.Info("json data", "data", md)
 
-		for i := 0; i < len(r.MultipartForm.File["photos"]); i++ {
-			f := r.MultipartForm.File["photos"][i]
+		fh := r.MultipartForm.File["photos"]
 
-			fileNameWithPrefix := fmt.Sprintf("%s/%s/%s", collection, album, f.Filename)
+		fileNameWithPrefix := fmt.Sprintf("%s/%s/%s", md[0].Collection, md[0].Album, fh[0].Filename)
 
-			tags := make(map[string]string)
-			tags["Name"] = fileNameWithPrefix
-			tags["Description"] = md[i].Description
-			tags["Collection"] = collection
-			tags["Album"] = album
+		tags := make(map[string]string)
+		tags["Name"] = fileNameWithPrefix
+		tags["Description"] = md[0].Description
+		tags["Collection"] = md[0].Collection
+		tags["Album"] = md[0].Album
 
-			// set album & collection image tags
-			if f.Filename == collectionImage {
-				// Clear all photos with 'CollectionImage' tag set for this collection
-				tags["CollectionImage"] = "true"
-			} else {
-				tags["CollectionImage"] = ""
-			}
-
-			if f.Filename == albumImage {
-				// Clear all photos with 'AlbumImage' tag set for this album
-				tags["AlbumImage"] = "true"
-			} else {
-				tags["AlbumImage"] = ""
-			}
-
-			file, err := f.Open()
-			if err != nil {
-				slog.Error("error opening file", "filename", f.Filename, "error", err)
-			}
-
-			buf := bytes.NewBuffer(nil)
-			if _, err := io.Copy(buf, file); err != nil {
-				slog.Error("error copying to buffer", "filename", f.Filename, "error", err)
-			}
-
-			img, _, err := image.DecodeConfig(bytes.NewReader(buf.Bytes()))
-			if err != nil {
-				log.Fatalln(err)
-			}
-
-			metadata := make(map[string]string)
-			metadata["Height"] = fmt.Sprint(img.Height)
-			metadata["Width"] = fmt.Sprint(img.Width)
-			metadata["Size"] = strconv.Itoa(int(f.Size))
-
-			utils.SaveBlobStreamWithTagsMetadataAndContentType(
-				client,
-				ctx,
-				buf.Bytes(),
-				fileNameWithPrefix,
-				uploadsContainerName,
-				storageUrl,
-				tags,
-				metadata,
-				md[i].Type,
-			)
+		// set album & collection image tags
+		if md[0].CollectionImage {
+		// Clear all photos with 'CollectionImage' tag set for this collection
+			tags["CollectionImage"] = "true"
+		} else {
+			tags["CollectionImage"] = ""
 		}
+
+		if md[0].AlbumImage {
+			// Clear all photos with 'AlbumImage' tag set for this album
+			tags["AlbumImage"] = "true"
+		} else {
+			tags["AlbumImage"] = ""
+		}
+
+		file, err := fh[0].Open()
+		if err != nil {
+			slog.Error("error opening file", "filename", fh[0].Filename, "error", err)
+		}
+
+		buf := bytes.NewBuffer(nil)
+		if _, err := io.Copy(buf, file); err != nil {
+			slog.Error("error copying to buffer", "filename", fh[0].Filename, "error", err)
+		}
+
+		img, _, err := image.DecodeConfig(bytes.NewReader(buf.Bytes()))
+		if err != nil {
+			log.Fatalln(err)
+		}
+
+		metadata := make(map[string]string)
+		metadata["Height"] = fmt.Sprint(img.Height)
+		metadata["Width"] = fmt.Sprint(img.Width)
+		metadata["Size"] = strconv.Itoa(int(fh[0].Size))
+
+		utils.SaveBlobStreamWithTagsMetadataAndContentType(
+			client,
+			ctx,
+			buf.Bytes(),
+			fileNameWithPrefix,
+			uploadsContainerName,
+			storageUrl,
+			tags,
+			metadata,
+			md[0].Type,
+		)
 	}
 }
 
 func collectionsHandler(client *azblob.Client, storageUrl string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		enableCors(&w)
 
 		// get photos with matching collection tags
 		query := fmt.Sprintf("@container='%s' and CollectionImage='true'", imagesContainerName)
@@ -342,8 +293,7 @@ func collectionsHandler(client *azblob.Client, storageUrl string) http.HandlerFu
 
 func collectionAlbums(client *azblob.Client, storageUrl string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		enableCors(&w)
-
+		
 		collection := r.PathValue("collection")
 		if collection == "" {
 			slog.Error("empty queryString", "name", "collection")
@@ -376,12 +326,12 @@ func collectionAlbums(client *azblob.Client, storageUrl string) http.HandlerFunc
 			}
 
 			photo := models.Photo{
-				Src:        r.Path,
-				Name:       r.Name,
-				Width:      int32(width),
-				Height:     int32(height),
-				Album:      tags["Album"],
-				Collection: tags["Collection"],
+				Src:         r.Path,
+				Name:        r.Name,
+				Width:       int32(width),
+				Height:      int32(height),
+				Album:       tags["Album"],
+				Collection:  tags["Collection"],
 				Description: tags["Description"],
 			}
 
@@ -398,7 +348,6 @@ func queryBlobsByTags(client *azblob.Client, storageUrl string, query string) (b
 	ctx := context.Background()
 	var blobs []models.Blob
 
-	
 	resp, err := client.ServiceClient().FilterBlobs(ctx, query, nil)
 	if err != nil {
 		slog.Error("error getting blobs by tags", "error", err)
