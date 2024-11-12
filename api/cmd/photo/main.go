@@ -91,7 +91,7 @@ func main() {
 
 func tagListHandler(client *azblob.Client, storageUrl string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		
+
 		ctx := context.Background()
 
 		blobTagList, err := utils.GetBlobTagList(client, imagesContainerName, storageUrl, ctx)
@@ -109,7 +109,6 @@ func tagListHandler(client *azblob.Client, storageUrl string) http.HandlerFunc {
 
 func albumPhotosHandler(client *azblob.Client, storageUrl string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		
 
 		collection := r.PathValue("collection")
 		if collection == "" {
@@ -175,7 +174,7 @@ func uploadPhotoHandler(client *azblob.Client, storageUrl string) http.HandlerFu
 			http.Error(w, err.Error(), http.StatusBadRequest)
 		}
 
-		md := []models.MetaData{}
+		md := models.MetaData{}
 		m := r.MultipartForm.Value["metadata"][0]
 		err = json.Unmarshal([]byte(m), &md)
 		if err != nil {
@@ -186,23 +185,23 @@ func uploadPhotoHandler(client *azblob.Client, storageUrl string) http.HandlerFu
 
 		fh := r.MultipartForm.File["photos"]
 
-		fileNameWithPrefix := fmt.Sprintf("%s/%s/%s", md[0].Collection, md[0].Album, fh[0].Filename)
+		fileNameWithPrefix := fmt.Sprintf("%s/%s/%s", md.Collection, md.Album, fh[0].Filename)
 
 		tags := make(map[string]string)
 		tags["Name"] = fileNameWithPrefix
-		tags["Description"] = md[0].Description
-		tags["Collection"] = md[0].Collection
-		tags["Album"] = md[0].Album
+		tags["Description"] = md.Description
+		tags["Collection"] = md.Collection
+		tags["Album"] = md.Album
 
 		// set album & collection image tags
-		if md[0].CollectionImage {
-		// Clear all photos with 'CollectionImage' tag set for this collection
+		if md.CollectionImage {
+			// Clear all photos with 'CollectionImage' tag set for this collection
 			tags["CollectionImage"] = "true"
 		} else {
 			tags["CollectionImage"] = ""
 		}
 
-		if md[0].AlbumImage {
+		if md.AlbumImage {
 			// Clear all photos with 'AlbumImage' tag set for this album
 			tags["AlbumImage"] = "true"
 		} else {
@@ -238,7 +237,7 @@ func uploadPhotoHandler(client *azblob.Client, storageUrl string) http.HandlerFu
 			storageUrl,
 			tags,
 			metadata,
-			md[0].Type,
+			md.Type,
 		)
 	}
 }
@@ -293,7 +292,7 @@ func collectionsHandler(client *azblob.Client, storageUrl string) http.HandlerFu
 
 func collectionAlbums(client *azblob.Client, storageUrl string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		
+
 		collection := r.PathValue("collection")
 		if collection == "" {
 			slog.Error("empty queryString", "name", "collection")
