@@ -12,6 +12,7 @@ import (
 	"image/png"
 	"log/slog"
 	"math"
+	"net/http"
 	"os"
 	"strings"
 
@@ -22,7 +23,9 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blockblob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
+	"github.com/MicahParks/keyfunc/v3"
 	"github.com/dapr/go-sdk/service/common"
+	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/image/draw"
 )
 
@@ -40,7 +43,7 @@ func CreateAzureBlobClient(storageUrl string, isProduction bool, azureClientId s
 		opt := azidentity.ManagedIdentityCredentialOptions{
 			ID: clientId,
 		}
-		
+
 		credential, err := azidentity.NewManagedIdentityCredential(&opt)
 		if err != nil {
 			slog.Error("invalid DefaultCredential", "error", err)
@@ -399,14 +402,48 @@ func RoundFloat(val float64, precision uint) float64 {
 
 func DumpEnv() {
 	for _, e := range os.Environ() {
-        fmt.Print(e)
+		fmt.Print(e)
 	}
 }
 
-func GetExifData() {
+func extractToken(r *http.Request) (string, error) {
+	accessToken := r.Header.Get("Authorization")
+	if accessToken == "" {
+		return "", fmt.Errorf("no access token found in request")
+	}
 
+	bearerToken := strings.Split(accessToken, " ")[1]
+	return bearerToken, nil
 }
 
-func SetExifData(blobBytes []byte, name string, value string) {
+func VerifyToken(r *http.Request, jwksURL string) (*models.MyClaims, error) {
+	tokenString, err := extractToken(r)
+	if err != nil {
+		return nil, err
+	}
 
+	// Create a context that, when cancelled, ends the JWKS background refresh goroutine.
+	ctx, cancel := context.WithCancel(context.Background())
+
+	// Create the keyfunc.Keyfunc.
+	k, err := keyfunc.NewDefaultCtx(ctx, []string{jwksURL}) // Context is used to end the refresh goroutine.
+	if err != nil {
+		slog.Error("Failed to create a keyfunc.Keyfunc from the server's URL.", "error", err)
+	}
+
+	claims := &models.MyClaims{}
+	ok := false
+
+	parsedToken, err := jwt.ParseWithClaims(tokenString, &models.MyClaims{}, k.Keyfunc)
+	if err != nil {
+		slog.Error("Error Parsing JWT", "error", err)
+	} else if claims, ok = parsedToken.Claims.(*models.MyClaims); ok {
+		fmt.Println(claims)
+	} else {
+		slog.Error("Error Parsing Claims", "error", err)
+	}
+
+	// End the background refresh goroutine when it's no longer needed.
+	cancel()
+	return claims, nil
 }

@@ -12,8 +12,10 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"slices"
 	"strconv"
 
+	"github.com/cbellee/photo-api/internal/exif"
 	"github.com/cbellee/photo-api/internal/models"
 	"github.com/cbellee/photo-api/internal/utils"
 	"github.com/rs/cors"
@@ -36,6 +38,8 @@ var (
 	}
 	memoryLimitMb = int64(32)
 	isProduction  = false
+	jwksURL  = utils.GetEnvValue("JWKS_URL", "https://login.microsoftonline.com/0cd02bb5-3c24-4f77-8b19-99223d65aa67/discovery/keys?appid=689078c3-c0ad-4c10-a0d3-1c430c2e471d")
+	roleName = utils.GetEnvValue("ROLE_NAME", "photo.upload") 
 )
 
 // main
@@ -81,11 +85,22 @@ func main() {
 	api.HandleFunc("GET /api", collectionsHandler(client, storageUrl))
 	api.HandleFunc("GET /api/{collection}", collectionAlbums(client, storageUrl))
 	api.HandleFunc("GET /api/{collection}/{album}", albumPhotosHandler(client, storageUrl))
-	api.HandleFunc("POST /api/upload", uploadPhotoHandler(client, storageUrl))
+	api.HandleFunc("POST /api/upload", uploadPhotoHandler(client, storageUrl, roleName, jwksURL))
 	api.HandleFunc("GET /api/tags", tagListHandler(client, storageUrl))
 
 	slog.Info("server listening", "name", serviceName, "port", port)
-	handler := cors.Default().Handler(api)
+
+	opt := cors.Options{
+		AllowedOrigins:   []string{"*"},
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedHeaders:   []string{"*"},
+		AllowCredentials: true,
+		MaxAge:           300,
+	}
+
+	c := cors.New(opt)
+	handler := c.Handler(api)
+
 	log.Fatal(http.ListenAndServe(port, handler))
 }
 
@@ -148,6 +163,7 @@ func albumPhotosHandler(client *azblob.Client, storageUrl string) http.HandlerFu
 				Album:       r.Tags["Album"],
 				Collection:  r.Tags["Collection"],
 				Description: r.Tags["Description"],
+				ExifData:    r.MetaData["Exifdata"],
 			}
 
 			photos = append(photos, photo)
@@ -160,16 +176,32 @@ func albumPhotosHandler(client *azblob.Client, storageUrl string) http.HandlerFu
 	}
 }
 
-func uploadPhotoHandler(client *azblob.Client, storageUrl string) http.HandlerFunc {
+func uploadPhotoHandler(client *azblob.Client, storageUrl string, roleName string, jwksURL string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := context.Background()
+
+		// Verify JWT token
+		claims, err := utils.VerifyToken(r, jwksURL)
+		if err != nil {
+			http.Error(w, "invalid token or missing access token!", http.StatusUnauthorized)
+			return
+		}
+
+		// ensure the user has the required role claim
+		photoUploadClaim := slices.Contains(claims.Roles, roleName)
+		if photoUploadClaim {
+			slog.Info("''photo.upload'' role claim found in token", "roles", claims.Roles)
+		} else {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
 
 		if r.Body == nil {
 			http.Error(w, "no multipart form", http.StatusBadRequest)
 			return
 		}
 
-		err := r.ParseMultipartForm(memoryLimitMb << 20) // 32Mb max memory size limit
+		err = r.ParseMultipartForm(memoryLimitMb << 20) // 32Mb max memory size limit
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 		}
@@ -183,7 +215,7 @@ func uploadPhotoHandler(client *azblob.Client, storageUrl string) http.HandlerFu
 
 		slog.Info("json data", "data", md)
 
-		fh := r.MultipartForm.File["photos"]
+		fh := r.MultipartForm.File["photo"]
 
 		fileNameWithPrefix := fmt.Sprintf("%s/%s/%s", md.Collection, md.Album, fh[0].Filename)
 
@@ -198,14 +230,14 @@ func uploadPhotoHandler(client *azblob.Client, storageUrl string) http.HandlerFu
 			// Clear all photos with 'CollectionImage' tag set for this collection
 			tags["CollectionImage"] = "true"
 		} else {
-			tags["CollectionImage"] = ""
+			delete(tags, "CollectionImage")
 		}
 
 		if md.AlbumImage {
 			// Clear all photos with 'AlbumImage' tag set for this album
 			tags["AlbumImage"] = "true"
 		} else {
-			tags["AlbumImage"] = ""
+			delete(tags, "AlbumImage")
 		}
 
 		file, err := fh[0].Open()
@@ -223,10 +255,17 @@ func uploadPhotoHandler(client *azblob.Client, storageUrl string) http.HandlerFu
 			log.Fatalln(err)
 		}
 
+		ed := string("")
+		ed, err = exif.GetExifJSON(*buf)
+		if err != nil {
+			slog.Error("error getting exif data", "error", err)
+		}
+
 		metadata := make(map[string]string)
 		metadata["Height"] = fmt.Sprint(img.Height)
 		metadata["Width"] = fmt.Sprint(img.Width)
 		metadata["Size"] = strconv.Itoa(int(fh[0].Size))
+		metadata["ExifData"] = ed
 
 		utils.SaveBlobStreamWithTagsMetadataAndContentType(
 			client,

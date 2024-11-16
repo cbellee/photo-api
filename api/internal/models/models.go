@@ -1,6 +1,9 @@
 package models
 
-import "time"
+import (
+	"github.com/golang-jwt/jwt/v5"
+	"time"
+)
 
 type StorageConfig struct {
 	StorgeURL            string
@@ -40,6 +43,7 @@ type Photo struct {
 	Collection  string    `json:"collection"`
 	Description string    `json:"description"`
 	DateTaken   time.Time `json:"dateTaken"`
+	ExifData    string    `json:"exifData"`
 }
 
 type Album struct {
@@ -48,6 +52,11 @@ type Album struct {
 
 type Collection struct {
 	Name string `json:"name"`
+}
+
+type MyClaims struct {
+	Roles []string `json:"roles"`
+	jwt.RegisteredClaims
 }
 
 type Event struct {

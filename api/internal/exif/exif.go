@@ -7,23 +7,19 @@ import (
 	"github.com/rwcarlsen/goexif/exif"
 )
 
-func GetExifJSON(image bytes.Buffer) string {
+func GetExifJSON(image bytes.Buffer) (string, error) {
 	exMeta, err := exif.Decode(bytes.NewReader(image.Bytes()))
 	if err != nil {
 		slog.Error("error reading exif data", "error", err)
-		return ""
+		return "", err
 	}
 
 	jsonByte, err := exMeta.MarshalJSON()
 	if err != nil {
 		slog.Error("error marshalling exif metadata to JSON")
-		return ""
+		return "", err
 	}
 
 	jsonString := string(jsonByte)
-	return jsonString
-}
-
-func SetExif(image bytes.Buffer) {
-
+	return jsonString, nil
 }

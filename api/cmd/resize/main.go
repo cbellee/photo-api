@@ -14,8 +14,6 @@ import (
 
 	"github.com/cbellee/photo-api/internal/models"
 	"github.com/cbellee/photo-api/internal/utils"
-
-	//"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
 	"github.com/dapr/go-sdk/service/common"
 	daprd "github.com/dapr/go-sdk/service/grpc"
@@ -83,29 +81,6 @@ func main() {
 }
 
 func ResizeHandler(ctx context.Context, in *common.BindingEvent) (out []byte, err error) {
-	//myCtx := context.WithValue(context.Background(), "client", client)
-	/* credential, err := azidentity.NewDefaultAzureCredential(nil)
-	if err != nil {
-		slog.Error("invalid credentials", "error", err)
-		return
-	} */
-
-	/* if storageConfig.StorageAccount == "" {
-		slog.Error("storage account name is required")
-		return
-	}
-	storageUrl := fmt.Sprintf("https://%s.%s", storageConfig.StorageAccount, storageConfig.StorageAccountSuffix)
-
-	client, err := azblob.NewClient(storageUrl, credential, nil)
-	if err != nil {
-		slog.Error("error creating blob client", "error", err)
-		return
-	} */
-
-	//storageUrl := fmt.Sprintf("https://%s.%s", storageConfig.StorageAccount, storageConfig.StorageAccountSuffix)
-
-	// check if running in Azure Container App
-
 	// get env Vars
 	mih, err := strconv.Atoi(utils.GetEnvValue("MAX_IMAGE_HEIGHT", "1200"))
 	if err != nil {
@@ -201,7 +176,6 @@ func ResizeHandler(ctx context.Context, in *common.BindingEvent) (out []byte, er
 	slog.Info("added blob metadata", "blob_name", blobName, "metadata", metadata)
 
 	// add tags
-	// tags["Url"] = fmt.Sprintf("https://%s/%s/%s", storageUrl, storageConfig.ImagesContainerName, blobPath)
 	tags["Url"] = fmt.Sprintf("%s/%s/%s", client.URL(), imagesContainerName, blobPath)
 
 	slog.Info("added blob tags", "blob_name", blobName, "tags", tags)
