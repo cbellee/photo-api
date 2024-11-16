@@ -140,4 +140,7 @@ az storage blob service-properties update --account-name $STORAGE_ACCOUNT_NAME -
 # upload to Azure Blob Storage
 az storage azcopy blob upload --container '$web' --account-name $STORAGE_ACCOUNT_NAME --source './dist/*' --recursive
 
+# purge the CDN cache 
+az cdn endpoint purge --resource-group $RG_NAME --name photo-app-endpoint --profile-name photo-app-profile --content-paths "/*"
+
 cd ../photo-api
