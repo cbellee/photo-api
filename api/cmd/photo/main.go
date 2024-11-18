@@ -184,14 +184,14 @@ func uploadPhotoHandler(client *azblob.Client, storageUrl string, roleName strin
 		// Verify JWT token
 		claims, err := utils.VerifyToken(r, jwksURL)
 		if err != nil {
-			http.Error(w, "invalid token or missing access token!", http.StatusUnauthorized)
+			http.Error(w, "You are not authorized to perform this operation", http.StatusUnauthorized)
 			return
 		}
 
 		// ensure the user has the required role claim
 		photoUploadClaim := slices.Contains(claims.Roles, roleName)
 		if photoUploadClaim {
-			slog.Info("''photo.upload'' role claim found in token", "roles", claims.Roles)
+			slog.Info("role claim found in token", "roles", claims.Roles)
 		} else {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
