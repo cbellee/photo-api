@@ -24,7 +24,7 @@ jobs:
         uses: actions/checkout@main
 
       - name: log-into-azure
-        uses: azure/login@v1
+        uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
@@ -36,21 +36,21 @@ jobs:
             az group create --name ${{ env.RG_NAME }} --location ${{ env.LOCATION }}
 
       - name: deploy-acr
-        uses:  azure/arm-deploy@v1
+        uses:  azure/arm-deploy@v2
         with:
           deploymentName: deploy-acr
           subscriptionId: ${{ secrets.AZURE_SUBSCRIPTION }}
           resourceGroupName: ${{ env.RG_NAME }}
           template: ./infra/modules/acr.bicep
 
+
       - name: deploy-acr-outputs
         run: |
-          echo ACR_NAME=${{ steps.deploy-acr.outputs['acrName'] }} >> "$GITHUB_OUTPUT"
+          echo ACR_NAME=${{ steps.deploy-acr.outputs.acrName }} >> "$GITHUB_OUTPUT"
   
   build-photo-api-job:
     runs-on: ubuntu-latest
     needs: [deploy-acr-job]
-    name: build-photo-api-job
     env:
       PHOTO_API_IMAGE: "${{ needs.deploy-acr-job.outputs.acrName }}.azurecr.io/${{ vars.PHOTO_API_NAME }}:${{ vars.VERSION }}"
       ACR_NAME: ${{ needs.deploy-acr-job.outputs.acrName }}
@@ -81,7 +81,6 @@ jobs:
   build-resize-api-job:
     runs-on: ubuntu-latest
     needs: deploy-acr-job
-    name: build-resize-api-job
     env:
       RESIZE_API_IMAGE: "${{ needs.deploy-acr-job.outputs.acrName }}.azurecr.io/${{ vars.RESIZE_API_NAME }}:${{ vars.VERSION }}"
       ACR_NAME: ${{ needs.deploy-acr-job.outputs.acrName }}
@@ -90,13 +89,13 @@ jobs:
         uses: actions/checkout@main
 
       - name: log-into-azure
-        uses: azure/login@v1
+        uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
       - name: acr-build-resize-api
         id: acr-build-resize-api
-        uses: azure/CLI@v1
+        uses: azure/CLI@v2
         with:
           azcliversion: 2.67.0
           inlineScript: |
@@ -120,12 +119,12 @@ jobs:
       uses: actions/checkout@main
 
     - name: log-into-azure
-      uses: azure/login@v1
+      uses: azure/login@v2
       with:
         creds: ${{ secrets.AZURE_CREDENTIALS }}
 
     - name: deploy-infra
-      uses: azure/arm-deploy@v1
+      uses: azure/arm-deploy@v2
       with:
         subscriptionId: ${{ secrets.AZURE_SUBSCRIPTION }}
         deploymentName: deploy-infra
