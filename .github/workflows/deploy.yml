@@ -18,7 +18,7 @@ jobs:
   deploy-acr-job:
     runs-on: ubuntu-latest
     outputs:
-      acrName: ${{ steps.deploy-acr.outputs['acrName'] }}
+      acrName: ${{ steps.deploy-acr-outputs.outputs.acrName }}
     steps:
       - name: checkout-code
         uses: actions/checkout@main
@@ -45,7 +45,7 @@ jobs:
 
       - name: deploy-acr-outputs
         run: |
-          echo ACR_NAME=${{ steps.deploy-acr.outputs['acrName'] }} >> $GITHUB_ENV
+          echo acrName=${{ steps.deploy-acr.outputs['acrName'] }} >> "$GITHUB_OUTPUT"
   
   build-photo-api-job:
     runs-on: ubuntu-latest
