@@ -7,8 +7,7 @@ on:
 
 env:
   LOCATION: uksouth
-  APP_NAME: photo-app
-  RG_NAME: "${APP_NAME}-${LOCATION}-rg"
+  RG_NAME: photo-app-uksouth-rg
   PHOTO_API_NAME: photo-api
   PHOTO_API_PORT: 8080
   RESIZE_API_NAME: resize-api
