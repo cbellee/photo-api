@@ -38,7 +38,7 @@ jobs:
         id: deploy-acr
         uses:  azure/arm-deploy@v1
         with:
-          name: deploy-acrment
+          deploymentName: deploy-acr
           subscriptionId: ${{ secrets.AZURE_SUBSCRIPTION }}
           resourceGroupName: ${{ env.RG_NAME }}
           template: ./infra/modules/acr.bicep
@@ -126,6 +126,7 @@ jobs:
       uses: azure/arm-deploy@v1
       with:
         subscriptionId: ${{ secrets.AZURE_SUBSCRIPTION }}
+        deploymentName: deploy-infra
         resourceGroupName: ${{ env.RG_NAME }}
         template: ./infra/main.bicep
         parameters: "acrName=${{ vars.ACR_NAME }} photoApiContainerImage=${{ vars.PHOTO_API_IMAGE }} resizeApiContainerImage=${{ vars.RESIZE_API_IMAGE }}"
