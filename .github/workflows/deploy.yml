@@ -58,7 +58,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [deploy-acr-job]
     env:
-      PHOTO_API_IMAGE: "${{ needs.deploy-acr-job.outputs.acrName }}.azurecr.io/${{ vars.PHOTO_API_NAME }}:${{ vars.VERSION }}"
+      PHOTO_API_IMAGE: "${{ needs.deploy-acr-job.outputs.acrName }}.azurecr.io/$PHOTO_API_NAME:$VERSION"
     steps:
       - name: checkout-code
         id: checkout-code
@@ -90,7 +90,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: deploy-acr-job
     env:
-      RESIZE_API_IMAGE: "${{ needs.deploy-acr-job.outputs.acrName }}.azurecr.io/${{ vars.RESIZE_API_NAME }}:${{ vars.VERSION }}"
+      RESIZE_API_IMAGE: "${{ needs.deploy-acr-job.outputs.acrName }}.azurecr.io/$RESIZE_API_NAME:$VERSION"
       ACR_NAME: ${{ needs.deploy-acr-job.outputs.acrName }}
     steps:
       - name: checkout-code
