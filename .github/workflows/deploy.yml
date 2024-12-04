@@ -18,24 +18,22 @@ jobs:
   deploy-acr-job:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
+      - name: checkout-code
         uses: actions/checkout@main
 
-      - name: Log into Azure
+      - name: log-into-azure
         uses: azure/login@v1
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Create Resource Group
-        id: create-resource-group
+      - name: create-resource-group
         uses: azure/CLI@v1
         with:
           azcliversion: 2.67.0
           inlineScript: |
             az group create --name ${{ env.RG_NAME }} --location ${{ env.LOCATION }}
 
-      - name: Deploy ACR
-        id: deploy-acr
+      - name: deploy-acr
         uses:  azure/arm-deploy@v1
         with:
           deploymentName: deploy-acr
@@ -43,8 +41,7 @@ jobs:
           resourceGroupName: ${{ env.RG_NAME }}
           template: ./infra/modules/acr.bicep
 
-      - name: Get deployment outputs
-        id: deploy-acr-outputs
+      - name: deploy-acr-outputs
         run: |
           echo ACR_NAME=${{ steps.deploy-acr.outputs['acrName'] }} >> $GITHUB_ENV
   
