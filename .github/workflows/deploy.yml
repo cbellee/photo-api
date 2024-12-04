@@ -46,7 +46,8 @@ jobs:
 
       - name: deploy-acr-outputs
         run: |
-          echo ACR_NAME=${{ steps.deploy-acr.outputs.acrName }} >> "$GITHUB_OUTPUT"
+          echo "ACR_NAME: ${{ steps.deploy-acr.outputs.acrName }}"
+          echo "ACR_NAME=${{ steps.deploy-acr.outputs.acrName }}" >> "$GITHUB_OUTPUT"
   
   build-photo-api-job:
     runs-on: ubuntu-latest
@@ -59,12 +60,12 @@ jobs:
         uses: actions/checkout@main
 
       - name: Log into Azure
-        uses: azure/login@v1
+        uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
       - name: acr-build-photo-api
-        uses: azure/CLI@v1
+        uses: azure/cli@v2
         with:
           azcliversion: 2.67.0
           inlineScript: |
@@ -95,7 +96,7 @@ jobs:
 
       - name: acr-build-resize-api
         id: acr-build-resize-api
-        uses: azure/CLI@v2
+        uses: azure/cli@v2
         with:
           azcliversion: 2.67.0
           inlineScript: |
