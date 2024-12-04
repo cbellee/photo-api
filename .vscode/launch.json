@@ -16,6 +16,7 @@
                 "STORAGE_ACCOUNT_SUFFIX": "blob.core.windows.net",
                 "UPLOADS_CONTAINER_NAME": "uploads",
                 "IMAGES_CONTAINER_NAME": "images",
+                "PATH": "${env:PATH}:/opt/homebrew/bin/az"
             },
         }
     ]

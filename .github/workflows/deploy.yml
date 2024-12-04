@@ -1,0 +1,131 @@
+name: build_image
+on:
+  push:
+    paths:
+      - "api/**"
+  workflow_dispatch:
+
+env:
+  LOCATION: uksouth
+  APP_NAME: photo-app
+  RG_NAME: "${APP_NAME}-${LOCATION}-rg"
+  PHOTO_API_NAME: photo-api
+  PHOTO_API_PORT: 8080
+  RESIZE_API_NAME: resize-api
+  RESIZE_API_PORT: 8080
+  VERSION: 1.0.0
+
+jobs:
+  deploy-acr:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@main
+
+      - name: Log into Azure
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Create Resource Group
+        uses: azure/CLI@v1
+        with:
+          azcliversion: 2.67.0
+          inlineScript: |
+            az group create --name ${{ env.RG_NAME }} --location ${{ env.LOCATION }}
+
+      - name: Deploy ACR
+        id: deploy-acr
+        uses:  azure/arm-deploy@v1
+        with:
+          name: deploy-acrment
+          subscriptionId: ${{ secrets.AZURE_SUBSCRIPTION }}
+          resourceGroupName: ${{ secrets.AZURE_RG }}
+          template: ./infra/modules/acr.bicep
+
+      - name: Get deployment outputs
+        id: deploy-acr-outputs
+        run: |
+          echo ACR_NAME=${{ steps.deploy-acr.outputs['acrName'] }} >> $GITHUB_ENV
+  
+  build-photo-api-acr:
+    runs-on: ubuntu-latest
+    needs: deploy-acr
+    name: Build Photo Api in ACR
+    env:
+      PHOTO_API_IMAGE: "${{ vars.ACR_NAME }}.azurecr.io/${{ vars.PHOTO_API_NAME }}:${{ vars.VERSION }}"
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@main
+
+      - name: Log into Azure
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: ACR build
+        id: acr-build-photo-api
+        uses: azure/CLI@v1
+        with:
+          azcliversion: 2.67.0
+          inlineScript: |
+            az acr build \
+              --registry ${{ vars.ACR_NAME }} \
+              -t ${{ env.PHOTO_API_IMAGE }} \
+              --build-arg SERVICE_NAME=${{ env.PHOTO_API_NAME }} \
+              --build-arg SERVICE_PORT=${{ env.PHOTO_API_PORT }} \
+              -f ./Dockerfile .
+       
+      - run: |
+          echo PHOTO_API_IMAGE=${{ env.PHOTO_API_IMAGE }} >> $GITHUB_ENV
+
+  build-resize-api-acr:
+    runs-on: ubuntu-latest
+    needs: deploy-acr
+    name: Build Resize Api in ACR
+    env:
+      RESIZE_API_IMAGE: "${{ vars.ACR_NAME }}.azurecr.io/${{ vars.RESIZE_API_NAME }}:${{ vars.VERSION }}"
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@main
+
+      - name: Log into Azure
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: ACR build
+        id: acr-build-photo-api
+        uses: azure/CLI@v1
+        with:
+          azcliversion: 2.67.0
+          inlineScript: |
+            az acr build \
+              --registry ${{ vars.ACR_NAME }} \
+              -t ${{ env.RESIZE_API_IMAGE }} \
+              --build-arg SERVICE_NAME=${{ env.RESIZE_API_NAME }} \
+              --build-arg SERVICE_PORT=${{ env.RESIZE_API_PORT }} \
+              -f ./Dockerfile .
+
+      - run: |
+          echo RESIZE_API_IMAGE=${{ env.RESIZE_API_IMAGE }} >> $GITHUB_ENV
+
+  build-and-deploy-infra:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@main
+
+    - name: Log into Azure
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+    - name: Deploy Infra
+      uses: azure/arm-deploy@v1
+      with:
+        subscriptionId: ${{ secrets.AZURE_SUBSCRIPTION }}
+        resourceGroupName: ${{ env.RG_NAME }}
+        template: ./infra/main.bicep
+        parameters: "acrName=${{ vars.ACR_NAME }} photoApiContainerImage=${{ vars.PHOTO_API_IMAGE }} resizeApiContainerImage=${{ vars.RESIZE_API_IMAGE }}"
+        failOnStdErr: true

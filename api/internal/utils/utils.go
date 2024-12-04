@@ -58,8 +58,9 @@ func CreateAzureBlobClient(storageUrl string, isProduction bool, azureClientId s
 	} else {
 		// any othger environment detected
 		var err error
-		slog.Info("Other environment detected, using 'DefaultCredential'")
-		credential, err := azidentity.NewDefaultAzureCredential(nil)
+		slog.Info("Other environment detected, using 'AzureCLICredential'")
+		//credential, err := azidentity.NewDefaultAzureCredential(nil)
+		credential, err := azidentity.NewAzureCLICredential(nil)
 		if err != nil {
 			slog.Error("invalid credentials", "error", err)
 			return nil, err
@@ -181,6 +182,27 @@ func GetBlobDirectories(containerClient *container.Client, ctx context.Context, 
 	return m
 }
 
+/* func GetBlobTags(client *azblob.Client, blobPath string, container string, storageUrl string) (tags map[string]string, err error) {
+	ctx := context.Background()
+	blobUrl := fmt.Sprintf("%s/%s/%s", storageUrl, container, blobPath)
+	blockBlob := client.ServiceClient().NewContainerClient(container).NewBlockBlobClient(blobPath)
+
+	// get blob tags
+	tagResponse, err := blockBlob.GetTags(ctx, nil)
+	if err != nil {
+		slog.Error("error getting blob tags", "blob_url", blobUrl, "error", err)
+		return nil, err
+	}
+
+	slog.Info("got blob tags", "blob", blobPath, "tags", tagResponse.BlobTags)
+	tags = make(map[string]string)
+	for _, t := range tagResponse.BlobTags.BlobTagSet {
+		tags[*t.Key] = *t.Value
+	}
+
+	return tags, nil
+} */
+
 func GetBlobTags(client *azblob.Client, blobPath string, container string, storageUrl string) (tags map[string]string, err error) {
 	ctx := context.Background()
 	blobUrl := fmt.Sprintf("%s/%s/%s", storageUrl, container, blobPath)
@@ -200,6 +222,23 @@ func GetBlobTags(client *azblob.Client, blobPath string, container string, stora
 	}
 
 	return tags, nil
+}
+
+func SetBlobTags(client *azblob.Client, blobPath string, container string, storageUrl string, tags map[string]string) (err error) {
+	ctx := context.Background()
+	blobUrl := fmt.Sprintf("%s/%s/%s", storageUrl, container, blobPath)
+	blockBlob := client.ServiceClient().NewContainerClient(container).NewBlockBlobClient(blobPath)
+
+	// set blob tags
+	slog.Info("set blob tags", "blob", blobPath, "tags", tags)
+	setTagResponse, err := blockBlob.SetTags(ctx, tags, nil)
+	if err != nil {
+		slog.Error("error setting blob tags", "blob_url", blobUrl, "error", err)
+		return err
+	}
+
+	slog.Info("set blob tags", "blob", blobPath, "tags", tags, "response", setTagResponse)
+	return nil
 }
 
 func GetBlobMetadata(client *azblob.Client, blobPath string, container string, storageUrl string) (metadata map[string]string, err error) {
@@ -254,11 +293,11 @@ func GetBlobTagList(client *azblob.Client, containerName string, storageUrl stri
 			collection := ""
 
 			for _, t := range tags.BlobTagSet {
-				if *t.Key == "Collection" {
+				if *t.Key == "collection" {
 					collection = *t.Value
 				}
 
-				if *t.Key == "Album" {
+				if *t.Key == "album" {
 					album = *t.Value
 				}
 			}
@@ -435,6 +474,7 @@ func VerifyToken(r *http.Request, jwksURL string) (*models.MyClaims, error) {
 	ok := false
 
 	parsedToken, err := jwt.ParseWithClaims(tokenString, &models.MyClaims{}, k.Keyfunc)
+	slog.Info("parsed token", "token", parsedToken)
 	if err != nil {
 		slog.Error("Error Parsing JWT", "error", err)
 	} else if claims, ok = parsedToken.Claims.(*models.MyClaims); ok {

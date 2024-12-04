@@ -1,8 +1,9 @@
 package models
 
 import (
-	"github.com/golang-jwt/jwt/v5"
 	"time"
+
+	"github.com/golang-jwt/jwt/v5"
 )
 
 type StorageConfig struct {
@@ -16,7 +17,7 @@ type StorageConfig struct {
 	UploadsContainerName string
 }
 
-type MetaData struct {
+type ImageTags struct {
 	Description     string `json:"description"`
 	Name            string `json:"name"`
 	Collection      string `json:"collection"`
@@ -24,7 +25,7 @@ type MetaData struct {
 	AlbumImage      bool   `json:"albumImage"`
 	Album           string `json:"album"`
 	Type            string `json:"type"`
-	Size            int64  `json:"size"`
+	IsDeleted       bool   `json:"isDeleted"`
 }
 
 type Blob struct {
@@ -37,13 +38,17 @@ type Blob struct {
 type Photo struct {
 	Src         string    `json:"src"`
 	Name        string    `json:"name"`
-	Width       int32     `json:"width"`
-	Height      int32     `json:"height"`
+	Width       int     `json:"width"`
+	Height      int    `json:"height"`
 	Album       string    `json:"album"`
 	Collection  string    `json:"collection"`
 	Description string    `json:"description"`
 	DateTaken   time.Time `json:"dateTaken"`
 	ExifData    string    `json:"exifData"`
+	IsDeleted   bool      `json:"isDeleted"`
+	Orientation int     `json:"orientation"`
+	AlbumImage  bool      `json:"albumImage"`
+	CollectionImage bool `json:"collectionImage"`
 }
 
 type Album struct {

@@ -359,15 +359,13 @@ resource photoApi 'Microsoft.App/containerApps@2023-11-02-preview' = {
             storage.outputs.webEndpoint
           ]
           allowedHeaders: [
-            'Access-Control-Allow-Origin'
+            '*'
           ]
           allowedMethods: [
-            'GET'
-            'OPTIONS'
-            'HEAD'
+            '*'
           ]
           exposeHeaders: [
-            'Access-Control-Allow-Origin'
+            '*'
           ]
         }
         external: true
