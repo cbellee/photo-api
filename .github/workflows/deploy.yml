@@ -36,6 +36,7 @@ jobs:
             az group create --name ${{ env.RG_NAME }} --location ${{ env.LOCATION }}
 
       - name: deploy-acr
+        id: deploy-acr
         uses:  azure/arm-deploy@v2
         with:
           deploymentName: deploy-acr
