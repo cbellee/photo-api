@@ -58,7 +58,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [deploy-acr-job]
     outputs:
-      photoApiImageName: ${{ steps.acr-build-photo-api.outputs.photoApiImage }}
+      photoApiImage: ${{ steps.acr-build-photo-api.outputs.photoApiImage }}
     steps:
       - name: checkout-code
         id: checkout-code
@@ -85,7 +85,7 @@ jobs:
        
       - run: |
           echo "${{ needs.deploy-acr-job.outputs.acrName }}.azurecr.io/${{ env.PHOTO_API_NAME }}:${{ env.VERSION }}"
-          echo "photoApiImage=${{ needs.deploy-acr-job.outputs.acrName }}.azurecr.io/${{ env.PHOTO_API_NAME }}:${{ env.VERSION }}" >> $GITHUB_OUTPUT
+          echo "photoApiImage=${{ needs.deploy-acr-job.outputs.acrName }}.azurecr.io/${{ env.PHOTO_API_NAME }}:${{ env.VERSION }}-${{ github.sha }}" >> $GITHUB_OUTPUT
 
   build-resize-api-job:
     runs-on: ubuntu-latest
@@ -118,7 +118,7 @@ jobs:
 
       - run: |
           echo "${{ needs.deploy-acr-job.outputs.acrName }}.azurecr.io/${{ env.RESIZE_API_NAME }}:${{ env.VERSION }}"
-          echo "resizeApiImage=${{ needs.deploy-acr-job.outputs.acrName }}.azurecr.io/${{ env.RESIZE_API_NAME }}:${{ env.VERSION }}" >> $GITHUB_OUTPUT
+          echo "resizeApiImage=${{ needs.deploy-acr-job.outputs.acrName }}.azurecr.io/${{ env.RESIZE_API_NAME }}:${{ env.VERSION }}-${{ github.sha }}" >> $GITHUB_OUTPUT
 
   build-and-deploy-infra-job:
     runs-on: ubuntu-latest
@@ -144,5 +144,5 @@ jobs:
         deploymentName: deploy-infra
         resourceGroupName: ${{ env.RG_NAME }}
         template: ./infra/main.bicep
-        parameters: "acrName=${{ needs.deploy-acr-job.outputs.acrName }} photoApiContainerImage=${{ needs.build-photo-api-job.outputs.photoApiImageName }} resizeApiContainerImage=${{ needs.build-resize-api-job.outputs.resizeApiImage }}"
+        parameters: "acrName=${{ needs.deploy-acr-job.outputs.acrName }} photoApiContainerImage=${{ needs.build-photo-api-job.outputs.photoApiImage }} resizeApiContainerImage=${{ needs.build-resize-api-job.outputs.resizeApiImage }}"
       continue-on-error: true

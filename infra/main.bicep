@@ -1,6 +1,8 @@
 param acrName string
 param photoApiContainerImage string
 param resizeApiContainerImage string
+param cpuResource string = '0.25'
+param memoryResource string = '0.25Gi'
 
 param tags object = {
   Environment: 'Dev'
@@ -246,8 +248,8 @@ resource resizeApi 'Microsoft.App/containerApps@2024-08-02-preview' = {
           image: resizeApiContainerImage
           name: resizeApiName
           resources: {
-            cpu: '0.25'
-            memory: '0.5Gi'
+            cpu: int(cpuResource)
+            memory: memoryResource
           }
           env: [
             {
@@ -390,8 +392,8 @@ resource photoApi 'Microsoft.App/containerApps@2023-11-02-preview' = {
           image: photoApiContainerImage
           name: photoApiName
           resources: {
-            cpu: '0.25'
-            memory: '0.5Gi'
+            cpu: int(cpuResource)
+            memory: memoryResource
           }
           env: [
             {
@@ -423,7 +425,7 @@ resource photoApi 'Microsoft.App/containerApps@2023-11-02-preview' = {
       ]
       scale: {
         minReplicas: 0
-        maxReplicas: 2
+        maxReplicas: 1
       }
     }
   }
