@@ -21,13 +21,15 @@ jobs:
       acrName: ${{ steps.deploy-acr-outputs.outputs.acrName }}
       sha: ${{ steps.short-sha.outputs.sha }}
     steps:
-      - name: short-sha
-        id: short-sha
-        run: echo "sha=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
-
       - name: checkout-code
         id: checkout-code
         uses: actions/checkout@main
+
+      - name: short-sha
+        id: short-sha
+        run: |
+            echo "sha: sha=$(git rev-parse --short HEAD)"
+            echo "sha=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: login-azure
         id: login-azure
