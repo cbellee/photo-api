@@ -17,7 +17,7 @@ param vnetConfig object = {
 param isInternal bool = true
 param isZoneRedundant bool = false
 
-resource containerAppEnvironment 'Microsoft.App/managedEnvironments@2023-11-02-preview' = {
+resource containerAppEnvironment 'Microsoft.App/managedEnvironments@2024-08-02-preview' = {
   location: location
   name: name
   properties: {

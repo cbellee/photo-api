@@ -5,7 +5,7 @@ param type string
 param version string = 'v1'
 param timeout string = '60s'
 
-resource uploadsStorageQueueDaprComponent 'Microsoft.App/managedEnvironments/daprComponents@2022-06-01-preview' = {
+resource uploadsStorageQueueDaprComponent 'Microsoft.App/managedEnvironments/daprComponents@2024-08-02-preview' = {
   name: '${containerAppEnvName}/${name}'
   properties: {
     componentType: type

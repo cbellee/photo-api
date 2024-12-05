@@ -19,7 +19,7 @@ var suffix = uniqueString(resourceGroup().id)
 var topicName = '${name}-${suffix}'
 var topicType = 'Microsoft.Storage.StorageAccounts'
 
-resource eventGridTopic 'Microsoft.EventGrid/systemTopics@2023-12-15-preview' = {
+resource eventGridTopic 'Microsoft.EventGrid/systemTopics@2024-06-01-preview' = {
   location: location
   name: topicName
   identity: {
@@ -33,7 +33,7 @@ resource eventGridTopic 'Microsoft.EventGrid/systemTopics@2023-12-15-preview' = 
 }
 
 @batchSize(1)
-resource eventGridSubscription 'Microsoft.EventGrid/systemTopics/eventSubscriptions@2023-12-15-preview' = [for container in containers: {
+resource eventGridSubscription 'Microsoft.EventGrid/systemTopics/eventSubscriptions@2024-06-01-preview' = [for container in containers: {
   name: container
   parent: eventGridTopic
   properties: {

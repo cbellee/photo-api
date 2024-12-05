@@ -20,7 +20,7 @@ param transport string = 'http'
 @allowed(['single', 'multiple'])
 param revisionMode string = 'single'
 
-resource app 'Microsoft.App/containerApps@2023-11-02-preview' = {
+resource app 'Microsoft.App/containerApps@2024-08-02-preview' = {
   name: name
   location: resourceGroup().location
   tags: tags

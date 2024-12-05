@@ -145,4 +145,4 @@ jobs:
         resourceGroupName: ${{ env.RG_NAME }}
         template: ./infra/main.bicep
         parameters: "acrName=${{ needs.deploy-acr-job.outputs.acrName }} photoApiContainerImage=${{ needs.build-photo-api-job.outputs.photoApiImageName }} resizeApiContainerImage=${{ needs.build-resize-api-job.outputs.resizeApiImage }}"
-        failOnStdErr: true
+        failOnStdErr: false

@@ -44,7 +44,7 @@ param uploadsContainerName string = 'uploads'
 
 var storageBlobDataOwnerRoleDefinitionID = 'b7e6dc6d-f1e8-4753-8033-0f276bb0955b'
 var acrPullRoleDefinitionId = '7f951dda-4ed3-4680-a7ca-43fe172d538d'
-var storageKey = storage.outputs.key
+var storageKey = storageAccount.listKeys().keys[0].value
 var storageQueueCxnString = 'DefaultEndpointsProtocol=https;AccountName=${storage.outputs.name};EndpointSuffix=${environment().suffixes.storage};AccountKey=${storageKey}'
 var affix = uniqueString(resourceGroup().id)
 var umidName = 'umid-${affix}'
@@ -75,6 +75,10 @@ module storage './modules/stor.bicep' = {
     containers: containers
     sku: 'Standard_LRS'
   }
+}
+
+resource storageAccount 'Microsoft.Storage/storageAccounts@2022-09-01' existing = {
+  name: storageAccountName
 }
 
 module workspace 'br/public:avm/res/operational-insights/workspace:0.3.4' = {
@@ -187,7 +191,7 @@ resource acrPullRbac 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   }
 }
 
-resource resizeApi 'Microsoft.App/containerApps@2023-11-02-preview' = {
+resource resizeApi 'Microsoft.App/containerApps@2024-08-02-preview' = {
   name: resizeApiName
   location: resourceGroup().location
   tags: tags
@@ -438,7 +442,7 @@ module daprComponentUploadsStorageQueue 'daprComponent.bicep' = {
       }
       {
         name: 'storageAccessKey'
-        value: storage.outputs.key
+        value: storageKey
       }
       {
         name: 'queue'
