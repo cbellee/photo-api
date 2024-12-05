@@ -81,6 +81,9 @@ module storage './modules/stor.bicep' = {
 
 resource storageAccount 'Microsoft.Storage/storageAccounts@2022-09-01' existing = {
   name: storageAccountName
+  dependsOn: [
+    storage
+  ]
 }
 
 module workspace 'br/public:avm/res/operational-insights/workspace:0.3.4' = {
