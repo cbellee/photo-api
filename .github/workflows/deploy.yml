@@ -43,10 +43,8 @@ jobs:
         uses:  azure/arm-deploy@v2
         with:
           deploymentName: deploy-acr
-          subscriptionId: ${{ secrets.AZURE_SUBSCRIPTION }}
           resourceGroupName: ${{ env.RG_NAME }}
           template: ./infra/modules/acr.bicep
-
 
       - name: deploy-outputs
         id: deploy-outputs
@@ -140,9 +138,8 @@ jobs:
       id: deploy-infra
       uses: azure/arm-deploy@v2
       with:
-        subscriptionId: ${{ secrets.AZURE_SUBSCRIPTION }}
         deploymentName: deploy-infra
         resourceGroupName: ${{ env.RG_NAME }}
         template: ./infra/main.bicep
         parameters: "acrName=${{ needs.deploy-acr-job.outputs.acrName }} photoApiContainerImage=${{ needs.build-photo-api-job.outputs.photoApiImage }} resizeApiContainerImage=${{ needs.build-resize-api-job.outputs.resizeApiImage }}"
-      continue-on-error: true
+        failOnStdErr: false
