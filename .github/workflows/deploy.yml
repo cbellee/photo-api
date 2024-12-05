@@ -94,7 +94,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: deploy-acr-job
     outputs:
-      resizeApiImage: ${{ steps.acr-build-resize-api.outputs.resizeApiImage }}`
+      resizeApiImage: ${{ steps.acr-build-resize-api.outputs.resizeApiImage }}
     steps:
       - name: checkout-code
         id: checkout-code
@@ -153,13 +153,3 @@ jobs:
             --parameters acrName=${{ needs.deploy-acr-job.outputs.acrName }} \
             photoApiContainerImage=${{ needs.build-photo-api-job.outputs.photoApiImage }} \
             resizeApiContainerImage=${{ needs.build-resize-api-job.outputs.resizeApiImage }}     
-
-#    - name: deploy-infra
-#      id: deploy-infra
-#      uses: azure/arm-deploy@v2
-#      with:
-#        deploymentName: deploy-infra
-#        resourceGroupName: ${{ env.RG_NAME }}
-#        template: ./infra/main.bicep
-#        parameters: "acrName=${{ needs.deploy-acr-job.outputs.acrName }} photoApiContainerImage=${{ needs.build-photo-api-job.outputs.photoApiImage }} resizeApiContainerImage=${{ needs.build-resize-api-job.outputs.resizeApiImage }}"
-#        failOnStdErr: false
