@@ -154,4 +154,4 @@ jobs:
             --template-file ./infra/main.bicep \
             --parameters acrName=${{ needs.deploy-acr-job.outputs.acrName }} \
             --parameters photoApiContainerImage=${{ needs.build-photo-api-job.outputs.photoApiImage }} \
-            --paramrters resizeApiContainerImage=${{ needs.build-resize-api-job.outputs.resizeApiImage }}     
+            --parameters resizeApiContainerImage=${{ needs.build-resize-api-job.outputs.resizeApiImage }}     
