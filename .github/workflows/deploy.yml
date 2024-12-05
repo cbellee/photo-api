@@ -134,12 +134,27 @@ jobs:
       with:
         creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-    - name: deploy-infra
-      id: deploy-infra
-      uses: azure/arm-deploy@v2
+    - name: deploy-infra-cli
+      continue-on-error: true
+      id: deploy-infra-cli
+      uses: azure/CLI@v2
       with:
-        deploymentName: deploy-infra
-        resourceGroupName: ${{ env.RG_NAME }}
-        template: ./infra/main.bicep
-        parameters: "acrName=${{ needs.deploy-acr-job.outputs.acrName }} photoApiContainerImage=${{ needs.build-photo-api-job.outputs.photoApiImage }} resizeApiContainerImage=${{ needs.build-resize-api-job.outputs.resizeApiImage }}"
-        failOnStdErr: false
+        azcliversion: 2.67.0
+        inlineScript: |
+          az deployment group create \
+            --name deploy-infra \
+            --resource-group ${{ env.RG_NAME }} \
+            --template-file ./infra/main.bicep \
+            --parameters acrName=${{ needs.deploy-acr-job.outputs.acrName }} \
+            photoApiContainerImage=${{ needs.build-photo-api-job.outputs.photoApiImage }} \
+            resizeApiContainerImage=${{ needs.build-resize-api-job.outputs.resizeApiImage }}     
+
+#    - name: deploy-infra
+#      id: deploy-infra
+#      uses: azure/arm-deploy@v2
+#      with:
+#        deploymentName: deploy-infra
+#        resourceGroupName: ${{ env.RG_NAME }}
+#        template: ./infra/main.bicep
+#        parameters: "acrName=${{ needs.deploy-acr-job.outputs.acrName }} photoApiContainerImage=${{ needs.build-photo-api-job.outputs.photoApiImage }} resizeApiContainerImage=${{ needs.build-resize-api-job.outputs.resizeApiImage }}"
+#        failOnStdErr: false

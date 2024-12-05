@@ -2,7 +2,7 @@ param acrName string
 param photoApiContainerImage string
 param resizeApiContainerImage string
 param cpuResource string = '0.25'
-param memoryResource string = '0.25Gi'
+param memoryResource string = '0.5Gi'
 
 param tags object = {
   Environment: 'Dev'
