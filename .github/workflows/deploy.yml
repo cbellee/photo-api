@@ -18,12 +18,12 @@ jobs:
   deploy-acr-job:
     runs-on: ubuntu-latest
     outputs:
-      acrName: ${{ steps.deploy-outputs.outputs.acrName }}
+      acrName: ${{ steps.deploy-acr-outputs.outputs.acrName }}
       sha: ${{ steps.short-sha.outputs.sha }}
     steps:
       - name: short-sha
         id: short-sha
-        run: echo "sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+        run: echo "sha=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: checkout-code
         id: checkout-code
@@ -51,8 +51,8 @@ jobs:
           resourceGroupName: ${{ env.RG_NAME }}
           template: ./infra/modules/acr.bicep
 
-      - name: deploy-outputs
-        id: deploy-outputs
+      - name: deploy-acr-outputs
+        id: deploy-acr-outputs
         run: |
           echo "acrName: ${{ steps.deploy-acr.outputs.acrName }}"
           echo "acrName=${{ steps.deploy-acr.outputs.acrName }}" >> "$GITHUB_OUTPUT"
