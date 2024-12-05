@@ -8,6 +8,7 @@ on:
 env:
   LOCATION: uksouth
   RG_NAME: photo-app-uksouth-rg
+  TEMPLATE_FILE_PATH: ./infra/main.bicep
   PHOTO_API_NAME: photo
   PHOTO_API_PORT: 8080
   RESIZE_API_NAME: resize
@@ -19,7 +20,8 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       acrName: ${{ steps.deploy-acr-outputs.outputs.acrName }}
-      sha: ${{ steps.short-sha.outputs.sha }}
+      resizeApiImage: ${{ steps.deploy-acr-outputs.outputs.resizeApiImage }}
+      photoApiImage: ${{ steps.deploy-acr-outputs.outputs.photoApiImage }}
     steps:
       - name: checkout-code
         id: checkout-code
@@ -29,7 +31,7 @@ jobs:
         id: short-sha
         run: |
             echo "sha: sha=$(git rev-parse --short HEAD)"
-            echo "sha=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+            echo "sha=$(git rev-parse --short HEAD)" >> "$GITHUB_ENV"
 
       - name: login-azure
         id: login-azure
@@ -55,15 +57,18 @@ jobs:
 
       - name: deploy-acr-outputs
         id: deploy-acr-outputs
+        env:
+          sha: ${{ steps.short-sha.outputs.sha }}
+          acrName: ${{ steps.deploy-acr.outputs.acrName }}
         run: |
-          echo "acrName: ${{ steps.deploy-acr.outputs.acrName }}"
-          echo "acrName=${{ steps.deploy-acr.outputs.acrName }}" >> "$GITHUB_OUTPUT"
-  
+          echo "acrName: ${{ env.acrName }}"
+          echo "acrName=${{ env.acrName }}" >> "$GITHUB_OUTPUT"
+          echo "photoApiImage=${{ env.acrName }}.azurecr.io/${{ env.PHOTO_API_NAME }}:${{ env.VERSION }}-${{ env.sha }}" >> $GITHUB_OUTPUT
+          echo "resizeApiImage=${{ env.acrName }}.azurecr.io/${{ env.RESIZE_API_NAME }}:${{ env.VERSION }}-${{ env.sha }}" >> $GITHUB_OUTPUT
+
   build-photo-api-job:
     runs-on: ubuntu-latest
     needs: [deploy-acr-job]
-    outputs:
-      photoApiImage: ${{ steps.acr-build-photo-api.outputs.photoApiImage }}
     steps:
       - name: checkout-code
         id: checkout-code
@@ -83,20 +88,14 @@ jobs:
           inlineScript: |
             az acr build \
               --registry ${{ needs.deploy-acr-job.outputs.acrName }} \
-              -t "${{ needs.deploy-acr-job.outputs.acrName }}.azurecr.io/${{ env.PHOTO_API_NAME }}:${{ env.VERSION }}" \
+              -t "${{ needs.deploy-acr-job.outputs.photoApiImage }}" \
               --build-arg SERVICE_NAME=${{ env.PHOTO_API_NAME }} \
               --build-arg SERVICE_PORT=${{ env.PHOTO_API_PORT }} \
               -f ./Dockerfile .
-       
-      - run: |
-          echo "${{ needs.deploy-acr-job.outputs.acrName }}.azurecr.io/${{ env.PHOTO_API_NAME }}:${{ env.VERSION }}-${{ needs.deploy-acr-job.outputs.sha }}"
-          echo "photoApiImage=${{ needs.deploy-acr-job.outputs.acrName }}.azurecr.io/${{ env.PHOTO_API_NAME }}:${{ env.VERSION }}-${{ needs.deploy-acr-job.outputs.sha }}" >> $GITHUB_OUTPUT
 
   build-resize-api-job:
     runs-on: ubuntu-latest
     needs: deploy-acr-job
-    outputs:
-      resizeApiImage: ${{ steps.acr-build-resize-api.outputs.resizeApiImage }}
     steps:
       - name: checkout-code
         id: checkout-code
@@ -116,20 +115,14 @@ jobs:
           inlineScript: |
             az acr build \
               --registry ${{ needs.deploy-acr-job.outputs.acrName }} \
-              -t "${{ needs.deploy-acr-job.outputs.acrName }}.azurecr.io/${{ env.RESIZE_API_NAME }}:${{ env.VERSION }}" \
+              -t "${{ needs.deploy-acr-job.outputs.resizeApiImage }}" \
               --build-arg SERVICE_NAME=${{ env.RESIZE_API_NAME }} \
               --build-arg SERVICE_PORT=${{ env.RESIZE_API_PORT }} \
               -f ./Dockerfile .
 
-      - run: |
-          echo "${{ needs.deploy-acr-job.outputs.acrName }}.azurecr.io/${{ env.RESIZE_API_NAME }}:${{ env.VERSION }}-${{ needs.deploy-acr-job.outputs.sha }}"
-          echo "resizeApiImage=${{ needs.deploy-acr-job.outputs.acrName }}.azurecr.io/${{ env.RESIZE_API_NAME }}:${{ env.VERSION }}-${{ needs.deploy-acr-job.outputs.sha }}" >> $GITHUB_OUTPUT
-
   build-and-deploy-infra-job:
     runs-on: ubuntu-latest
     needs: [deploy-acr-job, build-photo-api-job, build-resize-api-job]
-    env:
-      ACR_NAME: ${{ needs.deploy-acr-job.outputs.acrName }}
     steps:
     - name: checkout-code
       id: checkout-code
@@ -151,7 +144,7 @@ jobs:
           az deployment group create \
             --name deploy-infra \
             --resource-group ${{ env.RG_NAME }} \
-            --template-file ./infra/main.bicep \
+            --template-file ${{ env.TEMPLATE_FILE_PATH }} \
             --parameters acrName=${{ needs.deploy-acr-job.outputs.acrName }} \
-            --parameters photoApiContainerImage=${{ needs.build-photo-api-job.outputs.photoApiImage }} \
-            --parameters resizeApiContainerImage=${{ needs.build-resize-api-job.outputs.resizeApiImage }}     
+            --parameters photoApiContainerImage=${{ needs.deploy-acr-job.outputs.photoApiImage }} \
+            --parameters resizeApiContainerImage=${{ needs.deploy-acr-job.outputs.resizeApiImage }}     
