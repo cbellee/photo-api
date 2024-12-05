@@ -248,7 +248,7 @@ resource resizeApi 'Microsoft.App/containerApps@2024-08-02-preview' = {
           image: resizeApiContainerImage
           name: resizeApiName
           resources: {
-            cpu: int(cpuResource)
+            cpu: cpuResource
             memory: memoryResource
           }
           env: [
@@ -392,7 +392,7 @@ resource photoApi 'Microsoft.App/containerApps@2023-11-02-preview' = {
           image: photoApiContainerImage
           name: photoApiName
           resources: {
-            cpu: int(cpuResource)
+            cpu: cpuResource
             memory: memoryResource
           }
           env: [
