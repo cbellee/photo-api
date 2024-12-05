@@ -19,7 +19,12 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       acrName: ${{ steps.deploy-outputs.outputs.acrName }}
+      sha: ${{ steps.short-sha.outputs.sha }}
     steps:
+      - name: short-sha
+        id: short-sha
+        run: echo "sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
       - name: checkout-code
         id: checkout-code
         uses: actions/checkout@main
@@ -82,8 +87,8 @@ jobs:
               -f ./Dockerfile .
        
       - run: |
-          echo "${{ needs.deploy-acr-job.outputs.acrName }}.azurecr.io/${{ env.PHOTO_API_NAME }}:${{ env.VERSION }}"
-          echo "photoApiImage=${{ needs.deploy-acr-job.outputs.acrName }}.azurecr.io/${{ env.PHOTO_API_NAME }}:${{ env.VERSION }}-${{ github.sha }}" >> $GITHUB_OUTPUT
+          echo "${{ needs.deploy-acr-job.outputs.acrName }}.azurecr.io/${{ env.PHOTO_API_NAME }}:${{ env.VERSION }}-${{ needs.deploy-acr-job.outputs.sha }}"
+          echo "photoApiImage=${{ needs.deploy-acr-job.outputs.acrName }}.azurecr.io/${{ env.PHOTO_API_NAME }}:${{ env.VERSION }}-${{ needs.deploy-acr-job.outputs.sha }}" >> $GITHUB_OUTPUT
 
   build-resize-api-job:
     runs-on: ubuntu-latest
@@ -115,8 +120,8 @@ jobs:
               -f ./Dockerfile .
 
       - run: |
-          echo "${{ needs.deploy-acr-job.outputs.acrName }}.azurecr.io/${{ env.RESIZE_API_NAME }}:${{ env.VERSION }}"
-          echo "resizeApiImage=${{ needs.deploy-acr-job.outputs.acrName }}.azurecr.io/${{ env.RESIZE_API_NAME }}:${{ env.VERSION }}-${{ github.sha }}" >> $GITHUB_OUTPUT
+          echo "${{ needs.deploy-acr-job.outputs.acrName }}.azurecr.io/${{ env.RESIZE_API_NAME }}:${{ env.VERSION }}-${{ needs.deploy-acr-job.outputs.sha }}"
+          echo "resizeApiImage=${{ needs.deploy-acr-job.outputs.acrName }}.azurecr.io/${{ env.RESIZE_API_NAME }}:${{ env.VERSION }}-${{ needs.deploy-acr-job.outputs.sha }}" >> $GITHUB_OUTPUT
 
   build-and-deploy-infra-job:
     runs-on: ubuntu-latest
@@ -135,9 +140,9 @@ jobs:
         creds: ${{ secrets.AZURE_CREDENTIALS }}
 
     - name: deploy-infra-cli
-      continue-on-error: true
       id: deploy-infra-cli
-      uses: azure/CLI@v2
+      uses: azure/cli@v2
+      continue-on-error: true
       with:
         azcliversion: 2.67.0
         inlineScript: |
