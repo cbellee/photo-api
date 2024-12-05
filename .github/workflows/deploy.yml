@@ -31,7 +31,7 @@ jobs:
         id: short-sha
         run: |
             echo "sha: sha=$(git rev-parse --short HEAD)"
-            echo "sha=$(git rev-parse --short HEAD)" >> "$GITHUB_ENV"
+            echo "SHA=$(git rev-parse --short HEAD)" >> "$GITHUB_ENV"
 
       - name: login-azure
         id: login-azure
@@ -58,13 +58,15 @@ jobs:
       - name: deploy-acr-outputs
         id: deploy-acr-outputs
         env:
-          sha: ${{ steps.short-sha.outputs.sha }}
-          acrName: ${{ steps.deploy-acr.outputs.acrName }}
+          SHA: ${{ env.SHA }}
+          ACR_NAME: ${{ steps.deploy-acr.outputs.acrName }}
         run: |
-          echo "acrName: ${{ env.acrName }}"
-          echo "acrName=${{ env.acrName }}" >> "$GITHUB_OUTPUT"
-          echo "photoApiImage=${{ env.acrName }}.azurecr.io/${{ env.PHOTO_API_NAME }}:${{ env.VERSION }}-${{ env.sha }}" >> $GITHUB_OUTPUT
-          echo "resizeApiImage=${{ env.acrName }}.azurecr.io/${{ env.RESIZE_API_NAME }}:${{ env.VERSION }}-${{ env.sha }}" >> $GITHUB_OUTPUT
+          echo "acrName: ${{ env.ACR_NAME }}"
+          echo "acrName=${{ env.ACR_NAME }}" >> "$GITHUB_OUTPUT"
+          echo "photoApiImage: ${{ env.ACR_NAME }}.azurecr.io/${{ env.PHOTO_API_NAME }}:${{ env.VERSION }}-$SHA"
+          echo "photoApiImage=${{ env.ACR_NAME }}.azurecr.io/${{ env.PHOTO_API_NAME }}:${{ env.VERSION }}-$SHA" >> $GITHUB_OUTPUT
+          echo "resizeApiImage: ${{ env.ACR_NAME }}.azurecr.io/${{ env.RESIZE_API_NAME }}:${{ env.VERSION }}-$SHA"
+          echo "resizeApiImage=${{ env.ACR_NAME }}.azurecr.io/${{ env.RESIZE_API_NAME }}:${{ env.VERSION }}-$SHA" >> $GITHUB_OUTPUT
 
   build-photo-api-job:
     runs-on: ubuntu-latest
