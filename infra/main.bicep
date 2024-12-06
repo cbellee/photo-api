@@ -3,7 +3,11 @@ param photoApiContainerImage string
 param resizeApiContainerImage string
 param cpuResource string = '0.25'
 param memoryResource string = '0.5Gi'
-param domainName string = 'gallery.bellee.net'
+param zoneName string = 'bellee.net'
+param cNameRecord string = 'photos'
+param dnsResourceGroupName string = 'external-dns-zones-rg'
+
+var cdnEndpoint = 'cdne-${affix}.azureedge.net'
 
 param tags object = {
   Environment: 'Dev'
@@ -539,12 +543,35 @@ module daprComponentUploadsStorageBlob 'modules/daprComponent.bicep' = {
   ]
 }
 
-module cdnProfile 'modules/cdn_profile.bicep' = {
+/* module cdnProfile 'modules/cdnProfile.bicep' = {
   name: 'CdnProfileDeployment'
   params: {
     appName: 'photo-app'
     storageAccountWebEndpoint: replace(storage.outputs.webEndpoint, 'https://', '')
-    domainName: domainName
+    domainName: '${cNameRecord}.${zoneName}'
+  }
+  dependsOn: [
+    storage
+  ]
+} */
+
+module dnsModule 'modules/dns.bicep' = {
+  name: 'dnsModuleDeployment'
+  scope: resourceGroup(dnsResourceGroupName)
+  params: {
+    dnsZoneName: zoneName
+    cdnEndpoint: cdnEndpoint
+    cnameRecord: cNameRecord
+  }
+}
+
+module cdnModule 'modules/cdn.bicep' = {
+  name: 'cdnModuleDeployment'
+  params: {
+    cdnEndpoint: cdnEndpoint
+    cnameRecord: cNameRecord
+    dnsZoneName: zoneName
+    origin: storage.outputs.webEndpoint
   }
   dependsOn: [
     storage

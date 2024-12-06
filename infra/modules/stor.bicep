@@ -6,6 +6,7 @@ param isPublicBlobAccessAllowed bool = true
 param isSupportHttpsTrafficOnly bool = true
 param isDefaultToOAuthAuthentication bool = false
 param isAllowSharedAccessKey bool = true
+param utcValue string = utcNow()
 
 @allowed([
   'Storage'
@@ -77,8 +78,31 @@ resource blobContainers 'Microsoft.Storage/storageAccounts/blobServices/containe
   }
 }]
 
+resource enableStaticWebsite 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
+  name: 'enableStaticWebsite'
+  location: resourceGroup().location
+  kind: 'AzureCLI'
+  properties: {
+    forceUpdateTag: utcValue
+    azCliVersion: '2.26.1'
+    timeout: 'PT5M'
+    retentionInterval: 'PT1H'
+    environmentVariables: [
+      {
+        name: 'AZURE_STORAGE_ACCOUNT'
+        value: storage.name
+      }
+      {
+        name: 'AZURE_STORAGE_KEY'
+        secureValue: storage.listKeys().keys[0].value
+      }
+    ]
+    arguments: 'index.html'
+    scriptContent: 'az storage blob service-properties update --static-website --index-document $1 --404-document $1'
+  }
+}
+
 output name string = storage.name
 output id string = storage.id
-// output key string = storage.listKeys().keys[0].value
-output blobEndpoint string = take(storage.properties.primaryEndpoints.blob, length(storage.properties.primaryEndpoints.blob) - 1)
-output webEndpoint string = take(storage.properties.primaryEndpoints.web, length(storage.properties.primaryEndpoints.web) - 1)
+output blobEndpoint string = replace(replace(storage.properties.primaryEndpoints.blob, 'https://', ''), '/', '')
+output webEndpoint string = replace(replace(storage.properties.primaryEndpoints.web, 'https://', ''), '/', '')

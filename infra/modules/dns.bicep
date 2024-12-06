@@ -1,18 +1,22 @@
-param domainName string
-param subdomainName string
-param containerAppFqdn string
+@description('CDN endpoint (e.g. xyz.azureedge.net)')
+param cdnEndpoint string
 
-resource zone 'Microsoft.Network/dnsZones@2023-07-01-preview' existing = {
-  name: domainName
-}
+@description('The name of the DNS zone (e.g. example.com)')
+param dnsZoneName string
 
-resource cname 'Microsoft.Network/dnsZones/CNAME@2023-07-01-preview' = {
-  parent: zone
-  name: subdomainName
-  properties: {
-    TTL: 3600
-    CNAMERecord: {
-      cname: containerAppFqdn
+@description('CNAME record for the custom domain (e.g. xyz.<dns zone>)')
+param cnameRecord string
+
+resource dnsZone 'Microsoft.Network/dnsZones@2023-07-01-preview' existing = {
+  name: dnsZoneName
+
+  resource frontend 'CNAME' = {
+    name: cnameRecord
+    properties: {
+      TTL: 3600
+      CNAMERecord: {
+        cname: cdnEndpoint
+      }
     }
   }
 }
