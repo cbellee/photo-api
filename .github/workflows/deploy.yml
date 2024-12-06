@@ -154,7 +154,7 @@ jobs:
         inlineScript: |
           az deployment group create \
             --name deploy-infra \
-            --resource-group ${{ needs.deploy-acr-job.outputs.rgName }} \
+            --resource-group ${{ needs.deploy-acr-job.outputs.rgName}} \
             --template-file ${{ env.TEMPLATE_FILE_PATH }} \
             --parameters acrName=${{ needs.deploy-acr-job.outputs.acrName }} \
             --parameters photoApiContainerImage=${{ needs.deploy-acr-job.outputs.photoApiImage }} \
