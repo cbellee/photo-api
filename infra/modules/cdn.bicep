@@ -83,3 +83,6 @@ resource enableHttpsForCustomDomain 'Microsoft.Resources/deploymentScripts@2020-
     scriptContent: 'az cdn custom-domain enable-https -g ${resourceGroup().name} -n ${cdn::endpoint::customDomain.name} --profile-name ${cdn.name} --endpoint-name ${cdn::endpoint.name}'
   }
 }
+
+output cdnEndpointName string = cdn::endpoint.name
+output cdnProfileName string = cdn.name

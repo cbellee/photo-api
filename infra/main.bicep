@@ -7,8 +7,6 @@ param zoneName string = 'bellee.net'
 param cNameRecord string = 'photos'
 param dnsResourceGroupName string = 'external-dns-zones-rg'
 
-var cdnEndpoint = 'cdne-${affix}.azureedge.net'
-
 param tags object = {
   Environment: 'Dev'
   Role: 'Deployment'
@@ -59,6 +57,7 @@ var workspaceName = 'wks-${affix}'
 var storageAccountName = 'stor${affix}'
 var topicName = 'egt-${affix}'
 var containerAppEnvName = 'appenv-${affix}'
+var cdnEndpoint = 'cdne-${affix}.azureedge.net'
 
 targetScope = 'resourceGroup'
 
@@ -581,3 +580,5 @@ module cdnModule 'modules/cdn.bicep' = {
 output storageAccountName string = storage.outputs.name
 output photoApiEndpoint string = photoApi.properties.configuration.ingress.fqdn
 output resizeApiEndpoint string = resizeApi.properties.configuration.ingress.fqdn
+output cdnEndpoint string = cdnModule.outputs.cdnEndpointName
+output cdnProfileName string = cdnModule.outputs.cdnProfileName
