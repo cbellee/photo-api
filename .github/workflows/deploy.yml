@@ -61,7 +61,7 @@ jobs:
         uses:  azure/arm-deploy@v2
         with:
           deploymentName: deploy-acr
-          resourceGroupName: $RG_NAME
+          resourceGroupName: ${{ env.RG_NAME }}
           template: ./infra/modules/acr.bicep
 
       - name: deploy-acr-outputs
