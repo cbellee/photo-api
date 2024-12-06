@@ -3,6 +3,7 @@ param photoApiContainerImage string
 param resizeApiContainerImage string
 param cpuResource string = '0.25'
 param memoryResource string = '0.5Gi'
+param domainName string = 'gallery.bellee.net'
 
 param tags object = {
   Environment: 'Dev'
@@ -434,7 +435,7 @@ resource photoApi 'Microsoft.App/containerApps@2023-11-02-preview' = {
   }
 }
 
-module daprComponentUploadsStorageQueue 'daprComponent.bicep' = {
+module daprComponentUploadsStorageQueue 'modules/daprComponent.bicep' = {
   name: 'daprComponentUploadsStorageQueueDeployment'
   params: {
     containerAppEnvName: containerAppEnvironment.outputs.name
@@ -460,7 +461,7 @@ module daprComponentUploadsStorageQueue 'daprComponent.bicep' = {
   ]
 }
 
-module daprComponentImagesStorageQueue 'daprComponent.bicep' = {
+module daprComponentImagesStorageQueue 'modules/daprComponent.bicep' = {
   name: 'daprComponentImagesStorageQueueDeployment'
   params: {
     containerAppEnvName: containerAppEnvironment.outputs.name
@@ -486,7 +487,7 @@ module daprComponentImagesStorageQueue 'daprComponent.bicep' = {
   ]
 }
 
-module daprComponentImagesStorageBlob 'daprComponent.bicep' = {
+module daprComponentImagesStorageBlob 'modules/daprComponent.bicep' = {
   name: 'daprComponentImagesStorageBlobDeployment'
   params: {
     containerAppEnvName: containerAppEnvironment.outputs.name
@@ -512,7 +513,7 @@ module daprComponentImagesStorageBlob 'daprComponent.bicep' = {
   ]
 }
 
-module daprComponentUploadsStorageBlob 'daprComponent.bicep' = {
+module daprComponentUploadsStorageBlob 'modules/daprComponent.bicep' = {
   name: 'daprComponentUploadsStorageBlobDeployment'
   params: {
     containerAppEnvName: containerAppEnvironment.outputs.name
@@ -538,6 +539,18 @@ module daprComponentUploadsStorageBlob 'daprComponent.bicep' = {
   ]
 }
 
+module cdnProfile 'modules/cdn_profile.bicep' = {
+  name: 'CdnProfileDeployment'
+  params: {
+    appName: 'photo-app'
+    storageAccountWebEndpoint: storage.outputs.webEndpoint
+    domainName: domainName
+  }
+  dependsOn: [
+    storage
+  ]
+}
+
 output storageAccountName string = storage.outputs.name
-output photoAppEndpoint string = photoApi.properties.configuration.ingress.fqdn
-output resizeAppEndpoint string = resizeApi.properties.configuration.ingress.fqdn
+output photoApiEndpoint string = photoApi.properties.configuration.ingress.fqdn
+output resizeApiEndpoint string = resizeApi.properties.configuration.ingress.fqdn

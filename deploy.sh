@@ -144,9 +144,6 @@ sed "s/{{AZURE_TENANT_ID}}/$AZURE_TENANT_ID/g ; \
 # build javascript
 npm run build
 
-# enable azure storage static website
-az storage blob service-properties update --account-name $STORAGE_ACCOUNT_NAME --static-website --index-document index.html --404-document index.html
-
 # upload to Azure Blob Storage
 az storage azcopy blob upload --container '$web' --account-name $STORAGE_ACCOUNT_NAME --source './dist/*' --recursive
 
