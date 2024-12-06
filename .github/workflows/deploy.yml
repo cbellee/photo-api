@@ -6,8 +6,8 @@ on:
   workflow_dispatch:
 
 env:
-  LOCATION: uksouth
-  RG_NAME: photo-app-uksouth-rg
+  LOCATION: westeurope
+  APP_NAME: photo-app
   DNS_ZONE_RG_NAME: external-domain-rg
   TEMPLATE_FILE_PATH: ./infra/main.bicep
   PHOTO_API_NAME: photo
@@ -23,10 +23,18 @@ jobs:
       acrName: ${{ steps.deploy-acr-outputs.outputs.acrName }}
       resizeApiImage: ${{ steps.deploy-acr-outputs.outputs.resizeApiImage }}
       photoApiImage: ${{ steps.deploy-acr-outputs.outputs.photoApiImage }}
+      rgName: ${{ steps.gen-rg-name.outputs.rgName }}
     steps:
       - name: checkout-code
         id: checkout-code
         uses: actions/checkout@main
+
+      - name: gen-rg-name
+        id: gen-rg-name
+        run: |
+            echo "rgName: ${{ env.APP_NAME }}-${{ env.LOCATION }}-rg"
+            echo "rgName=${{ env.APP_NAME }}-${{ env.LOCATION }}-rg" >> "$GITHUB_OUTPUT"
+            echo "rgName=${{ env.APP_NAME }}-${{ env.LOCATION }}-rg" >> "$GITHUB_ENV"
 
       - name: short-sha
         id: short-sha
@@ -46,14 +54,14 @@ jobs:
         with:
           azcliversion: 2.67.0
           inlineScript: |
-            az group create --name ${{ env.RG_NAME }} --location ${{ env.LOCATION }}
+            az group create --name $rgName --location ${{ env.LOCATION }}
 
       - name: deploy-acr
         id: deploy-acr
         uses:  azure/arm-deploy@v2
         with:
           deploymentName: deploy-acr
-          resourceGroupName: ${{ env.RG_NAME }}
+          resourceGroupName: $rgName
           template: ./infra/modules/acr.bicep
 
       - name: deploy-acr-outputs
@@ -146,7 +154,7 @@ jobs:
         inlineScript: |
           az deployment group create \
             --name deploy-infra \
-            --resource-group ${{ env.RG_NAME }} \
+            --resource-group ${{ needs.deploy-acr-job.outputs.rgName }} \
             --template-file ${{ env.TEMPLATE_FILE_PATH }} \
             --parameters acrName=${{ needs.deploy-acr-job.outputs.acrName }} \
             --parameters photoApiContainerImage=${{ needs.deploy-acr-job.outputs.photoApiImage }} \

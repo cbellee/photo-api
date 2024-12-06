@@ -12,16 +12,16 @@ param cnameRecord string
 
 var affix = uniqueString(resourceGroup().id)
 
-resource cdn 'Microsoft.Cdn/profiles@2020-09-01' = {
+resource cdn 'Microsoft.Cdn/profiles@2024-09-01' = {
   name: 'cdn-${affix}'
-  location: resourceGroup().location
+  location: 'global'
   sku: {
-    name: 'Standard_Microsoft'
+    name: 'Standard_Verizon'
   }
 
   resource endpoint 'endpoints' = {
     name: split(cdnEndpoint, '.')[0]
-    location: resourceGroup().location
+    location: 'global'
     properties: {
       originHostHeader: origin
       isHttpAllowed: false
