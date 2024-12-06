@@ -104,5 +104,6 @@ resource enableStaticWebsite 'Microsoft.Resources/deploymentScripts@2020-10-01' 
 
 output name string = storage.name
 output id string = storage.id
+output key string = storage.listKeys().keys[0].value
 output blobEndpoint string = replace(replace(storage.properties.primaryEndpoints.blob, 'https://', ''), '/', '')
 output webEndpoint string = replace(replace(storage.properties.primaryEndpoints.web, 'https://', ''), '/', '')

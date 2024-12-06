@@ -49,7 +49,7 @@ param uploadsContainerName string = 'uploads'
 
 var storageBlobDataOwnerRoleDefinitionID = 'b7e6dc6d-f1e8-4753-8033-0f276bb0955b'
 var acrPullRoleDefinitionId = '7f951dda-4ed3-4680-a7ca-43fe172d538d'
-var storageKey = storageAccount.listKeys().keys[0].value
+var storageKey = storage.outputs.key
 var storageQueueCxnString = 'DefaultEndpointsProtocol=https;AccountName=${storage.outputs.name};EndpointSuffix=${environment().suffixes.storage};AccountKey=${storageKey}'
 var affix = uniqueString(resourceGroup().id)
 var umidName = 'umid-${affix}'
@@ -81,13 +81,6 @@ module storage './modules/stor.bicep' = {
     containers: containers
     sku: 'Standard_LRS'
   }
-}
-
-resource storageAccount 'Microsoft.Storage/storageAccounts@2022-09-01' existing = {
-  name: storageAccountName
-  dependsOn: [
-    storage
-  ]
 }
 
 module workspace 'br/public:avm/res/operational-insights/workspace:0.3.4' = {
