@@ -5,7 +5,7 @@ param cpuResource string = '0.25'
 param memoryResource string = '0.5Gi'
 param zoneName string = 'bellee.net'
 param cNameRecord string = 'photos'
-param dnsResourceGroupName string = 'external-dns-zones-rg'
+param dnsResourceGroupName string = 'external-domain-rg'
 
 param tags object = {
   Environment: 'Dev'

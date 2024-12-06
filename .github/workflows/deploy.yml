@@ -8,6 +8,7 @@ on:
 env:
   LOCATION: uksouth
   RG_NAME: photo-app-uksouth-rg
+  DNS_ZONE_RG_NAME: external-domain-rg
   TEMPLATE_FILE_PATH: ./infra/main.bicep
   PHOTO_API_NAME: photo
   PHOTO_API_PORT: 8080
@@ -149,7 +150,8 @@ jobs:
             --template-file ${{ env.TEMPLATE_FILE_PATH }} \
             --parameters acrName=${{ needs.deploy-acr-job.outputs.acrName }} \
             --parameters photoApiContainerImage=${{ needs.deploy-acr-job.outputs.photoApiImage }} \
-            --parameters resizeApiContainerImage=${{ needs.deploy-acr-job.outputs.resizeApiImage }}
+            --parameters resizeApiContainerImage=${{ needs.deploy-acr-job.outputs.resizeApiImage }} \
+            --parameters dnsResourceGroupName=${{ env.DNS_ZONE_RG_NAME }}
             
     - name: deploy-infra-outputs
       id: deploy-infra-outputs
