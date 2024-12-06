@@ -543,7 +543,7 @@ module cdnProfile 'modules/cdn_profile.bicep' = {
   name: 'CdnProfileDeployment'
   params: {
     appName: 'photo-app'
-    storageAccountWebEndpoint: storage.outputs.webEndpoint
+    storageAccountWebEndpoint: replace(storage.outputs.webEndpoint, 'https://', '')
     domainName: domainName
   }
   dependsOn: [
