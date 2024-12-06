@@ -580,5 +580,5 @@ module cdnModule 'modules/cdn.bicep' = {
 output storageAccountName string = storage.outputs.name
 output photoApiEndpoint string = photoApi.properties.configuration.ingress.fqdn
 output resizeApiEndpoint string = resizeApi.properties.configuration.ingress.fqdn
-output cdnEndpoint string = cdnModule.outputs.cdnEndpointName
+output cdnEndpointName string = cdnModule.outputs.cdnEndpointName
 output cdnProfileName string = cdnModule.outputs.cdnProfileName
