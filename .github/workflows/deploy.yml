@@ -33,7 +33,7 @@ jobs:
         id: gen-rg-name
         run: |
             echo "rgName: ${{ env.APP_NAME }}-${{ env.LOCATION }}-rg"
-            echo "rgName=${{ env.APP_NAME }}-${{ env.LOCATION }}-rg" >> "$GITHUB_OUTPUT"
+            echo "RG_NAME=${{ env.APP_NAME }}-${{ env.LOCATION }}-rg" >> "$GITHUB_OUTPUT"
             echo "rgName=${{ env.APP_NAME }}-${{ env.LOCATION }}-rg" >> "$GITHUB_ENV"
 
       - name: short-sha
@@ -54,14 +54,14 @@ jobs:
         with:
           azcliversion: 2.67.0
           inlineScript: |
-            az group create --name $rgName --location ${{ env.LOCATION }}
+            az group create --name $RG_NAME --location ${{ env.LOCATION }}
 
       - name: deploy-acr
         id: deploy-acr
         uses:  azure/arm-deploy@v2
         with:
           deploymentName: deploy-acr
-          resourceGroupName: $rgName
+          resourceGroupName: $RG_NAME
           template: ./infra/modules/acr.bicep
 
       - name: deploy-acr-outputs
