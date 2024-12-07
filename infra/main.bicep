@@ -362,7 +362,8 @@ resource photoApi 'Microsoft.App/containerApps@2023-11-02-preview' = {
           allowedOrigins: [
             'http://localhost:3000'
             'http://localhost:5173'
-            storage.outputs.webEndpoint
+            'https://${storage.outputs.webEndpoint}'
+            'https://${cNameRecord}.${zoneName}'
           ]
           allowedHeaders: [
             '*'
