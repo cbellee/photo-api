@@ -10,6 +10,11 @@ param dnsZoneName string
 @description('CNAME record for the custom domain (e.g. xyz.<dns zone>)')
 param cnameRecord string
 
+param storageAccountName string
+
+@secure()
+param storageAccountKey string
+
 var affix = uniqueString(resourceGroup().id)
 
 resource cdn 'Microsoft.Cdn/profiles@2024-09-01' = {
@@ -80,6 +85,10 @@ resource enableHttpsForCustomDomain 'Microsoft.Resources/deploymentScripts@2020-
     azCliVersion: '2.26.1'
     timeout: 'PT5M'
     retentionInterval: 'PT1H'
+    storageAccountSettings: {
+      storageAccountName: storageAccountName
+      storageAccountKey: storageAccountKey
+    }
     scriptContent: 'az cdn custom-domain enable-https -g ${resourceGroup().name} -n ${cdn::endpoint::customDomain.name} --profile-name ${cdn.name} --endpoint-name ${cdn::endpoint.name}'
   }
 }

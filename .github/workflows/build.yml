@@ -1,4 +1,4 @@
-name: deploy-infra-and-apis
+name: build-containers-and-deploy-container-apps
 on:
   push:
     paths:
@@ -161,3 +161,14 @@ jobs:
             --parameters resizeApiContainerImage=${{ needs.deploy-acr-job.outputs.resizeApiImage }} \
             --parameters dnsResourceGroupName=${{ env.DNS_ZONE_RG_NAME }}
             
+    - name: deploy-infra-outputs
+      id: deploy-infra-outputs
+      uses: azure/cli@v2
+      env:
+        STORAGE_ACCOUNT_NAME: ${{ steps.deploy-infra-cli.outputs.storageAccountName }}
+        PHOTO_API_URI: ${{ steps.deploy-infra-cli.outputs.photoApiEndpoint }}
+        RESIZE_API_URI: ${{ steps.deploy-infra-cli.outputs.resizeApiEndpoint }}
+      with:
+        inlineScript: |
+          # enable static website hosting
+          az storage blob service-properties update --account-name $STORAGE_ACCOUNT_NAME --static-website --index-document index.html --404-document index.html

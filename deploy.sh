@@ -27,6 +27,8 @@ IMAGES_CONTAINER_NAME='images'
 
 # az ad sp create-for-rbac --name photo-api-sp --role contributor --scopes /subscriptions/$SUBSCRIPTION_ID --json-auth
 
+
+
 az group create --location $LOCATION --name $RG_NAME
 
 # create ACR

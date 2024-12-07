@@ -564,6 +564,8 @@ module cdnModule 'modules/cdn.bicep' = {
     cnameRecord: cNameRecord
     dnsZoneName: zoneName
     origin: storage.outputs.webEndpoint
+    storageAccountName: storage.outputs.name
+    storageAccountKey: storageKey
   }
   dependsOn: [
     storage
