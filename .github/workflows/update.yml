@@ -60,10 +60,10 @@ jobs:
       - name: gen-image-names
         id: gen-image-names
         run: |
-            echo "photoApiImage: $ACR_NAME.azurecr.io/${{ vars.PHOTO_API_NAME }}:${{ vars.VERSION }}"
-            echo "photoApiImage=$ACR_NAME.azurecr.io/${{ vars.PHOTO_API_NAME }}:${{ vars.VERSION }}" >> "$GITHUB_OUTPUT"
-            echo "resizeApiImage: $ACR_NAME.azurecr.io/${{ vars.RESIZE_API_NAME }}:${{ vars.VERSION }}"
-            echo "resizeApiImage=$ACR_NAME.azurecr.io/${{ vars.RESIZE_API_NAME }}:${{ vars.VERSION }}" >> "$GITHUB_OUTPUT"
+          echo "photoApiImage: ${{ env.ACR_NAME }}.azurecr.io/${{ env.PHOTO_API_NAME }}:${{ env.VERSION }}-$SHA"
+          echo "photoApiImage=${{ env.ACR_NAME }}.azurecr.io/${{ env.PHOTO_API_NAME }}:${{ env.VERSION }}-$SHA" >> $GITHUB_OUTPUT
+          echo "resizeApiImage: ${{ env.ACR_NAME }}.azurecr.io/${{ env.RESIZE_API_NAME }}:${{ env.VERSION }}-$SHA"
+          echo "resizeApiImage=${{ env.ACR_NAME }}.azurecr.io/${{ env.RESIZE_API_NAME }}:${{ env.VERSION }}-$SHA" >> $GITHUB_OUTPUT
 
   build-photo-api-job:
     runs-on: ubuntu-latest
