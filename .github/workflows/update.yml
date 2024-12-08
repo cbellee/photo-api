@@ -68,9 +68,6 @@ jobs:
   build-photo-api-job:
     runs-on: ubuntu-latest
     needs: [get-vars-job]
-    env:
-      ACR_NAME: ${{ needs.get-vars-job.outputs.acrName }}
-      PHOTO_API_IMAGE: ${{ needs.get-vars-job.outputs.photoApiImage }}
     steps:
       - name: checkout-code
         id: checkout-code
@@ -89,8 +86,8 @@ jobs:
           azcliversion: 2.67.0
           inlineScript: |
             az acr build \
-              --registry ${{ env.ACR_NAME }} \
-              -t "${{ env.PHOTO_API_IMAGE }}" \
+              --registry ${{ needs.get-vars-job.outputs.acrName }} \
+              -t "${{ needs.get-vars-job.outputs.photoApiImage }}" \
               --build-arg SERVICE_NAME=${{ env.PHOTO_API_NAME }} \
               --build-arg SERVICE_PORT=${{ env.PHOTO_API_PORT }} \
               -f ./Dockerfile .
@@ -98,9 +95,6 @@ jobs:
   build-resize-api-job:
     runs-on: ubuntu-latest
     needs: [get-vars-job]
-    env:
-      ACR_NAME: ${{ needs.get-vars-job.outputs.acrName }}
-      RESIZE_API_IMAGE: ${{ needs.get-vars-job.outputs.resizeApiImage }}
     steps:
       - name: checkout-code
         id: checkout-code
@@ -120,8 +114,8 @@ jobs:
           azcliversion: 2.67.0
           inlineScript: |
             az acr build \
-              --registry ${{ env.ACR_NAME }} \
-              -t "${{ env.RESIZE_API_IMAGE }}" \
+              --registry ${{ needs.get-vars-job.outputs.acrName }} \
+              -t "${{ needs.get-vars-job.outputs.resizeApiImage }}" \
               --build-arg SERVICE_NAME=${{ env.RESIZE_API_NAME }} \
               --build-arg SERVICE_PORT=${{ env.RESIZE_API_PORT }} \
               -f ./Dockerfile .
