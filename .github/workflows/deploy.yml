@@ -6,8 +6,8 @@ on:
   workflow_dispatch:
 
 env:
-  LOCATION: 'wuksouth'
-  APP_NAME: 'photo-app'
+  #LOCATION: 'wuksouth'
+  #APP_NAME: 'photo-app'
   DNS_ZONE_RG_NAME: 'external-domain-rg'
   TEMPLATE_FILE_PATH: ./infra/main.bicep
   PHOTO_API_NAME: 'photo'
@@ -32,9 +32,9 @@ jobs:
       - name: gen-rg-name
         id: gen-rg-name
         run: |
-            echo "rgName: ${{ env.APP_NAME }}-${{ env.LOCATION }}-rg"
-            echo "rgName=${{ env.APP_NAME }}-${{ env.LOCATION }}-rg" >> "$GITHUB_OUTPUT"
-            echo "RG_NAME=${{ env.APP_NAME }}-${{ env.LOCATION }}-rg" >> "$GITHUB_ENV"
+            echo "rgName: ${{ vars.APP_NAME }}-${{ vars.LOCATION }}-rg"
+            echo "rgName=${{ vars.APP_NAME }}-${{ vars.LOCATION }}-rg" >> "$GITHUB_OUTPUT"
+            echo "RG_NAME=${{ vars.APP_NAME }}-${{ vars.LOCATION }}-rg" >> "$GITHUB_ENV"
 
       - name: short-sha
         id: short-sha
@@ -54,7 +54,7 @@ jobs:
         with:
           azcliversion: 2.67.0
           inlineScript: |
-            az group create --name $RG_NAME --location ${{ env.LOCATION }}
+            az group create --name $RG_NAME --location ${{ vars.LOCATION }}
 
       - name: deploy-acr
         id: deploy-acr
