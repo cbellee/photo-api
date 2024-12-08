@@ -65,7 +65,7 @@ jobs:
           echo "resizeApiImage: ${{ env.ACR_NAME }}.azurecr.io/${{ env.RESIZE_API_NAME }}:${{ env.VERSION }}-$SHA"
           echo "resizeApiImage=${{ env.ACR_NAME }}.azurecr.io/${{ env.RESIZE_API_NAME }}:${{ env.VERSION }}-$SHA" >> $GITHUB_OUTPUT
 
-  build-photo-api-job:
+  build-photo-app-job:
     runs-on: ubuntu-latest
     needs: [get-vars-job]
     steps:
@@ -92,7 +92,7 @@ jobs:
               --build-arg SERVICE_PORT=${{ env.PHOTO_API_PORT }} \
               -f ./Dockerfile .
 
-  build-resize-api-job:
+  build-resize-app-job:
     runs-on: ubuntu-latest
     needs: [get-vars-job]
     steps:
@@ -120,9 +120,9 @@ jobs:
               --build-arg SERVICE_PORT=${{ env.RESIZE_API_PORT }} \
               -f ./Dockerfile .
 
-  update-photo-container-app:
+  update-photo-app-job:
     runs-on: ubuntu-latest
-    needs: [get-vars-job, build-photo-api-job]
+    needs: [get-vars-job, build-photo-app-job]
     env:
       ACR_NAME: ${{ needs.get-vars-job.outputs.acrName }}
       PHOTO_API_IMAGE: ${{ needs.get-vars-job.outputs.photoApiImage }}
@@ -147,9 +147,9 @@ jobs:
           echo "updating container app: ${{ env.PHOTO_API_NAME }} in resource group ${{ needs.get-vars-job.outputs.rgName }}" 
           az containerapp update --name ${{ env.PHOTO_API_NAME }} --resource-group ${{ needs.get-vars-job.outputs.rgName }} --image ${{ env.PHOTO_API_IMAGE }}
  
-  update-resize-container-app:
+  update-resize-app-job:
     runs-on: ubuntu-latest
-    needs: [get-vars-job, build-resize-api-job]
+    needs: [get-vars-job, build-resize-app-job]
     env:
       ACR_NAME: ${{ needs.get-vars-job.outputs.acrName }}
       RESIZE_API_IMAGE: ${{ needs.get-vars-job.outputs.resizeApiImage }}
