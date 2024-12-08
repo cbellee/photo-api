@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 env:
-  LOCATION: 'westeurope'
+  LOCATION: 'wuksouth'
   APP_NAME: 'photo-app'
   DNS_ZONE_RG_NAME: 'external-domain-rg'
   TEMPLATE_FILE_PATH: ./infra/main.bicep
