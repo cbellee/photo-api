@@ -144,8 +144,8 @@ jobs:
       with:
         azcliversion: 2.67.0
         inlineScript: |
-          echo "updating container app: ${{ env.PHOTO_API_NAME }} in resource group ${{ needs.get-vars-job.outputs.acrName }}" 
-          az containerapp update --name ${{ env.PHOTO_API_NAME }} --resource-group ${{ needs.get-vars-job.outputs.acrName }} --image ${{ env.PHOTO_API_IMAGE }}
+          echo "updating container app: ${{ env.PHOTO_API_NAME }} in resource group ${{ needs.get-vars-job.outputs.rgName }}" 
+          az containerapp update --name ${{ env.PHOTO_API_NAME }} --resource-group ${{ needs.get-vars-job.outputs.rgName }} --image ${{ env.PHOTO_API_IMAGE }}
  
   update-resize-container-app:
     runs-on: ubuntu-latest
@@ -171,5 +171,5 @@ jobs:
       with:
         azcliversion: 2.67.0
         inlineScript: |
-          echo "updating container app: ${{ env.RESIZE_API_IMAGE }} in resource group ${{ needs.get-vars-job.outputs.acrName }}" 
-          az containerapp update --name ${{ env.RESIZE_API_IMAGE }} --resource-group ${{ needs.get-vars-job.outputs.acrName }} --image ${{ env.RESIZE_API_IMAGE }}
+          echo "updating container app: ${{ env.RESIZE_API_IMAGE }} in resource group ${{ needs.get-vars-job.outputs.rgName }}" 
+          az containerapp update --name ${{ env.RESIZE_API_IMAGE }} --resource-group ${{ needs.get-vars-job.outputs.rgName}} --image ${{ env.RESIZE_API_IMAGE }}
