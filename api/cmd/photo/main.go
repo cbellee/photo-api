@@ -180,7 +180,7 @@ func albumPhotosHandler(client *azblob.Client, storageUrl string) http.HandlerFu
 				Album:       r.Tags["album"],
 				Collection:  r.Tags["collection"],
 				Description: r.Tags["description"],
-				ExifData:    r.MetaData["exifdata"],
+				ExifData:    r.MetaData["Exifdata"],
 				IsDeleted:   isDeleted,
 				Orientation: orienation,
 				AlbumImage:  albumImage,
