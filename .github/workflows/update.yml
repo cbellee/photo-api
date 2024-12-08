@@ -171,5 +171,5 @@ jobs:
       with:
         azcliversion: 2.67.0
         inlineScript: |
-          echo "updating container app: ${{ env.RESIZE_API_IMAGE }} in resource group ${{ needs.get-vars-job.outputs.rgName }}" 
-          az containerapp update --name ${{ env.RESIZE_API_IMAGE }} --resource-group ${{ needs.get-vars-job.outputs.rgName}} --image ${{ env.RESIZE_API_IMAGE }}
+          echo "updating container app: ${{ env.RESIZE_API_NAME }} in resource group ${{ needs.get-vars-job.outputs.rgName }}" 
+          az containerapp update --name ${{ env.RESIZE_API_NAME }} --resource-group ${{ needs.get-vars-job.outputs.rgName}} --image ${{ env.RESIZE_API_IMAGE }}
