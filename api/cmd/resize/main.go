@@ -21,7 +21,7 @@ import (
 
 var (
 	serviceName          = utils.GetEnvValue("SERVICE_NAME", "")
-	servicePort          = utils.GetEnvValue("SERVICE_PORT", "8080")
+	servicePort          = utils.GetEnvValue("SERVICE_PORT", "")
 	uploadsQueueBinding  = utils.GetEnvValue("UPLOADS_QUEUE_BINDING", "")
 	azureClientId        = utils.GetEnvValue("AZURE_CLIENT_ID", "")
 	imagesContainerName  = utils.GetEnvValue("IMAGES_CONTAINER_NAME", "images")
@@ -168,9 +168,9 @@ func ResizeHandler(ctx context.Context, in *common.BindingEvent) (out []byte, er
 	// add metadata
 	imgSize := len(imgBytes)
 	imgSizeStr := strconv.Itoa(imgSize)
-	metadata["size"] = imgSizeStr
-	metadata["height"] = fmt.Sprint(img.Height)
-	metadata["width"] = fmt.Sprint(img.Width)
+	metadata["Size"] = imgSizeStr
+	metadata["Height"] = fmt.Sprint(img.Height)
+	metadata["Width"] = fmt.Sprint(img.Width)
 
 	blobName, _ := utils.GetBlobNameAndPrefix(blobPath)
 	slog.Info("added blob metadata", "blob_name", blobName, "metadata", metadata)
