@@ -19,8 +19,8 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       acrName: ${{ steps.get-acr.outputs.acrName }}
-      resizeApiImage: ${{ steps.get-acr.outputs.resizeApiImage }}
-      photoApiImage: ${{ steps.get-acr.outputs.photoApiImage }}
+      resizeApiImage: ${{ steps.gen-image-names.outputs.resizeApiImage }}
+      photoApiImage: ${{ steps.gen-image-names.outputs.photoApiImage }}
       rgName: ${{ steps.gen-rg-name.outputs.rgName }}
     steps:
       - name: checkout-code
