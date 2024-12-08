@@ -55,7 +55,7 @@ jobs:
             acrName=$(az acr list --resource-group $RG_NAME --query '[].name' --output tsv)
             echo "ACR_NAME: $acrName"
             echo "ACR_NAME=$acrName" >> "$GITHUB_ENV"
-            echo "ACR_NAME=$acrName" >> "$GITHUB_OUTPUT"
+            echo "acrName=$acrName" >> "$GITHUB_OUTPUT"
 
       - name: gen-image-names
         id: gen-image-names
