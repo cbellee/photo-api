@@ -59,7 +59,6 @@ func CreateAzureBlobClient(storageUrl string, isProduction bool, azureClientId s
 		// any othger environment detected
 		var err error
 		slog.Info("Other environment detected, using 'AzureCLICredential'")
-		//credential, err := azidentity.NewDefaultAzureCredential(nil)
 		credential, err := azidentity.NewAzureCLICredential(nil)
 		if err != nil {
 			slog.Error("invalid credentials", "error", err)
@@ -181,27 +180,6 @@ func GetBlobDirectories(containerClient *container.Client, ctx context.Context, 
 	}
 	return m
 }
-
-/* func GetBlobTags(client *azblob.Client, blobPath string, container string, storageUrl string) (tags map[string]string, err error) {
-	ctx := context.Background()
-	blobUrl := fmt.Sprintf("%s/%s/%s", storageUrl, container, blobPath)
-	blockBlob := client.ServiceClient().NewContainerClient(container).NewBlockBlobClient(blobPath)
-
-	// get blob tags
-	tagResponse, err := blockBlob.GetTags(ctx, nil)
-	if err != nil {
-		slog.Error("error getting blob tags", "blob_url", blobUrl, "error", err)
-		return nil, err
-	}
-
-	slog.Info("got blob tags", "blob", blobPath, "tags", tagResponse.BlobTags)
-	tags = make(map[string]string)
-	for _, t := range tagResponse.BlobTags.BlobTagSet {
-		tags[*t.Key] = *t.Value
-	}
-
-	return tags, nil
-} */
 
 func GetBlobTags(client *azblob.Client, blobPath string, container string, storageUrl string) (tags map[string]string, err error) {
 	ctx := context.Background()

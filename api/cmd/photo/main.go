@@ -14,6 +14,7 @@ import (
 	"os"
 	"slices"
 	"strconv"
+	"strings"
 
 	"github.com/cbellee/photo-api/internal/exif"
 	"github.com/cbellee/photo-api/internal/models"
@@ -32,17 +33,20 @@ var (
 	azureClientId        = utils.GetEnvValue("AZURE_CLIENT_ID", "")
 	imagesContainerName  = utils.GetEnvValue("IMAGES_CONTAINER_NAME", "images")
 	storageConfig        = models.StorageConfig{
-		StorageAccount:       utils.GetEnvValue("STORAGE_ACCOUNT_NAME", ""),
+		StorageAccount:       utils.GetEnvValue("STORAGE_ACCOUNT_NAME", "storhw3eyjlyy236y"),
 		StorageAccountSuffix: utils.GetEnvValue("STORAGE_ACCOUNT_SUFFIX", "blob.core.windows.net"),
 	}
 	memoryLimitMb = int64(32)
 	isProduction  = false
 	jwksURL       = utils.GetEnvValue("JWKS_URL", "https://login.microsoftonline.com/0cd02bb5-3c24-4f77-8b19-99223d65aa67/discovery/keys?appid=689078c3-c0ad-4c10-a0d3-1c430c2e471d")
 	roleName      = utils.GetEnvValue("ROLE_NAME", "photo.upload")
-	corsOrigins   = []string{"http://localhost:5173", "https://gallery.bellee.net", "https://photos.bellee.net"}
 )
 
 func main() {
+	corsString := utils.GetEnvValue("CORS_ORIGINS", "http://localhost:5173,https://gallery.bellee.net,https://photos.bellee.net")
+	corsOrigins := strings.Split(corsString, ",")
+	slog.Info("cors origins", "origins", corsOrigins)
+
 	// enable azure SDK logging
 	azlog.SetListener(func(event azlog.Event, s string) {
 		slog.Info("azlog", "event", event, "message", s)
@@ -82,7 +86,7 @@ func main() {
 	api.HandleFunc("GET /api/{collection}", collectionAlbums(client, storageUrl))
 	api.HandleFunc("GET /api/{collection}/{album}", albumPhotosHandler(client, storageUrl))
 	api.HandleFunc("POST /api/upload", uploadPhotoHandler(client, storageUrl, roleName, jwksURL))
-	api.HandleFunc("PUT /api/update/{collection}/{album}/{id}", UpdatePhotoDataHandler(client, storageUrl, roleName, jwksURL))
+	api.HandleFunc("PUT /api/update/{collection}/{album}/{id}", UpdatePhotoHandler(client, storageUrl, roleName, jwksURL))
 	api.HandleFunc("GET /api/tags", tagListHandler(client, storageUrl))
 
 	slog.Info("server listening", "name", serviceName, "port", port)
@@ -141,49 +145,49 @@ func albumPhotosHandler(client *azblob.Client, storageUrl string) http.HandlerFu
 
 		photos := []models.Photo{}
 
-		for _, r := range filteredBlobs {
-			width, err := strconv.ParseInt(r.MetaData["Width"], 10, 32)
+		for _, fb := range filteredBlobs {
+			width, err := strconv.ParseInt(fb.MetaData["Width"], 10, 32)
 			if err != nil {
 				slog.Error("error converting string 'width' to int", "error", err)
 			}
 
-			height, err := strconv.ParseInt(r.MetaData["Height"], 10, 32)
+			height, err := strconv.ParseInt(fb.MetaData["Height"], 10, 32)
 			if err != nil {
 				slog.Error("error converting string 'height' to int", "error", err)
 			}
 
-			isDeleted, err := strconv.ParseBool(r.Tags["IsDeleted"])
+			isDeleted, err := strconv.ParseBool(fb.Tags["IsDeleted"])
 			if err != nil {
 				isDeleted = false
 			}
 
-			albumImage, err := strconv.ParseBool(r.Tags["AlbumImage"])
+			albumImage, err := strconv.ParseBool(fb.Tags["AlbumImage"])
 			if err != nil {
 				albumImage = false
 			}
 
-			collectionImage, err := strconv.ParseBool(r.Tags["CollectionImage"])
+			collectionImage, err := strconv.ParseBool(fb.Tags["CollectionImage"])
 			if err != nil {
 				collectionImage = false
 			}
 
-			orienation, err := strconv.Atoi(r.MetaData["Orientation"])
+			orienation, err := strconv.Atoi(fb.MetaData["Orientation"])
 			if err != nil {
 				orienation = 0
 			}
 
 			photo := models.Photo{
-				Src:         r.Path,
-				Name:        r.Name,
-				Width:       int(width),
-				Height:      int(height),
-				Album:       r.Tags["album"],
-				Collection:  r.Tags["collection"],
-				Description: r.Tags["description"],
-				ExifData:    r.MetaData["Exifdata"],
-				IsDeleted:   isDeleted,
-				Orientation: orienation,
-				AlbumImage:  albumImage,
+				Src:             fb.Path,
+				Name:            fb.Name,
+				Width:           int(width),
+				Height:          int(height),
+				Album:           fb.Tags["album"],
+				Collection:      fb.Tags["collection"],
+				Description:     fb.Tags["description"],
+				ExifData:        fb.MetaData["Exifdata"],
+				IsDeleted:       isDeleted,
+				Orientation:     orienation,
+				AlbumImage:      albumImage,
 				CollectionImage: collectionImage,
 			}
 
@@ -197,7 +201,7 @@ func albumPhotosHandler(client *azblob.Client, storageUrl string) http.HandlerFu
 	}
 }
 
-func UpdatePhotoDataHandler(client *azblob.Client, storageUrl string, roleName string, jwksURL string) http.HandlerFunc {
+func UpdatePhotoHandler(client *azblob.Client, storageUrl string, roleName string, jwksURL string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// verify JWT token
 		claims, err := utils.VerifyToken(r, jwksURL)
@@ -235,6 +239,17 @@ func UpdatePhotoDataHandler(client *azblob.Client, storageUrl string, roleName s
 			slog.Error("error getting blob tags", "error", err)
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		}
+
+		currMetadata, err := utils.GetBlobMetadata(client, newTags["name"], imagesContainerName, storageUrl)
+		if err != nil {
+			slog.Error("error getting blob metadata", "error", err)
+		}
+
+		// remote 'Url' tag from comparison
+		delete(currTags, "Url")
+
+		// add orientation to comparison
+		newTags["orientation"] = currMetadata["Orientation"] 
 
 		if maps.Equal(currTags, newTags) {
 			// return 304 Not Modified

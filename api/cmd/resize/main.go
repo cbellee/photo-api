@@ -176,7 +176,7 @@ func ResizeHandler(ctx context.Context, in *common.BindingEvent) (out []byte, er
 	slog.Info("added blob metadata", "blob_name", blobName, "metadata", metadata)
 
 	// add tags
-	tags["url"] = fmt.Sprintf("%s/%s/%s", client.URL(), imagesContainerName, blobPath)
+	// tags["url"] = fmt.Sprintf("%s/%s/%s", client.URL(), imagesContainerName, blobPath)
 
 	slog.Info("added blob tags", "blob_name", blobName, "tags", tags)
 

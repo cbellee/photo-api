@@ -26,6 +26,7 @@ type ImageTags struct {
 	Album           string `json:"album"`
 	Type            string `json:"type"`
 	IsDeleted       bool   `json:"isDeleted"`
+	Orientation     int    `json:"orientation"`
 }
 
 type Blob struct {
@@ -36,19 +37,19 @@ type Blob struct {
 }
 
 type Photo struct {
-	Src         string    `json:"src"`
-	Name        string    `json:"name"`
-	Width       int     `json:"width"`
-	Height      int    `json:"height"`
-	Album       string    `json:"album"`
-	Collection  string    `json:"collection"`
-	Description string    `json:"description"`
-	DateTaken   time.Time `json:"dateTaken"`
-	ExifData    string    `json:"exifData"`
-	IsDeleted   bool      `json:"isDeleted"`
-	Orientation int     `json:"orientation"`
-	AlbumImage  bool      `json:"albumImage"`
-	CollectionImage bool `json:"collectionImage"`
+	Src             string    `json:"src"`
+	Name            string    `json:"name"`
+	Width           int       `json:"width"`
+	Height          int       `json:"height"`
+	Album           string    `json:"album"`
+	Collection      string    `json:"collection"`
+	Description     string    `json:"description"`
+	DateTaken       time.Time `json:"dateTaken"`
+	ExifData        string    `json:"exifData"`
+	IsDeleted       bool      `json:"isDeleted"`
+	Orientation     int       `json:"orientation"`
+	AlbumImage      bool      `json:"albumImage"`
+	CollectionImage bool      `json:"collectionImage"`
 }
 
 type Album struct {

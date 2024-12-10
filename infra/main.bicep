@@ -6,6 +6,7 @@ param memoryResource string = '0.5Gi'
 param zoneName string = 'bellee.net'
 param cNameRecord string = 'photos'
 param dnsResourceGroupName string = 'external-domain-rg'
+param corsOrigins string = 'http://localhost:5173,https://${cNameRecord}.${zoneName}'
 
 param tags object = {
   Environment: 'Dev'
@@ -420,6 +421,10 @@ resource photoApi 'Microsoft.App/containerApps@2023-11-02-preview' = {
             {
               name: 'AZURE_TENANT_ID'
               value: tenant().tenantId
+            }
+            {
+              name: 'CORS_ORIGINS'
+              value: corsOrigins
             }
           ]
         }
