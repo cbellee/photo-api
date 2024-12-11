@@ -560,7 +560,7 @@ module dnsModule 'modules/dns.bicep' = {
   params: {
     dnsZoneName: zoneName
     cdnEndpoint: cdnEndpoint
-    cnameRecord: cNameRecord
+    cnameRecord: cName
   }
 }
 
@@ -576,6 +576,7 @@ module cdnModule 'modules/cdn.bicep' = {
   }
   dependsOn: [
     storage
+    dnsModule
   ]
 }
 
