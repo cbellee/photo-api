@@ -21,7 +21,7 @@ resource cdn 'Microsoft.Cdn/profiles@2024-09-01' = {
   name: 'cdn-${affix}'
   location: 'global'
   sku: {
-    name: 'Standard_Verizon'
+    name: 'Standard_Microsoft'
   }
 
   resource endpoint 'endpoints' = {
