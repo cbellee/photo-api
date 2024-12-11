@@ -6,7 +6,6 @@ param memoryResource string = '0.5Gi'
 param zoneName string = 'bellee.net'
 param cNameRecord string = 'photos'
 param dnsResourceGroupName string = 'external-domain-rg'
-param corsOrigins string = 'http://localhost:5173,https://${cNameRecord}-${resourceGroup().location}.${zoneName}'
 
 param tags object = {
   Environment: 'Dev'
@@ -59,6 +58,8 @@ var storageAccountName = 'stor${affix}'
 var topicName = 'egt-${affix}'
 var containerAppEnvName = 'appenv-${affix}'
 var cdnEndpoint = 'cdne-${affix}.azureedge.net'
+var cName = '${cNameRecord}-${resourceGroup().location}'
+var corsOrigins = 'http://localhost:5173,https://${cName}'
 
 targetScope = 'resourceGroup'
 
@@ -567,7 +568,7 @@ module cdnModule 'modules/cdn.bicep' = {
   name: 'cdnModuleDeployment'
   params: {
     cdnEndpoint: cdnEndpoint
-    cnameRecord: cNameRecord
+    cnameRecord: cName
     dnsZoneName: zoneName
     origin: storage.outputs.webEndpoint
     storageAccountName: storage.outputs.name
