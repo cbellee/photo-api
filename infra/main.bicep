@@ -6,7 +6,8 @@ param memoryResource string = '0.5Gi'
 param zoneName string = 'bellee.net'
 param cNameRecord string = 'photos'
 param dnsResourceGroupName string = 'external-domain-rg'
-param ghcrName string
+param ghcrName string = 'ghcr.io'
+param githubUsername string = 'cbellee'
 
 @secure()
 param ghcrPullToken string
@@ -260,6 +261,7 @@ resource resizeApi 'Microsoft.App/containerApps@2024-08-02-preview' = {
       registries: [
         {
           server: ghcrName
+          username: githubUsername
           passwordSecretRef: ghcrPullToken
         }
       ]
@@ -388,6 +390,7 @@ resource photoApi 'Microsoft.App/containerApps@2023-11-02-preview' = {
       registries: [
         {
           server: ghcrName
+          username: githubUsername
           identity: ghcrPullToken
         }
       ]
