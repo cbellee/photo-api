@@ -258,6 +258,30 @@ func updateHandler(client *azblob.Client, storageUrl string, roleName string, jw
 			return
 		}
 
+		// get current image with collectionImage tag set to 'true'
+		currentCollectionImage, err := getCollectionImage(client, storageUrl, currTags["collection"])
+		if err != nil {
+			slog.Error("error getting collection image", "error", err)
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
+
+		// set CollectionImage tag to 'false' on existing image if it has been set to 'true' on the current image
+		if newTags["collectionImage"] == "true" && currentCollectionImage[0].Tags["name"] != newTags["name"] {
+			slog.Info("collection image set on another image. Setting 'collectionImage'", "collection", currTags["collection"], "image", currentCollectionImage[0].Name)
+
+			// set collectionImage tag to 'false' on existing image
+			currentCollectionImage[0].Tags["collectionImage"] = "false"
+
+			// update blob metadata for previous image
+			err = utils.SetBlobTags(client, currentCollectionImage[0].Name, imagesContainerName, storageUrl, currentCollectionImage[0].Tags)
+			if err != nil {
+				slog.Error("error setting collectionImage tag", "error", err)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+				return
+			}
+		}
+
 		// update blob metadata
 		err = utils.SetBlobTags(client, newTags["name"], imagesContainerName, storageUrl, newTags)
 		if err != nil {
@@ -475,6 +499,22 @@ func albumHandler(client *azblob.Client, storageUrl string) http.HandlerFunc {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(photos)
 	}
+}
+
+func getCollectionImage(client *azblob.Client, storageUrl string, collection string) ([]models.Blob, error) {
+	// get photos with matching collection tags
+	query := fmt.Sprintf("@container='%s' and collection='%s' and collectionImage='true'", imagesContainerName, collection)
+	filteredBlobs, err := queryBlobsByTags(client, storageUrl, query)
+	if err != nil {
+		slog.Error("Error getting blobs by tags", "error", err)
+		return nil, err
+	}
+
+	if len(filteredBlobs) <= 0 {
+		return []models.Blob{}, fmt.Errorf("no collection image found for collection: %s", collection)
+	}
+
+	return filteredBlobs, nil
 }
 
 func queryBlobsByTags(client *azblob.Client, storageUrl string, query string) (blobResult []models.Blob, err error) {
