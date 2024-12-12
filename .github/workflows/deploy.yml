@@ -143,5 +143,5 @@ jobs:
             --parameters resizeApiContainerImage=${{ needs.deploy-rg-job.outputs.resizeApiImage }} \
             --parameters dnsResourceGroupName=${{ env.DNS_ZONE_RG_NAME }} \
             --parameters ghcrPullToken=${{ secrets.GITHUB_TOKEN }} \
-            --parameters ghcrName=${{ needs.deploy-rg-job.outputs.ghcrName }} \
+            --parameters ghcrName=ghcr.io/${GITHUB_REPOSITORY_OWNER} \
             
