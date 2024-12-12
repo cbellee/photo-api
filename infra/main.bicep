@@ -384,7 +384,6 @@ resource photoApi 'Microsoft.App/containerApps@2023-11-02-preview' = {
     }
   }
   dependsOn: [
-    containerAppEnvironment
     egt
   ]
   properties: {
@@ -400,7 +399,7 @@ resource photoApi 'Microsoft.App/containerApps@2023-11-02-preview' = {
         {
           server: ghcrName
           username: githubUsername
-          identity: 'ghcr-pull-token'
+          passwordSecretRef: 'ghcr-pull-token'
         }
       ]
       ingress: {
@@ -619,7 +618,6 @@ module cdnModule 'modules/cdn.bicep' = {
     storageAccountKey: storageKey
   }
   dependsOn: [
-    storage
     dnsModule
   ]
 }
