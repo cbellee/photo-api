@@ -53,7 +53,7 @@ param imagesContainerName string = 'images'
 param uploadsContainerName string = 'uploads'
 
 var storageBlobDataOwnerRoleDefinitionID = 'b7e6dc6d-f1e8-4753-8033-0f276bb0955b'
-var acrPullRoleDefinitionId = '7f951dda-4ed3-4680-a7ca-43fe172d538d'
+// var acrPullRoleDefinitionId = '7f951dda-4ed3-4680-a7ca-43fe172d538d'
 var storageKey = storage.outputs.key
 var storageQueueCxnString = 'DefaultEndpointsProtocol=https;AccountName=${storage.outputs.name};EndpointSuffix=${environment().suffixes.storage};AccountKey=${storageKey}'
 var affix = uniqueString(resourceGroup().id)
@@ -219,7 +219,7 @@ resource storageRbac 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   }
 }
 
-resource acrPullRbac 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+/* resource acrPullRbac 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(umid.name, 'acrPull', affix)
   properties: {
     principalId: umid.properties.principalId
@@ -227,6 +227,7 @@ resource acrPullRbac 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
     principalType: 'ServicePrincipal'
   }
 }
+ */
 
 resource resizeApi 'Microsoft.App/containerApps@2024-08-02-preview' = {
   name: resizeApiName
