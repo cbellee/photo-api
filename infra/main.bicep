@@ -239,7 +239,6 @@ resource resizeApi 'Microsoft.App/containerApps@2024-08-02-preview' = {
     }
   }
   dependsOn: [
-    containerAppEnvironment
     egt
   ]
   properties: {
@@ -257,12 +256,16 @@ resource resizeApi 'Microsoft.App/containerApps@2024-08-02-preview' = {
           name: 'storage-queue-cxn'
           value: storageQueueCxnString
         }
+        {
+          name: 'ghcr-pull-token'
+          value: ghcrPullToken
+        }
       ]
       registries: [
         {
           server: ghcrName
           username: githubUsername
-          passwordSecretRef: ghcrPullToken
+          passwordSecretRef: 'ghcr-pull-token'
         }
       ]
       ingress: {
@@ -387,11 +390,17 @@ resource photoApi 'Microsoft.App/containerApps@2023-11-02-preview' = {
   properties: {
     configuration: {
       activeRevisionsMode: 'single'
+      secrets: [
+        {
+          name: 'ghcr-pull-token'
+          value: ghcrPullToken
+        }
+      ]
       registries: [
         {
           server: ghcrName
           username: githubUsername
-          identity: ghcrPullToken
+          identity: 'ghcr-pull-token'
         }
       ]
       ingress: {
