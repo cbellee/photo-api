@@ -1,4 +1,3 @@
-//param acrName string
 param photoApiContainerImage string
 param resizeApiContainerImage string
 param cpuResource string = '0.25'
@@ -218,16 +217,6 @@ resource storageRbac 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
     principalType: 'ServicePrincipal'
   }
 }
-
-/* resource acrPullRbac 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(umid.name, 'acrPull', affix)
-  properties: {
-    principalId: umid.properties.principalId
-    roleDefinitionId: resourceId('Microsoft.Authorization/roleDefinitions', acrPullRoleDefinitionId)
-    principalType: 'ServicePrincipal'
-  }
-}
- */
 
 resource resizeApi 'Microsoft.App/containerApps@2024-08-02-preview' = {
   name: resizeApiName
@@ -585,18 +574,6 @@ module daprComponentUploadsStorageBlob 'modules/daprComponent.bicep' = {
     resizeApi
   ]
 }
-
-/* module cdnProfile 'modules/cdnProfile.bicep' = {
-  name: 'CdnProfileDeployment'
-  params: {
-    appName: 'photo-app'
-    storageAccountWebEndpoint: replace(storage.outputs.webEndpoint, 'https://', '')
-    domainName: '${cNameRecord}.${zoneName}'
-  }
-  dependsOn: [
-    storage
-  ]
-} */
 
 module dnsModule 'modules/dns.bicep' = {
   name: 'dnsModuleDeployment'

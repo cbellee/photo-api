@@ -144,5 +144,7 @@ jobs:
             --parameters dnsResourceGroupName=${{ env.DNS_ZONE_RG_NAME }} \
             --parameters ghcrPullToken=${{ secrets.GITHUB_TOKEN }} \
             --parameters ghcrName='ghcr.io' \
-            --parameters githubUsername=${{ github.actor }} \
-            
+            --parameters githubUsername=${{ github.actor }}
+
+            ghcr.io/cbellee/photo:1.0.0-9971536
+            ghcr.io/cbellee/photo:1.0.0-1367468
