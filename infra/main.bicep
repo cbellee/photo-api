@@ -1,4 +1,4 @@
-param acrName string
+//param acrName string
 param photoApiContainerImage string
 param resizeApiContainerImage string
 param cpuResource string = '0.25'
@@ -6,6 +6,10 @@ param memoryResource string = '0.5Gi'
 param zoneName string = 'bellee.net'
 param cNameRecord string = 'photos'
 param dnsResourceGroupName string = 'external-domain-rg'
+param ghcrName string
+
+@secure()
+param ghcrPullToken string
 
 param tags object = {
   Environment: 'Dev'
@@ -91,9 +95,9 @@ identifierUris: [
 ]
 } */
 
-resource acr 'Microsoft.ContainerRegistry/registries@2023-11-01-preview' existing = {
+/* resource acr 'Microsoft.ContainerRegistry/registries@2023-11-01-preview' existing = {
   name: acrName
-}
+} */
 
 resource umid 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-07-31-preview' = {
   name: umidName
@@ -255,8 +259,8 @@ resource resizeApi 'Microsoft.App/containerApps@2024-08-02-preview' = {
       ]
       registries: [
         {
-          server: acr.properties.loginServer
-          identity: umid.id
+          server: ghcrName
+          passwordSecretRef: ghcrPullToken
         }
       ]
       ingress: {
@@ -383,8 +387,8 @@ resource photoApi 'Microsoft.App/containerApps@2023-11-02-preview' = {
       activeRevisionsMode: 'single'
       registries: [
         {
-          server: acr.properties.loginServer
-          identity: umid.id
+          server: ghcrName
+          identity: ghcrPullToken
         }
       ]
       ingress: {
