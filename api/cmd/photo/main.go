@@ -82,11 +82,11 @@ func main() {
 	port := fmt.Sprintf(":%s", servicePort)
 	api := http.NewServeMux()
 
-	api.HandleFunc("GET /api", collectionsHandler(client, storageUrl))
-	api.HandleFunc("GET /api/{collection}", collectionAlbums(client, storageUrl))
-	api.HandleFunc("GET /api/{collection}/{album}", albumPhotosHandler(client, storageUrl))
-	api.HandleFunc("POST /api/upload", uploadPhotoHandler(client, storageUrl, roleName, jwksURL))
-	api.HandleFunc("PUT /api/update/{collection}/{album}/{id}", UpdatePhotoHandler(client, storageUrl, roleName, jwksURL))
+	api.HandleFunc("GET /api", collectionHandler(client, storageUrl))
+	api.HandleFunc("GET /api/{collection}", albumHandler(client, storageUrl))
+	api.HandleFunc("GET /api/{collection}/{album}", photoHandler(client, storageUrl))
+	api.HandleFunc("POST /api/upload", uploadHandler(client, storageUrl, roleName, jwksURL))
+	api.HandleFunc("PUT /api/update/{collection}/{album}/{id}", updateHandler(client, storageUrl, roleName, jwksURL))
 	api.HandleFunc("GET /api/tags", tagListHandler(client, storageUrl))
 
 	slog.Info("server listening", "name", serviceName, "port", port)
@@ -123,7 +123,7 @@ func tagListHandler(client *azblob.Client, storageUrl string) http.HandlerFunc {
 	}
 }
 
-func albumPhotosHandler(client *azblob.Client, storageUrl string) http.HandlerFunc {
+func photoHandler(client *azblob.Client, storageUrl string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
 		collection := r.PathValue("collection")
@@ -156,22 +156,22 @@ func albumPhotosHandler(client *azblob.Client, storageUrl string) http.HandlerFu
 				slog.Error("error converting string 'height' to int", "error", err)
 			}
 
-			isDeleted, err := strconv.ParseBool(fb.Tags["IsDeleted"])
+			isDeleted, err := strconv.ParseBool(fb.Tags["isDeleted"])
 			if err != nil {
 				isDeleted = false
 			}
 
-			albumImage, err := strconv.ParseBool(fb.Tags["AlbumImage"])
+			albumImage, err := strconv.ParseBool(fb.Tags["albumImage"])
 			if err != nil {
 				albumImage = false
 			}
 
-			collectionImage, err := strconv.ParseBool(fb.Tags["CollectionImage"])
+			collectionImage, err := strconv.ParseBool(fb.Tags["collectionImage"])
 			if err != nil {
 				collectionImage = false
 			}
 
-			orienation, err := strconv.Atoi(fb.MetaData["Orientation"])
+			orienation, err := strconv.Atoi(fb.Tags["orientation"])
 			if err != nil {
 				orienation = 0
 			}
@@ -201,7 +201,7 @@ func albumPhotosHandler(client *azblob.Client, storageUrl string) http.HandlerFu
 	}
 }
 
-func UpdatePhotoHandler(client *azblob.Client, storageUrl string, roleName string, jwksURL string) http.HandlerFunc {
+func updateHandler(client *azblob.Client, storageUrl string, roleName string, jwksURL string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// verify JWT token
 		claims, err := utils.VerifyToken(r, jwksURL)
@@ -240,16 +240,16 @@ func UpdatePhotoHandler(client *azblob.Client, storageUrl string, roleName strin
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		}
 
-		currMetadata, err := utils.GetBlobMetadata(client, newTags["name"], imagesContainerName, storageUrl)
+		/* currMetadata, err := utils.GetBlobMetadata(client, newTags["name"], imagesContainerName, storageUrl)
 		if err != nil {
 			slog.Error("error getting blob metadata", "error", err)
-		}
+		} */
 
 		// remote 'Url' tag from comparison
 		delete(currTags, "Url")
 
 		// add orientation to comparison
-		newTags["orientation"] = currMetadata["Orientation"] 
+		//currTags["orientation"] = newTags["orientation"]
 
 		if maps.Equal(currTags, newTags) {
 			// return 304 Not Modified
@@ -267,7 +267,7 @@ func UpdatePhotoHandler(client *azblob.Client, storageUrl string, roleName strin
 	}
 }
 
-func uploadPhotoHandler(client *azblob.Client, storageUrl string, roleName string, jwksURL string) http.HandlerFunc {
+func uploadHandler(client *azblob.Client, storageUrl string, roleName string, jwksURL string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := context.Background()
 
@@ -361,7 +361,6 @@ func uploadPhotoHandler(client *azblob.Client, storageUrl string, roleName strin
 		md["width"] = fmt.Sprint(img.Width)
 		md["size"] = strconv.Itoa(int(fh[0].Size))
 		md["exifData"] = exifData
-		md["orientation"] = "0"
 
 		utils.SaveBlobStreamWithTagsMetadataAndContentType(
 			client,
@@ -377,7 +376,7 @@ func uploadPhotoHandler(client *azblob.Client, storageUrl string, roleName strin
 	}
 }
 
-func collectionsHandler(client *azblob.Client, storageUrl string) http.HandlerFunc {
+func collectionHandler(client *azblob.Client, storageUrl string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
 		// get photos with matching collection tags
@@ -425,7 +424,7 @@ func collectionsHandler(client *azblob.Client, storageUrl string) http.HandlerFu
 	}
 }
 
-func collectionAlbums(client *azblob.Client, storageUrl string) http.HandlerFunc {
+func albumHandler(client *azblob.Client, storageUrl string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
 		collection := r.PathValue("collection")

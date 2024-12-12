@@ -15,6 +15,8 @@ param storageAccountName string
 @secure()
 param storageAccountKey string
 
+param utcValue string = utcNow()
+
 var affix = uniqueString(resourceGroup().id)
 
 resource cdn 'Microsoft.Cdn/profiles@2024-09-01' = {
@@ -69,7 +71,6 @@ resource roleAssignments 'Microsoft.Authorization/roleAssignments@2020-08-01-pre
   }
 }]
 
-param utcValue string = utcNow()
 resource enableHttpsForCustomDomain 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
   name: 'enableHttpsForCustomDomain'
   location: resourceGroup().location
@@ -90,6 +91,7 @@ resource enableHttpsForCustomDomain 'Microsoft.Resources/deploymentScripts@2020-
       storageAccountKey: storageAccountKey
     }
     scriptContent: 'az cdn custom-domain enable-https -g ${resourceGroup().name} -n ${cdn::endpoint::customDomain.name} --profile-name ${cdn.name} --endpoint-name ${cdn::endpoint.name}'
+
   }
 }
 

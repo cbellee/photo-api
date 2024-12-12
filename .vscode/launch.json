@@ -11,8 +11,8 @@
             "mode": "debug",
             "program": "${workspaceFolder}/api/cmd/photo/main.go",
             "env": {
-                "AZURE_TENANT_ID": "dd3cd82b-4ff1-4e7e-9220-1a9879b8d596",
-                "STORAGE_ACCOUNT_NAME": "storhw3eyjlyy236y",
+                "AZURE_TENANT_ID": "0cd02bb5-3c24-4f77-8b19-99223d65aa67",
+                "STORAGE_ACCOUNT_NAME": "stor6aq2g56sfcosi",
                 "STORAGE_ACCOUNT_SUFFIX": "blob.core.windows.net",
                 "UPLOADS_CONTAINER_NAME": "uploads",
                 "IMAGES_CONTAINER_NAME": "images",

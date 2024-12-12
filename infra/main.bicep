@@ -59,9 +59,37 @@ var topicName = 'egt-${affix}'
 var containerAppEnvName = 'appenv-${affix}'
 var cdnEndpoint = 'cdne-${affix}.azureedge.net'
 var cName = '${cNameRecord}-${resourceGroup().location}'
-var corsOrigins = 'http://localhost:5173,https://${cName}'
+var corsOrigins = 'http://localhost:5173,https://${cName}.${zoneName}'
+
+extension microsoftGraphV1
 
 targetScope = 'resourceGroup'
+
+/* resource applicationRegistration 'Microsoft.Graph/applications@v1.0' = {
+  displayName: 'photo-app-${affix}'
+  uniqueName: 'photo-app-${affix}'
+  signInAudience: 'AzureADMyOrg'
+  spa: {
+    redirectUris: [
+      'https://localhost:5173'
+      'https://${cName}.${zoneName}'
+    ]
+  }
+appRoles: [
+  {
+    allowedMemberTypes: [
+      'User'
+      'Application'
+    ]
+    description: 'Upload access to the photo app'
+    displayName: 'photo.upload'
+    value: 'photo.upload'
+  }
+]
+identifierUris: [
+  'api://'
+]
+} */
 
 resource acr 'Microsoft.ContainerRegistry/registries@2023-11-01-preview' existing = {
   name: acrName
@@ -365,7 +393,7 @@ resource photoApi 'Microsoft.App/containerApps@2023-11-02-preview' = {
             'http://localhost:3000'
             'http://localhost:5173'
             'https://${storage.outputs.webEndpoint}'
-            'https://${cNameRecord}.${zoneName}'
+            'https://${cName}'
           ]
           allowedHeaders: [
             '*'
