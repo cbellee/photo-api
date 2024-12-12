@@ -18,7 +18,6 @@ jobs:
   deploy-rg-job:
     runs-on: ubuntu-latest
     outputs:
-      ghcrName: ${{github.actor}}
       rgName: ${{ steps.gen-rg-name.outputs.rgName }}
       photoApiImage: ${{ steps.gen-image-names.outputs.photoApiImage }}
       resizeApiImage: ${{ steps.gen-image-names.outputs.resizeApiImage }}
