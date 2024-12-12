@@ -56,13 +56,11 @@ jobs:
 
       - name: gen-image-names
         id: gen-image-names
-        env:
-          GHCR_NAME: ${{ github.actor }}
         run: |
-          echo "photoApiImage: ${{ env.GHCR_NAME }}.ghcr.io/${{ env.PHOTO_API_NAME }}:${{ env.VERSION }}-$SHA"
-          echo "photoApiImage=${{ env.GHCR_NAME }}.ghcr.io/${{ env.PHOTO_API_NAME }}:${{ env.VERSION }}-$SHA" >> $GITHUB_OUTPUT
-          echo "resizeApiImage: ${{ env.GHCR_NAME }}.ghcr.io/${{ env.RESIZE_API_NAME }}:${{ env.VERSION }}-$SHA"
-          echo "resizeApiImage=${{ env.GHCR_NAME }}.ghcr.io/${{ env.RESIZE_API_NAME }}:${{ env.VERSION }}-$SHA" >> $GITHUB_OUTPUT
+          echo "photoApiImage: ghcr.io/${{ env.GITHUB_REPOSITORY_OWNER }}/${{ env.PHOTO_API_NAME }}:${{ env.VERSION }}-$SHA"
+          echo "photoApiImage=ghcr.io/${{ env.GITHUB_REPOSITORY_OWNER }}/${{ env.PHOTO_API_NAME }}:${{ env.VERSION }}-$SHA" >> $GITHUB_OUTPUT
+          echo "resizeApiImage: ghcr.io/${{ env.GITHUB_REPOSITORY_OWNER }}/${{ env.RESIZE_API_NAME }}:${{ env.VERSION }}-$SHA"
+          echo "resizeApiImage=ghcr.io/${{ env.GITHUB_REPOSITORY_OWNER }}/${{ env.RESIZE_API_NAME }}:${{ env.VERSION }}-$SHA" >> $GITHUB_OUTPUT
 
   build-photo-api-job:
     runs-on: ubuntu-latest
