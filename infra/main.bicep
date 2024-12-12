@@ -61,7 +61,7 @@ var cdnEndpoint = 'cdne-${affix}.azureedge.net'
 var cName = '${cNameRecord}-${resourceGroup().location}'
 var corsOrigins = 'http://localhost:5173,https://${cName}.${zoneName}'
 
-extension microsoftGraphV1
+// extension microsoftGraphV1
 
 targetScope = 'resourceGroup'
 
