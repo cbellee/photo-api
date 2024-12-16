@@ -9,7 +9,6 @@ permissions:
   packages: write
 
 env:
-  DNS_ZONE_RG_NAME: 'external-domain-rg'
   TEMPLATE_FILE_PATH: ./infra/main.bicep
   PHOTO_API_NAME: 'photo'
   PHOTO_API_PORT: 8080
@@ -141,7 +140,6 @@ jobs:
             --template-file ${{ env.TEMPLATE_FILE_PATH }} \
             --parameters photoApiContainerImage=${{ needs.deploy-rg-job.outputs.photoApiImage }} \
             --parameters resizeApiContainerImage=${{ needs.deploy-rg-job.outputs.resizeApiImage }} \
-            --parameters dnsResourceGroupName=${{ env.DNS_ZONE_RG_NAME }} \
             --parameters ghcrPullToken=${{ secrets.GITHUB_TOKEN }} \
             --parameters ghcrName='ghcr.io' \
             --parameters githubUsername=${{ github.actor }}
