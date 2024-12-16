@@ -61,9 +61,9 @@ var workspaceName = 'wks-${affix}'
 var storageAccountName = 'stor${affix}'
 var topicName = 'egt-${affix}'
 var containerAppEnvName = 'appenv-${affix}'
-var cdnEndpoint = 'cdne-${affix}.azureedge.net'
-var cName = '${cNameRecord}-${resourceGroup().location}'
-var corsOrigins = 'http://localhost:5173,https://${cName}.${zoneName}'
+// var cdnEndpoint = 'cdne-${affix}.azureedge.net'
+var cName = '${cNameRecord}.${zoneName}'
+var corsOrigins = 'http://localhost:5173,https://${cName}'
 
 // extension microsoftGraphV1
 
