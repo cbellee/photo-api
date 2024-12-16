@@ -3,8 +3,8 @@ param resizeApiContainerImage string
 param cpuResource string = '0.25'
 param memoryResource string = '0.5Gi'
 param zoneName string = 'bellee.net'
-param cNameRecord string = 'photos'
-param dnsResourceGroupName string = 'external-domain-rg'
+param cNameRecord string = 'photo'
+// param dnsResourceGroupName string = 'external-domain-rg'
 param ghcrName string = 'ghcr.io'
 param githubUsername string = 'cbellee'
 
@@ -398,7 +398,7 @@ resource photoApi 'Microsoft.App/containerApps@2023-11-02-preview' = {
             'http://localhost:3000'
             'http://localhost:5173'
             'https://${storage.outputs.webEndpoint}'
-            'https://${cName}'
+            'https://${cName}.${zoneName}'
           ]
           allowedHeaders: [
             '*'
@@ -575,7 +575,7 @@ module daprComponentUploadsStorageBlob 'modules/daprComponent.bicep' = {
   ]
 }
 
-module dnsModule 'modules/dns.bicep' = {
+/* module dnsModule 'modules/dns.bicep' = {
   name: 'dnsModuleDeployment'
   scope: resourceGroup(dnsResourceGroupName)
   params: {
@@ -599,9 +599,10 @@ module cdnModule 'modules/cdn.bicep' = {
     dnsModule
   ]
 }
+ */
 
 output storageAccountName string = storage.outputs.name
 output photoApiEndpoint string = photoApi.properties.configuration.ingress.fqdn
 output resizeApiEndpoint string = resizeApi.properties.configuration.ingress.fqdn
-output cdnEndpointName string = cdnModule.outputs.cdnEndpointName
-output cdnProfileName string = cdnModule.outputs.cdnProfileName
+//output cdnEndpointName string = cdnModule.outputs.cdnEndpointName
+//output cdnProfileName string = cdnModule.outputs.cdnProfileName
