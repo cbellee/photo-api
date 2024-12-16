@@ -7,6 +7,7 @@ param isSupportHttpsTrafficOnly bool = true
 param isDefaultToOAuthAuthentication bool = false
 param isAllowSharedAccessKey bool = true
 param utcValue string = utcNow()
+param customDomainName string
 
 @allowed([
   'Storage'
@@ -51,6 +52,10 @@ resource storage 'Microsoft.Storage/storageAccounts@2023-05-01' = {
     publicNetworkAccess: isPublicNetworkAccessEnabled
     supportsHttpsTrafficOnly: isSupportHttpsTrafficOnly
     allowSharedKeyAccess: isAllowSharedAccessKey
+    customDomain: {
+      name: customDomainName
+      useSubDomainName: false
+    }
   }
   tags: tags
 }

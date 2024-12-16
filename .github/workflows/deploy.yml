@@ -140,6 +140,6 @@ jobs:
             --template-file ${{ env.TEMPLATE_FILE_PATH }} \
             --parameters photoApiContainerImage=${{ needs.deploy-rg-job.outputs.photoApiImage }} \
             --parameters resizeApiContainerImage=${{ needs.deploy-rg-job.outputs.resizeApiImage }} \
-            --parameters ghcrPullToken=${{ secrets.GITHUB_TOKEN }} \
+            --parameters ghcrPullToken=${{ secrets.PAT_TOKEN }} \
             --parameters ghcrName='ghcr.io' \
             --parameters githubUsername=${{ github.actor }}
