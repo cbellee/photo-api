@@ -117,7 +117,8 @@ module storage './modules/stor.bicep' = {
     tags: tags
     containers: containers
     sku: 'Standard_LRS'
-    customDomainName: cName
+    customDomainName: ''
+    deployCustomDomain: false
   }
 }
 
@@ -614,5 +615,3 @@ module storageCustomDomain './modules/stor.bicep' = {
 output storageAccountName string = storage.outputs.name
 output photoApiEndpoint string = photoApi.properties.configuration.ingress.fqdn
 output resizeApiEndpoint string = resizeApi.properties.configuration.ingress.fqdn
-//output cdnEndpointName string = cdnModule.outputs.cdnEndpointName
-//output cdnProfileName string = cdnModule.outputs.cdnProfileName
