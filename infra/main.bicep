@@ -594,7 +594,7 @@ resource enableCustomDomainAndCloudConnector 'Microsoft.Resources/deploymentScri
       storageAccountName: storageAccountName
       storageAccountKey: storage.outputs.key
     }
-    primaryScriptUri: 'https://github.com/cbellee/photo-api/blob/e2afcd119e7ead8171a3c1d7538656145af7f67f/cloudflare.ps1'
+    primaryScriptUri: 'https://github.com/cbellee/photo-api/blob/cc66a02669cacc0c1beb1f0b40fb4aa8e62df6b8/cloudflare.ps1'
     arguments: '-cloudFlareApiToken ${cloudFlareApiToken} -storageAccountWebEndpoint ${storage.outputs.webEndpoint} -cloudFlareZoneId ${cloudFlareZoneId} -cName ${cNameRecord}'
   }
 }
