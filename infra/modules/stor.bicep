@@ -54,7 +54,7 @@ resource storage 'Microsoft.Storage/storageAccounts@2023-05-01' = {
     supportsHttpsTrafficOnly: isSupportHttpsTrafficOnly
     allowSharedKeyAccess: isAllowSharedAccessKey
     customDomain: !deployCustomDomain
-      ? null
+      ? {}
       : {
           name: customDomainName
         }
