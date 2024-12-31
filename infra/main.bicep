@@ -10,6 +10,7 @@ param githubUsername string = 'cbellee'
 param utcValue string = utcNow()
 param cloudFlareZoneId string
 param cloudFlareApiToken string
+param scriptUri string = 'https://github.com/cbellee/photo-api/blob/main/cloudflare.ps1'
 
 @secure()
 param ghcrPullToken string
@@ -558,7 +559,7 @@ resource enableCustomDomainAndCloudConnector 'Microsoft.Resources/deploymentScri
       storageAccountName: storageAccountName
       storageAccountKey: storage.outputs.key
     }
-    primaryScriptUri: 'https://github.com/cbellee/photo-api/blob/cc66a02669cacc0c1beb1f0b40fb4aa8e62df6b8/cloudflare.ps1'
+    primaryScriptUri: scriptUri
     arguments: '-cloudFlareApiToken ${cloudFlareApiToken} -storageAccountWebEndpoint ${storage.outputs.webEndpoint} -cloudFlareZoneId ${cloudFlareZoneId} -cName ${cNameRecord}'
   }
 }
