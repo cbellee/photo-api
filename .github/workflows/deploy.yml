@@ -123,17 +123,6 @@ jobs:
     - name: checkout-code
       id: checkout-code
       uses: actions/checkout@main
-
-    - name: create storage account
-      uses: azure/CLI@v2
-      with:
-        azcliversion: 2.67.0
-        inlineScript: |
-          az deployment group create \
-            --name deploy-infra \
-            --resource-group ${{ needs.deploy-rg-job.outputs.rgName}} \
-            --template-file ./modules/stor.bicep \
-            --parameters 
     
     - name: login-azure
       id: login-azure
