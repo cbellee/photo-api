@@ -610,6 +610,9 @@ module storageCustomDomain './modules/stor.bicep' = {
     customDomainName: cName
     deployCustomDomain: true
   }
+  dependsOn: [
+    enableCustomDomainAndCloudConnector
+  ]
 }
 
 output storageAccountName string = storage.outputs.name
