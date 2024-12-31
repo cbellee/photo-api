@@ -67,7 +67,14 @@ resource storage 'Microsoft.Storage/storageAccounts@2023-05-01' = {
   sku: {
     name: sku
   }
-  properties: deployCustomDomain ? customDomainProps : props
+  properties: {
+    accessTier: accessTier
+    allowBlobPublicAccess: isPublicBlobAccessAllowed
+    defaultToOAuthAuthentication: isDefaultToOAuthAuthentication
+    publicNetworkAccess: isPublicNetworkAccessEnabled
+    supportsHttpsTrafficOnly: isSupportHttpsTrafficOnly
+    allowSharedKeyAccess: isAllowSharedAccessKey
+  }
   tags: tags
 }
 
