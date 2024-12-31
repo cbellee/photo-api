@@ -39,6 +39,27 @@ param accessTier string = 'Hot'
 ])
 param isPublicNetworkAccessEnabled string = 'Enabled'
 
+var props = {
+  accessTier: accessTier
+  allowBlobPublicAccess: isPublicBlobAccessAllowed
+  defaultToOAuthAuthentication: isDefaultToOAuthAuthentication
+  publicNetworkAccess: isPublicNetworkAccessEnabled
+  supportsHttpsTrafficOnly: isSupportHttpsTrafficOnly
+  allowSharedKeyAccess: isAllowSharedAccessKey
+}
+
+var customDomainProps = {
+  accessTier: accessTier
+  allowBlobPublicAccess: isPublicBlobAccessAllowed
+  defaultToOAuthAuthentication: isDefaultToOAuthAuthentication
+  publicNetworkAccess: isPublicNetworkAccessEnabled
+  supportsHttpsTrafficOnly: isSupportHttpsTrafficOnly
+  allowSharedKeyAccess: isAllowSharedAccessKey
+  customDomain: {
+    name: customDomainName
+  }
+}
+
 resource storage 'Microsoft.Storage/storageAccounts@2023-05-01' = {
   kind: kind
   location: location
@@ -46,19 +67,7 @@ resource storage 'Microsoft.Storage/storageAccounts@2023-05-01' = {
   sku: {
     name: sku
   }
-  properties: {
-    accessTier: accessTier
-    allowBlobPublicAccess: isPublicBlobAccessAllowed
-    defaultToOAuthAuthentication: isDefaultToOAuthAuthentication
-    publicNetworkAccess: isPublicNetworkAccessEnabled
-    supportsHttpsTrafficOnly: isSupportHttpsTrafficOnly
-    allowSharedKeyAccess: isAllowSharedAccessKey
-    customDomain: !deployCustomDomain
-      ? {}
-      : {
-          name: customDomainName
-        }
-  }
+  properties: deployCustomDomain ? customDomainProps : props
   tags: tags
 }
 

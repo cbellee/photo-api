@@ -55,7 +55,6 @@ param imagesContainerName string = 'images'
 param uploadsContainerName string = 'uploads'
 
 var storageBlobDataOwnerRoleDefinitionID = 'b7e6dc6d-f1e8-4753-8033-0f276bb0955b'
-// var acrPullRoleDefinitionId = '7f951dda-4ed3-4680-a7ca-43fe172d538d'
 var storageKey = storage.outputs.key
 var storageQueueCxnString = 'DefaultEndpointsProtocol=https;AccountName=${storage.outputs.name};EndpointSuffix=${environment().suffixes.storage};AccountKey=${storageKey}'
 var affix = uniqueString(resourceGroup().id)
@@ -64,43 +63,10 @@ var workspaceName = 'wks-${affix}'
 var storageAccountName = 'stor${affix}'
 var topicName = 'egt-${affix}'
 var containerAppEnvName = 'appenv-${affix}'
-// var cdnEndpoint = 'cdne-${affix}.azureedge.net'
 var cName = '${cNameRecord}.${zoneName}'
 var corsOrigins = 'http://localhost:5173,https://${cName}'
 
-// extension microsoftGraphV1
-
 targetScope = 'resourceGroup'
-
-/* resource applicationRegistration 'Microsoft.Graph/applications@v1.0' = {
-  displayName: 'photo-app-${affix}'
-  uniqueName: 'photo-app-${affix}'
-  signInAudience: 'AzureADMyOrg'
-  spa: {
-    redirectUris: [
-      'https://localhost:5173'
-      'https://${cName}.${zoneName}'
-    ]
-  }
-appRoles: [
-  {
-    allowedMemberTypes: [
-      'User'
-      'Application'
-    ]
-    description: 'Upload access to the photo app'
-    displayName: 'photo.upload'
-    value: 'photo.upload'
-  }
-]
-identifierUris: [
-  'api://'
-]
-} */
-
-/* resource acr 'Microsoft.ContainerRegistry/registries@2023-11-01-preview' existing = {
-  name: acrName
-} */
 
 resource umid 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-07-31-preview' = {
   name: umidName
