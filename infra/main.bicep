@@ -10,7 +10,7 @@ param githubUsername string = 'cbellee'
 param utcValue string = utcNow()
 param cloudFlareZoneId string
 param cloudFlareApiToken string
-param scriptUri string = 'https://github.com/cbellee/photo-api/blob/main/cloudflare.ps1'
+param scriptUri string = 'https://raw.githubusercontent.com/cbellee/photo-api/refs/heads/main/cloudflare.ps1'
 
 @secure()
 param ghcrPullToken string
