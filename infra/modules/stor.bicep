@@ -53,9 +53,11 @@ resource storage 'Microsoft.Storage/storageAccounts@2023-05-01' = {
     publicNetworkAccess: isPublicNetworkAccessEnabled
     supportsHttpsTrafficOnly: isSupportHttpsTrafficOnly
     allowSharedKeyAccess: isAllowSharedAccessKey
-    customDomain: {
-      name: deployCustomDomain ? customDomainName : ''
-    }
+    customDomain: !deployCustomDomain
+      ? null
+      : {
+          name: customDomainName
+        }
   }
   tags: tags
 }
@@ -70,18 +72,22 @@ resource blobService 'Microsoft.Storage/storageAccounts/blobServices@2023-05-01'
   name: 'default'
 }
 
-resource storageQueues 'Microsoft.Storage/storageAccounts/queueServices/queues@2023-05-01' = [for container in containers: {
-  parent: queueService
-  name: container.name
-}]
-
-resource blobContainers 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-05-01' = [for container in containers: {
-  parent: blobService
-  name: container.name
-  properties: {
-    publicAccess: container.publicAccess
+resource storageQueues 'Microsoft.Storage/storageAccounts/queueServices/queues@2023-05-01' = [
+  for container in containers: {
+    parent: queueService
+    name: container.name
   }
-}]
+]
+
+resource blobContainers 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-05-01' = [
+  for container in containers: {
+    parent: blobService
+    name: container.name
+    properties: {
+      publicAccess: container.publicAccess
+    }
+  }
+]
 
 resource enableStaticWebsite 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
   name: 'enableStaticWebsite'
