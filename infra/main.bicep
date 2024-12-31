@@ -9,8 +9,6 @@ param ghcrName string = 'ghcr.io'
 param githubUsername string = 'cbellee'
 param utcValue string = utcNow()
 param cloudFlareZoneId string
-param cloudFlareEmail string
-param cloudFlareApiKey string
 param cloudFlareApiToken string
 
 @secure()
