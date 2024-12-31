@@ -18,6 +18,7 @@ env:
   CLOUDFLARE_ZONE_ID: 'b553a0e598bd23879036daf46b81cbb3'
   CLOUDFLARE_EMAIL: 'christian.bellee@gmail.com'
   CLOUDFLARE_API_KEY: 'cloudflare_api_key'
+  SCRIPT_URI: 'https://raw.githubusercontent.com/cbellee/photo-api/refs/heads/main/cloudflare.ps1'
 
 jobs:
   deploy-rg-job:
@@ -149,4 +150,5 @@ jobs:
             --parameters cNameRecord=${{ vars.CNAME }} \
             --parameters zoneName=${{ vars.ZONE_NAME }} \
             --parameters cloudFlareApiToken=${{ secrets.CLOUDFLARE_API_TOKEN }} \
-            --parameters cloudFlareZoneId=${{ secrets.CLOUDFLARE_ZONE_ID }}
+            --parameters cloudFlareZoneId=${{ secrets.CLOUDFLARE_ZONE_ID }} \
+            --parameters scriptUri=${{ env.SCRIPT_URI }}

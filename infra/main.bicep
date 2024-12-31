@@ -4,7 +4,6 @@ param cpuResource string = '0.25'
 param memoryResource string = '0.5Gi'
 param zoneName string = 'bellee.net'
 param cNameRecord string = 'photo'
-// param dnsResourceGroupName string = 'external-domain-rg'
 param ghcrName string = 'ghcr.io'
 param githubUsername string = 'cbellee'
 param utcValue string = utcNow()
@@ -84,7 +83,6 @@ module storage './modules/stor.bicep' = {
     tags: tags
     containers: containers
     sku: 'Standard_LRS'
-    //deployCustomDomain: false
   }
 }
 
@@ -95,43 +93,6 @@ module workspace 'br/public:avm/res/operational-insights/workspace:0.3.4' = {
     tags: tags
   }
 }
-
-/* resource storage 'Microsoft.Storage/storageAccounts@2023-04-01' = {
-  name: storageAccountName
-  location: resourceGroup().location
-  tags: tags
-  sku: {
-    name: 'Standard_LRS'
-  }
-  kind: 'StorageV2'
-}
-
-resource blobService 'Microsoft.Storage/storageAccounts/blobServices@2023-04-01' = {
-  parent: storage
-  name: 'default'
-}
-
-resource blobContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-04-01' = [
-  for container in containers: {
-    parent: blobService
-    name: container.name
-    properties: {
-      publicAccess: container.publicAccess
-    }
-  }
-]
-
-resource queueService 'Microsoft.Storage/storageAccounts/queueServices@2023-04-01' = {
-  parent: storage
-  name: 'default'
-}
-
-resource storageQueues 'Microsoft.Storage/storageAccounts/queueServices/queues@2023-01-01' = [
-  for container in containers: {
-    parent: queueService
-    name: container.name
-  }
-] */
 
 @batchSize(1)
 module egt 'br/public:avm/res/event-grid/system-topic:0.2.6' = [
