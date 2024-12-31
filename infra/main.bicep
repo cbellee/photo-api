@@ -117,7 +117,6 @@ module storage './modules/stor.bicep' = {
     tags: tags
     containers: containers
     sku: 'Standard_LRS'
-    customDomainName: ''
     deployCustomDomain: false
   }
 }

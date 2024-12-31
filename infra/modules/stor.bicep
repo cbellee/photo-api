@@ -7,7 +7,7 @@ param isSupportHttpsTrafficOnly bool = true
 param isDefaultToOAuthAuthentication bool = false
 param isAllowSharedAccessKey bool = true
 param utcValue string = utcNow()
-param customDomainName string
+param customDomainName string = ''
 param deployCustomDomain bool = false
 
 @allowed([
