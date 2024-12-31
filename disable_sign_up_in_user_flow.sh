@@ -1,4 +1,4 @@
-# go to https://developer.microsoft.com/en-us/graph-explorer
+# go to https://developer.microsoft.com/en-us/graph/graph-explorer
 
 # login to external EntraId tenant
 

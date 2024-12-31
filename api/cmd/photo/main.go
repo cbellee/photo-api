@@ -43,7 +43,7 @@ var (
 )
 
 func main() {
-	corsString := utils.GetEnvValue("CORS_ORIGINS", "http://localhost:5173,https://gallery.bellee.net,https://photos.bellee.net")
+	corsString := utils.GetEnvValue("CORS_ORIGINS", "http://localhost:5173,https://gallery.bellee.net,https://photos.bellee.net,https://photos.bellee.net")
 	corsOrigins := strings.Split(corsString, ",")
 	slog.Info("cors origins", "origins", corsOrigins)
 
@@ -404,6 +404,8 @@ func collectionHandler(client *azblob.Client, storageUrl string) http.HandlerFun
 	return func(w http.ResponseWriter, r *http.Request) {
 
 		// get photos with matching collection tags
+		var filteredBlobs []models.Blob
+
 		query := fmt.Sprintf("@container='%s' and collectionImage='true'", imagesContainerName)
 		slog.Info("query", "query", query)
 		filteredBlobs, err := queryBlobsByTags(client, storageUrl, query)
@@ -411,8 +413,35 @@ func collectionHandler(client *azblob.Client, storageUrl string) http.HandlerFun
 			slog.Error("Error getting blobs by tags", "error", err)
 		}
 
+		if len(filteredBlobs) <= 0 {
+			// try a query without the collectionImage tag
+			slog.Error("no collection images found, trying query without 'collectionImage' & will set a default placeholder collectionImage", "query", query)
+
+			query := fmt.Sprintf("@container='%s'", imagesContainerName)
+			filteredBlobs, err := queryBlobsByTags(client, storageUrl, query)
+			if err != nil {
+				slog.Error("Error getting blobs by tags", "error", err)
+			}
+
+			if len(filteredBlobs) <= 0 || filteredBlobs == nil {
+				slog.Error("no collection images found", "query", query)
+				http.Error(w, "No collection images found", http.StatusNotFound)
+			} else {
+				// set the first image as the collection image & write the tag back to the blob
+				filteredBlobs[0].Tags["collectionImage"] = "true"
+				err = utils.SetBlobTags(client, filteredBlobs[0].Name, imagesContainerName, storageUrl, filteredBlobs[0].Tags)
+				if err != nil {
+					slog.Error("error setting collectionImage tag", "error", err)
+				}
+			}
+		}
+
 		photos := []models.Photo{}
 
+		if filteredBlobs == nil || len(filteredBlobs) <= 0 {
+			http.Error(w, "No collection images found", http.StatusNotFound)
+		}
+		
 		for _, r := range filteredBlobs {
 			slog.Info("Filtered Blobs", "Name", r.Name, "Metadata", r.MetaData, "Tags", r.Tags, "Path", r.Path)
 			width, err := strconv.ParseInt(r.MetaData["Width"], 10, 32)

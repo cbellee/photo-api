@@ -7,6 +7,11 @@ param cNameRecord string = 'photo'
 // param dnsResourceGroupName string = 'external-domain-rg'
 param ghcrName string = 'ghcr.io'
 param githubUsername string = 'cbellee'
+param utcValue string = utcNow()
+param cloudFlareZoneId string
+param cloudFlareEmail string
+param cloudFlareApiKey string
+param cloudFlareApiToken string
 
 @secure()
 param ghcrPullToken string
@@ -576,31 +581,37 @@ module daprComponentUploadsStorageBlob 'modules/daprComponent.bicep' = {
   ]
 }
 
-/* module dnsModule 'modules/dns.bicep' = {
-  name: 'dnsModuleDeployment'
-  scope: resourceGroup(dnsResourceGroupName)
-  params: {
-    dnsZoneName: zoneName
-    cdnEndpoint: cdnEndpoint
-    cnameRecord: cName
+resource enableCustomDomainAndCloudConnector 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
+  name: 'enableCustomDomain'
+  location: resourceGroup().location
+  kind:  'AzurePowerShell'
+  properties: {
+    forceUpdateTag: utcValue
+    azPowerShellVersion: '7.0'
+    timeout: 'PT5M'
+    retentionInterval: 'PT1H'
+    storageAccountSettings: {
+      storageAccountName: storageAccountName
+      storageAccountKey: storage.outputs.key
+    }
+    primaryScriptUri: 'https://github.com/cbellee/photo-api/blob/e2afcd119e7ead8171a3c1d7538656145af7f67f/cloudflare.ps1'
+    arguments: '-cloudFlareApiToken ${cloudFlareApiToken} -storageAccountWebEndpoint ${storage.outputs.webEndpoint} -cloudFlareZoneId ${cloudFlareZoneId} -cName ${cNameRecord}'
   }
 }
 
-module cdnModule 'modules/cdn.bicep' = {
-  name: 'cdnModuleDeployment'
+module storageCustomDomain './modules/stor.bicep' = {
+  name: 'StorageCustomDomainDeployment'
   params: {
-    cdnEndpoint: cdnEndpoint
-    cnameRecord: cName
-    dnsZoneName: zoneName
-    origin: storage.outputs.webEndpoint
-    storageAccountName: storage.outputs.name
-    storageAccountKey: storageKey
+    kind: 'StorageV2'
+    location: resourceGroup().location
+    name: storageAccountName
+    tags: tags
+    containers: containers
+    sku: 'Standard_LRS'
+    customDomainName: cName
+    deployCustomDomain: true
   }
-  dependsOn: [
-    dnsModule
-  ]
 }
- */
 
 output storageAccountName string = storage.outputs.name
 output photoApiEndpoint string = photoApi.properties.configuration.ingress.fqdn
