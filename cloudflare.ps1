@@ -79,7 +79,7 @@ $newRule = [PSCustomObject]@{
 # Ensure rules are unique with regard tyo the 'parameters' property
 $uniqueRules = @()
 foreach ($rule in $rules) {
-  Compare-Object -ReferenceObject $rule -DifferenceObject $newRule -Property parameters -PassThru -IncludeEqual | ForEach-Object {
+  Compare-Object -ReferenceObject $rule -DifferenceObject $newRule -Property parameters -PassThru | ForEach-Object {
     if ($_.SideIndicator -eq '=>') {
       Write-Output "Cloud Connector rule already exists"
       $uniqueRules += $newRule
