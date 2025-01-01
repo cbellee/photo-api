@@ -9,12 +9,15 @@ param (
   $cName
 )
 
+# Set common header
+$headers = @{"Authorization" = "Bearer $cloudFlareApiToken"; "Content-Type" = "application/json" }
+
 # Add CNAME DNS Record
 $uri = "https://api.cloudflare.com/client/v4/zones/$cloudFlareZoneId/dns_records"
 
 $params = @{
   Uri     = $uri
-  Headers = @{"Authorization" = "Bearer $cloudFlareApiToken"; "Content-Type" = "application/json" }
+  Headers = $headers
   Method  = 'POST'
   Body    = 
   @"
@@ -42,15 +45,59 @@ catch {
   Write-Error "Failed to add DNS Record. $($_.Exception.Message)"
 }
 
-# Add Cloud Connector Rule
-$uri = "https://api.cloudflare.com/client/v4/zones/$cloudFlareZoneId/cloud_connector/rules";
+# Get existing Cloud Connector Rules
+$uri = "https://api.cloudflare.com/client/v4/zones/$cloudFlareZoneId/cloud_connector/rules"
+$rules = @()
 
 $params = @{
   Uri     = $uri
-  Headers = @{"Authorization" = "Bearer $cloudFlareApiToken"; "Content-Type" = "application/json" }
+  Headers = $headers
+  Method  = 'GET'
+}
+
+$resp = Invoke-WebRequest @params
+if ($resp.StatusCode -ne 200) {
+  throw "Failed to get Cloud Connector rules. Code: $($resp.StatusCode) Desc: $($resp.StatusDescription)"
+} else {
+  Write-Output "Cloud Connector rules fetched successfully"
+  $rules += ($resp.Content | ConvertFrom-Json).result
+}
+
+# Add Cloud Connector Rule
+$uri = "https://api.cloudflare.com/client/v4/zones/$cloudFlareZoneId/cloud_connector/rules"
+
+$newRule = [PSCustomObject]@{
+  enabled    = $true
+  expression = "(http.request.full_uri wildcard `"`")"
+  provider   = "azure_storage"
+  description = "Connect to Azure storage container"
+  parameters = @{
+    host = $storageAccountWebEndpoint
+  }
+}
+
+# Ensure rules are unique with regard tyo the 'parameters' property
+$uniqueRules = @()
+foreach ($rule in $rules) {
+  Compare-Object -ReferenceObject $rule -DifferenceObject $newRule -Property parameters -PassThru -IncludeEqual | ForEach-Object {
+    if ($_.SideIndicator -eq '=>') {
+      Write-Output "Cloud Connector rule already exists"
+      $uniqueRules += $newRule
+    } else {
+      Write-Output "Cloud Connector rule does not exist, adding to rules list"
+      $uniqueRules += $rule
+    }
+  }
+}
+
+$uniqueRules
+
+$params = @{
+  Uri     = $uri
+  Headers = $headers
   Method  = 'PUT'
-  Body    = 
-  @"
+  Body    = $uniqueRules | ConvertTo-Json
+  <# @"
     [
       {
           "enabled": true,
@@ -60,7 +107,7 @@ $params = @{
           "parameters": {"host": "$storageAccountWebEndpoint"}
       }
     ]
-"@
+"@ #>
 }
 
 $resp = Invoke-WebRequest @params
