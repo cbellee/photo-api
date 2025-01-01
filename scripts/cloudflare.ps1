@@ -35,7 +35,7 @@ $params = @{
 }
 
 #try {
-  $resp = Invoke-WebRequest @params -ErrorAction Continue
+  $resp = Invoke-WebRequest @params -SkipHttpErrorCheck
   if ($resp.StatusCode -ne 200) {
     Write-Output "Failed to add DNS Record. Code: $($resp.StatusCode) Desc: $($resp.StatusDescription)"
   }
@@ -57,7 +57,7 @@ $params = @{
   Method  = 'GET'
 }
 
-$resp = Invoke-WebRequest @params
+$resp = Invoke-WebRequest @params -SkipHttpErrorCheck
 if ($resp.StatusCode -ne 200) {
   throw "Failed to get Cloud Connector rules. Code: $($resp.StatusCode) Desc: $($resp.StatusDescription)"
 } else {
