@@ -9,6 +9,8 @@ param (
   $cName
 )
 
+$ErrorActionPreference = 'Continue'
+
 # Set common header
 $headers = @{"Authorization" = "Bearer $cloudFlareApiToken"; "Content-Type" = "application/json" }
 
@@ -35,14 +37,14 @@ $params = @{
 try {
   $resp = Invoke-WebRequest @params -ErrorAction Stop
   if ($resp.StatusCode -ne 200) {
-    throw "Failed to add DNS Record. Code: $($resp.StatusCode) Desc: $($resp.StatusDescription)"
+    Write-Output "Failed to add DNS Record. Code: $($resp.StatusCode) Desc: $($resp.StatusDescription)"
   }
   else {
     Write-Output "DNS Record added successfully"
   }
 }
 catch {
-  Write-Error "Failed to add DNS Record. $($_.Exception.Message)"
+  Write-Output "Failed to add DNS Record. $($_.Exception.Message)"
 }
 
 # Get existing Cloud Connector Rules
