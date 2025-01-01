@@ -34,18 +34,18 @@ $params = @{
 "@
 }
 
-try {
-  $resp = Invoke-WebRequest @params -ErrorAction Stop
+#try {
+  $resp = Invoke-WebRequest @params -ErrorAction Continue
   if ($resp.StatusCode -ne 200) {
     Write-Output "Failed to add DNS Record. Code: $($resp.StatusCode) Desc: $($resp.StatusDescription)"
   }
   else {
     Write-Output "DNS Record added successfully"
   }
-}
+<# }
 catch {
   Write-Output "Failed to add DNS Record. $($_.Exception.Message)"
-}
+} #>
 
 # Get existing Cloud Connector Rules
 $uri = "https://api.cloudflare.com/client/v4/zones/$cloudFlareZoneId/cloud_connector/rules"
