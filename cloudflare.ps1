@@ -67,36 +67,25 @@ if ($resp.StatusCode -ne 200) {
 $uri = "https://api.cloudflare.com/client/v4/zones/$cloudFlareZoneId/cloud_connector/rules"
 
 $newRule = [PSCustomObject]@{
-  enabled    = $true
-  expression = "(http.request.full_uri wildcard `"`")"
-  provider   = "azure_storage"
+  enabled     = $true
+  expression  = "(http.request.full_uri wildcard `"`")"
+  provider    = "azure_storage"
   description = "Connect to Azure storage endpoint: $storageAccountWebEndpoint"
-  parameters = @{
+  parameters  = @{
     host = $storageAccountWebEndpoint
   }
 }
 
 # Ensure rules are unique with regard tyo the 'parameters' property
-$uniqueRules = @()
-foreach ($rule in $rules) {
-  Compare-Object -ReferenceObject $rule -DifferenceObject $newRule -Property parameters -PassThru | ForEach-Object {
-    if ($_.SideIndicator -eq '=>') {
-      Write-Output "Cloud Connector rule already exists"
-      $uniqueRules += $rule
-    } else {
-      Write-Output "Cloud Connector rule does not exist, adding to rules list"
-      $uniqueRules += $newRule
-    }
-  }
+if ($rules.parameters.host -notcontains $newRule.parameters.host) {
+  $rules += $newRule
 }
-
-$uniqueRules
 
 $params = @{
   Uri     = $uri
   Headers = $headers
   Method  = 'PUT'
-  Body    = $uniqueRules | ConvertTo-Json
+  Body    = $rules | ConvertTo-Json
   <# @"
     [
       {
