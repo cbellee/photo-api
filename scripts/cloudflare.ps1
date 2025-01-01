@@ -101,7 +101,7 @@ $params = @{
 "@ #>
 }
 
-$resp = Invoke-WebRequest @params
+$resp = Invoke-WebRequest @params -SkipHttpErrorCheck
 if ($resp.StatusCode -ne 200) {
   throw "Failed to add Cloud Connector rule. Code: $($resp.StatusCode) Desc: $($resp.StatusDescription)"
 }
