@@ -62,7 +62,7 @@ if ($resp.StatusCode -ne 200) {
   throw "Failed to get Cloud Connector rules. Code: $($resp.StatusCode) Desc: $($resp.StatusDescription)"
 } else {
   Write-Output "Cloud Connector rules fetched successfully"
-  $rules += ($resp.Content | ConvertFrom-Json).result
+  $rules += ($resp.Content | ConvertFrom-Json -Depth 10).result
 }
 
 # Add Cloud Connector Rule
@@ -87,7 +87,7 @@ $params = @{
   Uri     = $uri
   Headers = $headers
   Method  = 'PUT'
-  Body    = $rules | ConvertTo-Json
+  Body    = $rules | ConvertTo-Json -Depth 10
   <# @"
     [
       {
