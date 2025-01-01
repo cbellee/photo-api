@@ -70,7 +70,7 @@ $newRule = [PSCustomObject]@{
   enabled    = $true
   expression = "(http.request.full_uri wildcard `"`")"
   provider   = "azure_storage"
-  description = "Connect to Azure storage container"
+  description = "Connect to Azure storage endpoint: $storageAccountWebEndpoint"
   parameters = @{
     host = $storageAccountWebEndpoint
   }
@@ -82,10 +82,10 @@ foreach ($rule in $rules) {
   Compare-Object -ReferenceObject $rule -DifferenceObject $newRule -Property parameters -PassThru | ForEach-Object {
     if ($_.SideIndicator -eq '=>') {
       Write-Output "Cloud Connector rule already exists"
-      $uniqueRules += $newRule
+      $uniqueRules += $rule
     } else {
       Write-Output "Cloud Connector rule does not exist, adding to rules list"
-      $uniqueRules += $rule
+      $uniqueRules += $newRule
     }
   }
 }
