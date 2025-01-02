@@ -19,7 +19,7 @@ env:
   CLOUDFLARE_EMAIL: 'christian.bellee@gmail.com'
   CLOUDFLARE_API_KEY: 'cloudflare_api_key'
   DNS_SCRIPT_URI: 'https://raw.githubusercontent.com/cbellee/photo-api/refs/heads/main/scripts/cloudflare-dns.ps1'
-  CLOUD_CONNECTOR_SCRIPT_URI: 'https://github.com/cbellee/photo-api/blob/main/scripts/cloudflare-connector-rule.ps1'
+  CLOUD_CONNECTOR_SCRIPT_URI: 'https://raw.githubusercontent.com/cbellee/photo-api/refs/heads/main/scripts/cloudflare-connector-rule.ps1'
   
 jobs:
   deploy-rg-job:
