@@ -18,8 +18,9 @@ env:
   CLOUDFLARE_ZONE_ID: 'b553a0e598bd23879036daf46b81cbb3'
   CLOUDFLARE_EMAIL: 'christian.bellee@gmail.com'
   CLOUDFLARE_API_KEY: 'cloudflare_api_key'
-  SCRIPT_URI: 'https://raw.githubusercontent.com/cbellee/photo-api/refs/heads/main/scripts/cloudflare.ps1'
-
+  DNS_SCRIPT_URI: 'https://raw.githubusercontent.com/cbellee/photo-api/refs/heads/main/scripts/cloudflare-dns.ps1'
+  CLOUD_CONNECTOR_SCRIPT_URI: 'https://github.com/cbellee/photo-api/blob/main/scripts/cloudflare-connector-rule.ps1'
+  
 jobs:
   deploy-rg-job:
     runs-on: ubuntu-latest
@@ -151,4 +152,5 @@ jobs:
             --parameters zoneName=${{ vars.ZONE_NAME }} \
             --parameters cloudFlareApiToken=${{ secrets.CLOUDFLARE_API_TOKEN }} \
             --parameters cloudFlareZoneId=${{ secrets.CLOUDFLARE_ZONE_ID }} \
-            --parameters scriptUri=${{ env.SCRIPT_URI }}
+            --parameters dnsScriptUri=${{ env.DNS_SCRIPT_URI }} \
+            --parameters cloudConnectorScriptUri=${{ env.CLOUD_CONNECTOR_SCRIPT_URI }}

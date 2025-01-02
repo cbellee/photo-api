@@ -578,6 +578,9 @@ resource enableCustomDomainProxied 'Microsoft.Resources/deploymentScripts@2020-1
     primaryScriptUri: dnsScriptUri
     arguments: '-cloudFlareApiToken ${cloudFlareApiToken} -storageAccountWebEndpoint ${storage.outputs.webEndpoint} -cloudFlareZoneId ${cloudFlareZoneId} -cName ${cNameRecord} -isDnsProxied ${true}'
   }
+  dependsOn: [
+    storageCustomDomain
+  ]
 }
 
 output storageAccountName string = storage.outputs.name
