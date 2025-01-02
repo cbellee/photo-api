@@ -9,8 +9,8 @@ param githubUsername string = 'cbellee'
 param utcValue string = utcNow()
 param cloudFlareZoneId string
 param cloudFlareApiToken string
-param dnsScriptUri string = 'https://github.com/cbellee/photo-api/blob/main/scripts/cloudflare-dns.ps1'
-param cloudConnectorScriptUri string = 'https://github.com/cbellee/photo-api/blob/main/scripts/cloudflare-connector-rule.ps1'
+param dnsScriptUri string
+param cloudConnectorScriptUri string
 
 @secure()
 param ghcrPullToken string

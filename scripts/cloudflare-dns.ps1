@@ -29,12 +29,15 @@ $params = @{
           "comment": "CNAME record",
           "content": "$storageAccountWebEndpoint",
           "name": "$cName",
-          "proxied": $isDnsProxied,
+          "proxied": $($isDnsProxied.IsPresent)",
           "ttl": 3600,
           "type": "CNAME"
       }
 "@
 }
+
+Write-Output "Params: $($params)"
+Write-Output "Body: $($params.Body)"
 
 $resp = Invoke-WebRequest @params -SkipHttpErrorCheck
 if ($resp.StatusCode -ne 200) {
