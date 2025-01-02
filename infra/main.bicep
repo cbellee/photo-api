@@ -9,7 +9,8 @@ param githubUsername string = 'cbellee'
 param utcValue string = utcNow()
 param cloudFlareZoneId string
 param cloudFlareApiToken string
-param scriptUri string = 'https://github.com/cbellee/photo-api/blob/main/scripts/cloudflare.ps1'
+param dnsScriptUri string = 'https://github.com/cbellee/photo-api/blob/main/scripts/cloudflare-dns.ps1'
+param cloudConnectorScriptUri string = 'https://github.com/cbellee/photo-api/blob/main/scripts/cloudflare-connector-rule.ps1'
 
 @secure()
 param ghcrPullToken string
@@ -507,10 +508,10 @@ module daprComponentUploadsStorageBlob 'modules/daprComponent.bicep' = {
   ]
 }
 
-resource enableCustomDomainAndCloudConnector 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
-  name: 'enableCustomDomain'
+resource enableCustomDomainNotProxied 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
+  name: 'enableCustomDomainNotProxied'
   location: resourceGroup().location
-  kind:  'AzurePowerShell'
+  kind: 'AzurePowerShell'
   properties: {
     forceUpdateTag: utcValue
     azPowerShellVersion: '7.0'
@@ -520,7 +521,25 @@ resource enableCustomDomainAndCloudConnector 'Microsoft.Resources/deploymentScri
       storageAccountName: storageAccountName
       storageAccountKey: storage.outputs.key
     }
-    primaryScriptUri: scriptUri
+    primaryScriptUri: dnsScriptUri
+    arguments: '-cloudFlareApiToken ${cloudFlareApiToken} -storageAccountWebEndpoint ${storage.outputs.webEndpoint} -cloudFlareZoneId ${cloudFlareZoneId} -cName ${cNameRecord} -isDnsProxied ${false}'
+  }
+}
+
+resource enableCloudConnector 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
+  name: 'enableCloudConnector'
+  location: resourceGroup().location
+  kind: 'AzurePowerShell'
+  properties: {
+    forceUpdateTag: utcValue
+    azPowerShellVersion: '7.0'
+    timeout: 'PT5M'
+    retentionInterval: 'PT1H'
+    storageAccountSettings: {
+      storageAccountName: storageAccountName
+      storageAccountKey: storage.outputs.key
+    }
+    primaryScriptUri: cloudConnectorScriptUri
     arguments: '-cloudFlareApiToken ${cloudFlareApiToken} -storageAccountWebEndpoint ${storage.outputs.webEndpoint} -cloudFlareZoneId ${cloudFlareZoneId} -cName ${cNameRecord}'
   }
 }
@@ -538,8 +557,27 @@ module storageCustomDomain './modules/stor.bicep' = {
     deployCustomDomain: true
   }
   dependsOn: [
-    enableCustomDomainAndCloudConnector
+    enableCustomDomainNotProxied
+    enableCloudConnector
   ]
+}
+
+resource enableCustomDomainProxied 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
+  name: 'enableCustomDomainProxied'
+  location: resourceGroup().location
+  kind: 'AzurePowerShell'
+  properties: {
+    forceUpdateTag: utcValue
+    azPowerShellVersion: '7.0'
+    timeout: 'PT5M'
+    retentionInterval: 'PT1H'
+    storageAccountSettings: {
+      storageAccountName: storageAccountName
+      storageAccountKey: storage.outputs.key
+    }
+    primaryScriptUri: dnsScriptUri
+    arguments: '-cloudFlareApiToken ${cloudFlareApiToken} -storageAccountWebEndpoint ${storage.outputs.webEndpoint} -cloudFlareZoneId ${cloudFlareZoneId} -cName ${cNameRecord} -isDnsProxied ${true}'
+  }
 }
 
 output storageAccountName string = storage.outputs.name

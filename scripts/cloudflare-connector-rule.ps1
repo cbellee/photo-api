@@ -6,46 +6,15 @@ param (
   [string]
   $storageAccountWebEndpoint,
   [string]
-  $cName
+  $cName,
+  [boolean]
+  $isDnsProxied = $false
 )
 
 $ErrorActionPreference = 'Continue'
 
 # Set common header
 $headers = @{"Authorization" = "Bearer $cloudFlareApiToken"; "Content-Type" = "application/json" }
-
-# Add CNAME DNS Record
-$uri = "https://api.cloudflare.com/client/v4/zones/$cloudFlareZoneId/dns_records"
-
-$params = @{
-  Uri     = $uri
-  Headers = $headers
-  Method  = 'POST'
-  Body    = 
-  @"
-      {
-          "comment": "CNAME record",
-          "content": "$storageAccountWebEndpoint",
-          "name": "$cName",
-          "proxied": true,
-          "ttl": 3600,
-          "type": "CNAME"
-      }
-"@
-}
-
-#try {
-  $resp = Invoke-WebRequest @params -SkipHttpErrorCheck
-  if ($resp.StatusCode -ne 200) {
-    Write-Output "Failed to add DNS Record. Code: $($resp.StatusCode) Desc: $($resp.StatusDescription)"
-  }
-  else {
-    Write-Output "DNS Record added successfully"
-  }
-<# }
-catch {
-  Write-Output "Failed to add DNS Record. $($_.Exception.Message)"
-} #>
 
 # Get existing Cloud Connector Rules
 $uri = "https://api.cloudflare.com/client/v4/zones/$cloudFlareZoneId/cloud_connector/rules"
@@ -60,7 +29,8 @@ $params = @{
 $resp = Invoke-WebRequest @params -SkipHttpErrorCheck
 if ($resp.StatusCode -ne 200) {
   throw "Failed to get Cloud Connector rules. Code: $($resp.StatusCode) Desc: $($resp.StatusDescription)"
-} else {
+}
+else {
   Write-Output "Cloud Connector rules fetched successfully"
   $rules += ($resp.Content | ConvertFrom-Json -Depth 10).result
 }
@@ -88,17 +58,6 @@ $params = @{
   Headers = $headers
   Method  = 'PUT'
   Body    = $rules | ConvertTo-Json -Depth 10
-  <# @"
-    [
-      {
-          "enabled": true,
-          "expression": "(http.request.full_uri wildcard \u0022\u0022)",
-          "provider": "azure_storage",
-          "description": "Connect to Azure storage container",
-          "parameters": {"host": "$storageAccountWebEndpoint"}
-      }
-    ]
-"@ #>
 }
 
 $resp = Invoke-WebRequest @params -SkipHttpErrorCheck
