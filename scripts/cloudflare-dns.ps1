@@ -7,8 +7,8 @@ param (
   $storageAccountWebEndpoint,
   [string]
   $cName,
-  [boolean]
-  $isDnsProxied = $false
+  [switch]
+  $isDnsProxied
 )
 
 $ErrorActionPreference = 'Continue'
