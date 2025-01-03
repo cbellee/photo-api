@@ -29,7 +29,7 @@ $params = @{
           "comment": "CNAME record",
           "content": "$storageAccountWebEndpoint",
           "name": "$cName",
-          "proxied": $($isDnsProxied.IsPresent)",
+          "proxied": $($isDnsProxied.IsPresent.ToString().ToLower()),
           "ttl": 3600,
           "type": "CNAME"
       }
