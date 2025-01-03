@@ -8,7 +8,7 @@ param (
   [string]
   $cName,
   [switch]
-  $isDnsProxied
+  $ProxyDns
 )
 
 $ErrorActionPreference = 'Continue'

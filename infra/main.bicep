@@ -524,6 +524,9 @@ resource enableCustomDomainNotProxied 'Microsoft.Resources/deploymentScripts@202
     primaryScriptUri: dnsScriptUri
     arguments: '-cloudFlareApiToken ${cloudFlareApiToken} -storageAccountWebEndpoint ${storage.outputs.webEndpoint} -cloudFlareZoneId ${cloudFlareZoneId} -cName ${cNameRecord}'
   }
+  dependsOn: [
+    storage
+  ]
 }
 
 resource enableCloudConnector 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
@@ -542,6 +545,9 @@ resource enableCloudConnector 'Microsoft.Resources/deploymentScripts@2020-10-01'
     primaryScriptUri: cloudConnectorScriptUri
     arguments: '-cloudFlareApiToken ${cloudFlareApiToken} -storageAccountWebEndpoint ${storage.outputs.webEndpoint} -cloudFlareZoneId ${cloudFlareZoneId} -cName ${cNameRecord}'
   }
+  dependsOn: [
+    enableCustomDomainNotProxied
+  ]
 }
 
 module storageCustomDomain './modules/stor.bicep' = {
@@ -576,7 +582,7 @@ resource enableCustomDomainProxied 'Microsoft.Resources/deploymentScripts@2020-1
       storageAccountKey: storage.outputs.key
     }
     primaryScriptUri: dnsScriptUri
-    arguments: '-cloudFlareApiToken ${cloudFlareApiToken} -storageAccountWebEndpoint ${storage.outputs.webEndpoint} -cloudFlareZoneId ${cloudFlareZoneId} -cName ${cNameRecord} -isDnsProxied'
+    arguments: '-cloudFlareApiToken ${cloudFlareApiToken} -storageAccountWebEndpoint ${storage.outputs.webEndpoint} -cloudFlareZoneId ${cloudFlareZoneId} -cName ${cNameRecord} -ProxyDns'
   }
   dependsOn: [
     storageCustomDomain

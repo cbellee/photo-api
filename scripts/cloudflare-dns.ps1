@@ -8,7 +8,7 @@ param (
   [string]
   $cName,
   [switch]
-  $isDnsProxied
+  $ProxyDns
 )
 
 $ErrorActionPreference = 'Continue'
@@ -29,7 +29,7 @@ $params = @{
           "comment": "CNAME record",
           "content": "$storageAccountWebEndpoint",
           "name": "$cName",
-          "proxied": $($isDnsProxied.IsPresent.ToString().ToLower()),
+          "proxied": $($ProxyDns.IsPresent.ToString().ToLower()),
           "ttl": 3600,
           "type": "CNAME"
       }
