@@ -524,9 +524,6 @@ resource enableCustomDomainNotProxied 'Microsoft.Resources/deploymentScripts@202
     primaryScriptUri: dnsScriptUri
     arguments: '-cloudFlareApiToken ${cloudFlareApiToken} -storageAccountWebEndpoint ${storage.outputs.webEndpoint} -cloudFlareZoneId ${cloudFlareZoneId} -cName ${cNameRecord}'
   }
-  dependsOn: [
-    storage
-  ]
 }
 
 resource enableCloudConnector 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
@@ -543,7 +540,7 @@ resource enableCloudConnector 'Microsoft.Resources/deploymentScripts@2020-10-01'
       storageAccountKey: storage.outputs.key
     }
     primaryScriptUri: cloudConnectorScriptUri
-    arguments: '-cloudFlareApiToken ${cloudFlareApiToken} -storageAccountWebEndpoint ${storage.outputs.webEndpoint} -cloudFlareZoneId ${cloudFlareZoneId} -cName ${cNameRecord}'
+    arguments: '-cloudFlareApiToken ${cloudFlareApiToken} -storageAccountWebEndpoint ${storage.outputs.webEndpoint} -cloudFlareZoneId ${cloudFlareZoneId} -cName ${cNameRecord} -ZoneName ${zoneName}'
   }
   dependsOn: [
     enableCustomDomainNotProxied
@@ -582,7 +579,7 @@ resource enableCustomDomainProxied 'Microsoft.Resources/deploymentScripts@2020-1
       storageAccountKey: storage.outputs.key
     }
     primaryScriptUri: dnsScriptUri
-    arguments: '-cloudFlareApiToken ${cloudFlareApiToken} -storageAccountWebEndpoint ${storage.outputs.webEndpoint} -cloudFlareZoneId ${cloudFlareZoneId} -cName ${cNameRecord} -ProxyDns'
+    arguments: '-cloudFlareApiToken ${cloudFlareApiToken} -storageAccountWebEndpoint ${storage.outputs.webEndpoint} -cloudFlareZoneId ${cloudFlareZoneId} -cName ${cNameRecord} -ZoneName ${zoneName} -ProxyDns'
   }
   dependsOn: [
     storageCustomDomain
