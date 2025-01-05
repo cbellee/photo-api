@@ -6,9 +6,7 @@ param (
   [string]
   $storageAccountWebEndpoint,
   [string]
-  $cName,
-  [switch]
-  $ProxyDns
+  $cName
 )
 
 $ErrorActionPreference = 'Continue'
@@ -18,52 +16,75 @@ $headers = @{"Authorization" = "Bearer $cloudFlareApiToken"; "Content-Type" = "a
 
 # Get existing Cloud Connector Rules
 $uri = "https://api.cloudflare.com/client/v4/zones/$cloudFlareZoneId/cloud_connector/rules"
-$rules = @()
 
-$params = @{
-  Uri     = $uri
-  Headers = $headers
-  Method  = 'GET'
-}
+function Get-CloudConnectorRules {
+  param(
+    $uri,
+    $headers
+  )
 
-$resp = Invoke-WebRequest @params -SkipHttpErrorCheck
-if ($resp.StatusCode -ne 200) {
-  throw "Failed to get Cloud Connector rules. Code: $($resp.StatusCode) Desc: $($resp.StatusDescription)"
-}
-else {
-  Write-Output "Cloud Connector rules fetched successfully"
-  $rules += ($resp.Content | ConvertFrom-Json -Depth 10).result
-}
+  $params = @{
+    Uri     = $uri
+    Headers = $headers
+    Method  = 'GET'
+  }
 
-# Add Cloud Connector Rule
-$uri = "https://api.cloudflare.com/client/v4/zones/$cloudFlareZoneId/cloud_connector/rules"
-
-$newRule = [PSCustomObject]@{
-  enabled     = $true
-  expression  = "(http.request.full_uri wildcard `"`")"
-  provider    = "azure_storage"
-  description = "Connect to Azure storage endpoint: $storageAccountWebEndpoint"
-  parameters  = @{
-    host = $storageAccountWebEndpoint
+  $rules = @()
+  $resp = Invoke-WebRequest @params -SkipHttpErrorCheck
+  if ($resp.StatusCode -ne 200) {
+    # Write-Information "Failed to get Cloud Connector rules. Code: $($resp.StatusCode) Desc: $($resp.StatusDescription)"
+    return $null
+  }
+  else {
+    # Write-Information "Cloud Connector rules fetched successfully"
+    $rules += ($resp.Content | ConvertFrom-Json -Depth 10)
+    return $rules.result
   }
 }
 
-# Ensure rules are unique with regard tyo the 'parameters' property
-if ($rules.parameters.host -notcontains $newRule.parameters.host) {
+# Add Cloud Connector Rule
+function Add-CloudConnectorRule {
+  param (
+    $uri,
+    $headers,
+    $storageAccountWebEndpoint,
+    $cName
+  )
+  
+  $rules = @()
+  $newRule = [PSCustomObject]@{
+    enabled     = $true
+    expression  = "(http.request.full_uri wildcard `"`")"
+    provider    = "azure_storage"
+    description = "Connect to Azure storage endpoint: $storageAccountWebEndpoint"
+    parameters  = @{
+      host = $storageAccountWebEndpoint
+    }
+  }
+
   $rules += $newRule
+
+  $params = @{
+    Uri     = $uri
+    Headers = $headers
+    Method  = 'PUT'
+    Body    = ConvertTo-Json -InputObject @( $rules ) -Depth 10 -Compress
+  }
+
+  $resp = Invoke-WebRequest @params -SkipHttpErrorCheck
+  if ($resp.StatusCode -ne 200) {
+    Write-Information "Failed to add Cloud Connector rule. Code: $($resp.StatusCode) Desc: $($resp.StatusDescription)"
+  }
+  else {
+    Write-Information "Cloud Connector rule added successfully"
+  }
 }
 
-$params = @{
-  Uri     = $uri
-  Headers = $headers
-  Method  = 'PUT'
-  Body    = $rules | ConvertTo-Json -Depth 10
-}
-
-$resp = Invoke-WebRequest @params -SkipHttpErrorCheck
-if ($resp.StatusCode -ne 200) {
-  Write-Output "Failed to add Cloud Connector rule. Code: $($resp.StatusCode) Desc: $($resp.StatusDescription)"
+$rules = Get-CloudConnectorRules -uri $uri -headers $headers
+if ($rules.parameters.host -notcontains $storageAccountWebEndpoint) {
+  Write-Output "Cloud Connector rule does not exist, adding it"
+  Add-CloudConnectorRule -uri $uri -headers $headers -storageAccountWebEndpoint $storageAccountWebEndpoint -cName $cName
 }
 else {
-  Write-Output "Cloud Connector rule added successfully"
+  Write-Output "Cloud Connector rule already exists"
 }
