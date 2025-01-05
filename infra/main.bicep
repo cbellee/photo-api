@@ -558,7 +558,7 @@ module storageCustomDomain './modules/stor.bicep' = {
     tags: tags
     containers: containers
     sku: 'Standard_LRS'
-    customDomainName: '${cName}.${zoneName}'
+    customDomainName: cName
     setCustomDomain: true
   }
   dependsOn: [
