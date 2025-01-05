@@ -562,7 +562,7 @@ resource setStorageCustomDomain 'Microsoft.Resources/deploymentScripts@2020-10-0
       storageAccountName: storageAccountName
       storageAccountKey: storage.outputs.key
     }
-    scriptContent: '$storageAccount = Get-AzStorageAccount -ResourceGroupName resourceGroup().name -Name storageAccountName ; $storageAccount.CustomDomain = New-Object Microsoft.Azure.Management.Storage.Models.CustomDomain ; $storageAccount.CustomDomain.Name = "${cNameRecord}.${zoneName}" ; $storageAccount.CustomDomain.UseSubDomainName = $false ; Set-AzStorageAccount -CustomDomain $storageAccount.CustomDomain -ResourceGroupName ${resourceGroup().name} -Name ${storageAccountName}'
+    scriptContent: '$storageAccount = Get-AzStorageAccount -ResourceGroupName ${resourceGroup().name} -Name ${storageAccountName} ; $storageAccount.CustomDomain = New-Object Microsoft.Azure.Management.Storage.Models.CustomDomain ; $storageAccount.CustomDomain.Name = "${cNameRecord}.${zoneName}" ; $storageAccount.CustomDomain.UseSubDomainName = $false ; Set-AzStorageAccount -CustomDomain $storageAccount.CustomDomain -ResourceGroupName ${resourceGroup().name} -Name ${storageAccountName}'
   }
   dependsOn: [
     //enableCustomDomainNotProxied
