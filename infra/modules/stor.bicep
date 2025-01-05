@@ -8,7 +8,7 @@ param isDefaultToOAuthAuthentication bool = false
 param isAllowSharedAccessKey bool = true
 param utcValue string = utcNow()
 param customDomainName string = ''
-param deployCustomDomain bool = false
+param setCustomDomain bool = false
 
 @allowed([
   'Storage'
@@ -67,14 +67,7 @@ resource storage 'Microsoft.Storage/storageAccounts@2023-05-01' = {
   sku: {
     name: sku
   }
-  properties: {
-    accessTier: accessTier
-    allowBlobPublicAccess: isPublicBlobAccessAllowed
-    defaultToOAuthAuthentication: isDefaultToOAuthAuthentication
-    publicNetworkAccess: isPublicNetworkAccessEnabled
-    supportsHttpsTrafficOnly: isSupportHttpsTrafficOnly
-    allowSharedKeyAccess: isAllowSharedAccessKey
-  }
+  properties: setCustomDomain ? customDomainProps : props
   tags: tags
 }
 
