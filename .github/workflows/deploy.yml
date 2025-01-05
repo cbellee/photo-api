@@ -132,6 +132,14 @@ jobs:
       with:
         creds: ${{ secrets.AZURE_CREDENTIALS }}
 
+    - name: cloudflareDomain
+      id: cloudflareDomain
+      uses: azure/PowerShell@v2
+      continue-on-error: false
+      with:
+        azPSVersion: "latest"
+        inlineScript: ./scripts/cloudFlare-dns.ps1 -cloudFlareApiToken ${cloudFlareApiToken} -cloudFlareZoneId ${cloudFlareZoneId} -storageAccountWebEndpoint ${storage.outputs.webEndpoint} -cName ${cNameRecord}
+
     - name: deploy-infra-cli
       id: deploy-infra-cli
       uses: azure/cli@v2

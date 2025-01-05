@@ -510,7 +510,7 @@ module daprComponentUploadsStorageBlob 'modules/daprComponent.bicep' = {
   ]
 }
 
-resource enableCustomDomainNotProxied 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
+/* resource enableCustomDomainNotProxied 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
   name: 'enableCustomDomainNotProxied'
   location: resourceGroup().location
   kind: 'AzurePowerShell'
@@ -526,7 +526,7 @@ resource enableCustomDomainNotProxied 'Microsoft.Resources/deploymentScripts@202
     primaryScriptUri: dnsScriptUri
     arguments: '-cloudFlareApiToken ${cloudFlareApiToken} -storageAccountWebEndpoint ${storage.outputs.webEndpoint} -cloudFlareZoneId ${cloudFlareZoneId} -cName ${cNameRecord}'
   }
-}
+} */
 
 resource enableCloudConnector 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
   name: 'enableCloudConnector'
@@ -545,7 +545,7 @@ resource enableCloudConnector 'Microsoft.Resources/deploymentScripts@2020-10-01'
     arguments: '-cloudFlareApiToken ${cloudFlareApiToken} -storageAccountWebEndpoint ${storage.outputs.webEndpoint} -cloudFlareZoneId ${cloudFlareZoneId} -cName ${cNameRecord} -ZoneName ${zoneName}'
   }
   dependsOn: [
-    enableCustomDomainNotProxied
+    //enableCustomDomainNotProxied
   ]
 }
 
@@ -562,7 +562,7 @@ module storageCustomDomain './modules/stor.bicep' = {
     setCustomDomain: true
   }
   dependsOn: [
-    enableCustomDomainNotProxied
+    //enableCustomDomainNotProxied
     enableCloudConnector
   ]
 }
