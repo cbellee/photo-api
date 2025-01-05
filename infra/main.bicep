@@ -549,7 +549,27 @@ resource enableCloudConnector 'Microsoft.Resources/deploymentScripts@2020-10-01'
   ]
 }
 
-module storageCustomDomain './modules/stor.bicep' = {
+resource setStorageCustomDomain 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
+  name: 'setStorageCustomDomain'
+  location: resourceGroup().location
+  kind: 'AzurePowerShell'
+  properties: {
+    forceUpdateTag: utcValue
+    azPowerShellVersion: '7.0'
+    timeout: 'PT5M'
+    retentionInterval: 'PT1H'
+    storageAccountSettings: {
+      storageAccountName: storageAccountName
+      storageAccountKey: storage.outputs.key
+    }
+    scriptContent: '$storageAccount = Get-AzStorageAccount -ResourceGroupName resourceGroup().name -Name storageAccountName ; $storageAccount.CustomDomain = New-Object Microsoft.Azure.Management.Storage.Models.CustomDomain ; $storageAccount.CustomDomain.Name = "${cNameRecord}.${zoneName}" ; $storageAccount.CustomDomain.UseSubDomainName = $false ; Set-AzStorageAccount -CustomDomain $storageAccount.CustomDomain -ResourceGroupName ${resourceGroup().name} -Name ${storageAccountName}'
+  }
+  dependsOn: [
+    //enableCustomDomainNotProxied
+  ]
+}
+
+/* module storageCustomDomain './modules/stor.bicep' = {
   name: 'StorageCustomDomainDeployment'
   params: {
     kind: 'StorageV2'
@@ -565,7 +585,7 @@ module storageCustomDomain './modules/stor.bicep' = {
     //enableCustomDomainNotProxied
     enableCloudConnector
   ]
-}
+} */
 
 resource enableCustomDomainProxied 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
   name: 'enableCustomDomainProxied'
@@ -584,7 +604,7 @@ resource enableCustomDomainProxied 'Microsoft.Resources/deploymentScripts@2020-1
     arguments: '-cloudFlareApiToken ${cloudFlareApiToken} -storageAccountWebEndpoint ${storage.outputs.webEndpoint} -cloudFlareZoneId ${cloudFlareZoneId} -cName ${cNameRecord} -ZoneName ${zoneName} -ProxyDns'
   }
   dependsOn: [
-    storageCustomDomain
+    setStorageCustomDomain
   ]
 }
 
