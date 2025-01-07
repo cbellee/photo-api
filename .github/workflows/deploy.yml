@@ -153,4 +153,7 @@ jobs:
             --parameters cloudFlareApiToken=${{ secrets.CLOUDFLARE_API_TOKEN }} \
             --parameters cloudFlareZoneId=${{ secrets.CLOUDFLARE_ZONE_ID }} \
             --parameters dnsScriptUri=${{ env.DNS_SCRIPT_URI }} \
-            --parameters cloudConnectorScriptUri=${{ env.CLOUD_CONNECTOR_SCRIPT_URI }}
+            --parameters cloudConnectorScriptUri=${{ env.CLOUD_CONNECTOR_SCRIPT_URI }} \
+            --parameters appSecret=${{ secrets.APP_SECRET }} \
+            --parameters clientId=${{ secrets.CLIENT_ID }} \
+            --parameters tenantId=${{ secrets.TENANT_ID }} \

@@ -13,6 +13,11 @@ param dnsScriptUri string
 param cloudConnectorScriptUri string
 
 @secure()
+param appSecret string
+param tenantId string
+param clientId string
+
+@secure()
 param ghcrPullToken string
 
 param tags object = {
@@ -562,7 +567,7 @@ resource storageCustomDomain 'Microsoft.Resources/deploymentScripts@2020-10-01' 
       storageAccountName: storageAccountName
       storageAccountKey: storage.outputs.key
     }
-    scriptContent: '$storageAccount = Get-AzStorageAccount -ResourceGroupName ${resourceGroup().name} -Name ${storageAccountName} ; $storageAccount.CustomDomain = New-Object Microsoft.Azure.Management.Storage.Models.CustomDomain ; $storageAccount.CustomDomain.Name = "${cNameRecord}.${zoneName}" ; $storageAccount.CustomDomain.UseSubDomainName = $false ; Set-AzStorageAccount -CustomDomain $storageAccount.CustomDomain -ResourceGroupName ${resourceGroup().name} -Name ${storageAccountName}'
+    scriptContent: '$SecurePassword = ConvertTo-SecureString -String ${appSecret} -AsPlainText -Force ; $TenantId = ${tenantId} ; $ApplicationId = ${clientId} ; $Credential = New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList $ApplicationId, $SecurePassword ; Connect-AzAccount -ServicePrincipal -TenantId $TenantId -Credential $Credential ; $storageAccount = Get-AzStorageAccount -ResourceGroupName ${resourceGroup().name} -Name ${storageAccountName} ; $storageAccount.CustomDomain = New-Object Microsoft.Azure.Management.Storage.Models.CustomDomain ; $storageAccount.CustomDomain.Name = "${cNameRecord}.${zoneName}" ; $storageAccount.CustomDomain.UseSubDomainName = $false ; Set-AzStorageAccount -CustomDomain $storageAccount.CustomDomain -ResourceGroupName ${resourceGroup().name} -Name ${storageAccountName}'
   }
   dependsOn: [
     //enableCustomDomainNotProxied
