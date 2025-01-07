@@ -549,7 +549,7 @@ resource enableCloudConnector 'Microsoft.Resources/deploymentScripts@2020-10-01'
   ]
 }
 
-resource setStorageCustomDomain 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
+resource storageCustomDomain 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
   name: 'setStorageCustomDomain'
   location: resourceGroup().location
   kind: 'AzurePowerShell'
@@ -604,7 +604,7 @@ resource enableCustomDomainProxied 'Microsoft.Resources/deploymentScripts@2020-1
     arguments: '-cloudFlareApiToken ${cloudFlareApiToken} -storageAccountWebEndpoint ${storage.outputs.webEndpoint} -cloudFlareZoneId ${cloudFlareZoneId} -cName ${cNameRecord} -ZoneName ${zoneName} -ProxyDns'
   }
   dependsOn: [
-    setStorageCustomDomain
+    storageCustomDomain
   ]
 }
 
