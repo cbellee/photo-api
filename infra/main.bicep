@@ -6,16 +6,16 @@ param zoneName string = 'bellee.net'
 param cNameRecord string = 'photo'
 param ghcrName string = 'ghcr.io'
 param githubUsername string = 'cbellee'
-param utcValue string = utcNow()
+/* param utcValue string = utcNow()
 param cloudFlareZoneId string
 param cloudFlareApiToken string
 param dnsScriptUri string
-param cloudConnectorScriptUri string
+param cloudConnectorScriptUri string */
 
-@secure()
+/* @secure()
 param appSecret string
 param tenantId string
-param clientId string
+param clientId string */
 
 @secure()
 param ghcrPullToken string
@@ -339,6 +339,7 @@ resource photoApi 'Microsoft.App/containerApps@2023-11-02-preview' = {
             'http://localhost:5173'
             'https://${storage.outputs.webEndpoint}'
             'https://${cName}.${zoneName}'
+            'https://${cName}-dev.${zoneName}'
           ]
           allowedHeaders: [
             '*'
@@ -533,7 +534,7 @@ module daprComponentUploadsStorageBlob 'modules/daprComponent.bicep' = {
   }
 } */
 
-resource enableCloudConnector 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
+/* resource enableCloudConnector 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
   name: 'enableCloudConnector'
   location: resourceGroup().location
   kind: 'AzurePowerShell'
@@ -549,12 +550,10 @@ resource enableCloudConnector 'Microsoft.Resources/deploymentScripts@2020-10-01'
     primaryScriptUri: cloudConnectorScriptUri
     arguments: '-cloudFlareApiToken ${cloudFlareApiToken} -storageAccountWebEndpoint ${storage.outputs.webEndpoint} -cloudFlareZoneId ${cloudFlareZoneId} -cName ${cNameRecord} -ZoneName ${zoneName}'
   }
-  dependsOn: [
-    //enableCustomDomainNotProxied
-  ]
-}
+  dependsOn: []
+} */
 
-resource storageCustomDomain 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
+/* resource storageCustomDomain 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
   name: 'setStorageCustomDomain'
   location: resourceGroup().location
   kind: 'AzurePowerShell'
@@ -572,7 +571,7 @@ resource storageCustomDomain 'Microsoft.Resources/deploymentScripts@2020-10-01' 
   dependsOn: [
     //enableCustomDomainNotProxied
   ]
-}
+} */
 
 /* module storageCustomDomain './modules/stor.bicep' = {
   name: 'StorageCustomDomainDeployment'
@@ -592,7 +591,7 @@ resource storageCustomDomain 'Microsoft.Resources/deploymentScripts@2020-10-01' 
   ]
 } */
 
-resource enableCustomDomainProxied 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
+/* resource enableCustomDomainProxied 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
   name: 'enableCustomDomainProxied'
   location: resourceGroup().location
   kind: 'AzurePowerShell'
@@ -611,7 +610,7 @@ resource enableCustomDomainProxied 'Microsoft.Resources/deploymentScripts@2020-1
   dependsOn: [
     storageCustomDomain
   ]
-}
+} */
 
 output storageAccountName string = storage.outputs.name
 output photoApiEndpoint string = photoApi.properties.configuration.ingress.fqdn
