@@ -45,11 +45,11 @@ var (
 func main() {
 	corsString := utils.GetEnvValue("CORS_ORIGINS", "http://localhost:5173,https://gallery.bellee.net,https://photos.bellee.net,https://photos.bellee.net")
 	corsOrigins := strings.Split(corsString, ",")
-	slog.Info("cors origins", "origins", corsOrigins)
+	slog.Debug("cors origins", "origins", corsOrigins)
 
 	// enable azure SDK logging
 	azlog.SetListener(func(event azlog.Event, s string) {
-		slog.Info("azlog", "event", event, "message", s)
+		slog.Debug("azlog", "event", event, "message", s)
 	})
 
 	// include only azidentity credential logs
@@ -60,8 +60,6 @@ func main() {
 		Level:     slog.LevelInfo,
 	}))
 	slog.SetDefault(logger)
-
-	slog.Info("current storage account", "name", storageConfig.StorageAccount)
 
 	storageUrl := fmt.Sprintf("https://%s.%s", storageConfig.StorageAccount, storageConfig.StorageAccountSuffix)
 	slog.Info("storage url", "url", storageUrl)
@@ -116,7 +114,7 @@ func tagListHandler(client *azblob.Client, storageUrl string) http.HandlerFunc {
 			return
 		}
 
-		slog.Info("blob tag map", "value", blobTagList)
+		slog.Debug("blob tag map", "value", blobTagList)
 
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(blobTagList)
@@ -195,7 +193,7 @@ func photoHandler(client *azblob.Client, storageUrl string) http.HandlerFunc {
 		}
 
 		// retun JSON array of objects
-		slog.Info("filtered photos", "metadata", photos)
+		slog.Debug("filtered photos", "metadata", photos)
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(photos)
 	}
@@ -233,17 +231,11 @@ func updateHandler(client *azblob.Client, storageUrl string, roleName string, jw
 			return
 		}
 
-		// get photo tags from storage account and compare with updated tags
 		currTags, err := utils.GetBlobTags(client, newTags["name"], imagesContainerName, storageUrl)
 		if err != nil {
 			slog.Error("error getting blob tags", "error", err)
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		}
-
-		/* currMetadata, err := utils.GetBlobMetadata(client, newTags["name"], imagesContainerName, storageUrl)
-		if err != nil {
-			slog.Error("error getting blob metadata", "error", err)
-		} */
 
 		// remote 'Url' tag from comparison
 		delete(currTags, "Url")
@@ -254,7 +246,7 @@ func updateHandler(client *azblob.Client, storageUrl string, roleName string, jw
 		if maps.Equal(currTags, newTags) {
 			// return 304 Not Modified
 			slog.Info("tags not modified", "tags", currTags)
-			http.Error(w, "Tags not modified", http.StatusNotModified)
+			//http.Error(w, "Tags not modified", http.StatusNotModified)
 			return
 		}
 
@@ -262,6 +254,14 @@ func updateHandler(client *azblob.Client, storageUrl string, roleName string, jw
 		currentCollectionImage, err := getCollectionImage(client, storageUrl, currTags["collection"])
 		if err != nil {
 			slog.Error("error getting collection image", "error", err)
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
+
+		// get current image with albumImage tag set to 'true'
+		currentAlbumImage, err := getAlbumImage(client, storageUrl, currTags["album"])
+		if err != nil {
+			slog.Error("error getting album image", "error", err)
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 			return
 		}
@@ -282,11 +282,20 @@ func updateHandler(client *azblob.Client, storageUrl string, roleName string, jw
 			}
 		}
 
-		// update blob metadata
-		err = utils.SetBlobTags(client, newTags["name"], imagesContainerName, storageUrl, newTags)
-		if err != nil {
-			slog.Error("error updating blob metadata", "error", err)
-			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		// set AlbumImage tag to 'false' on existing image if it has been set to 'true' on the current image
+		if newTags["albumImage"] == "true" && currentAlbumImage[0].Tags["name"] != newTags["name"] {
+			slog.Info("album image set on another image. Setting 'albumImage'", "album", currTags["album"], "image", currentAlbumImage[0].Name)
+
+			// set albumImage tag to 'false' on existing image
+			currentAlbumImage[0].Tags["albumImage"] = "false"
+
+			// update blob metadata for previous image
+			err = utils.SetBlobTags(client, currentAlbumImage[0].Name, imagesContainerName, storageUrl, currentAlbumImage[0].Tags)
+			if err != nil {
+				slog.Error("error setting albumImage tag", "error", err)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+				return
+			}
 		}
 	}
 }
@@ -329,7 +338,7 @@ func uploadHandler(client *azblob.Client, storageUrl string, roleName string, jw
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		}
 
-		slog.Info("json data", "data", it)
+		slog.Debug("json data", "data", it)
 
 		fh := r.MultipartForm.File["photo"]
 
@@ -407,7 +416,7 @@ func collectionHandler(client *azblob.Client, storageUrl string) http.HandlerFun
 		var filteredBlobs []models.Blob
 
 		query := fmt.Sprintf("@container='%s' and collectionImage='true'", imagesContainerName)
-		slog.Info("query", "query", query)
+		slog.Debug("query", "query", query)
 		filteredBlobs, err := queryBlobsByTags(client, storageUrl, query)
 		if err != nil {
 			slog.Error("Error getting blobs by tags", "error", err)
@@ -441,9 +450,9 @@ func collectionHandler(client *azblob.Client, storageUrl string) http.HandlerFun
 		if filteredBlobs == nil || len(filteredBlobs) <= 0 {
 			http.Error(w, "No collection images found", http.StatusNotFound)
 		}
-		
+
 		for _, r := range filteredBlobs {
-			slog.Info("Filtered Blobs", "Name", r.Name, "Metadata", r.MetaData, "Tags", r.Tags, "Path", r.Path)
+			slog.Debug("Filtered Blobs", "Name", r.Name, "Metadata", r.MetaData, "Tags", r.Tags, "Path", r.Path)
 			width, err := strconv.ParseInt(r.MetaData["Width"], 10, 32)
 			if err != nil {
 				slog.Error("error converting string 'width' to int", "error", err)
@@ -495,7 +504,7 @@ func albumHandler(client *azblob.Client, storageUrl string) http.HandlerFunc {
 		photos := []models.Photo{}
 
 		for _, r := range filteredBlobs {
-			slog.Info("Filtered Blobs", "Name", r.Name, "Metadata", r.MetaData, "Tags", r.Tags, "Path", r.Path)
+			slog.Debug("Filtered Blobs", "Name", r.Name, "Metadata", r.MetaData, "Tags", r.Tags, "Path", r.Path)
 			width, err := strconv.ParseInt(r.MetaData["Width"], 10, 32)
 			if err != nil {
 				slog.Error("error converting string 'width' to int", "error", err)
@@ -546,6 +555,22 @@ func getCollectionImage(client *azblob.Client, storageUrl string, collection str
 	return filteredBlobs, nil
 }
 
+func getAlbumImage(client *azblob.Client, storageUrl string, album string) ([]models.Blob, error) {
+	// get photos with matching collection tags
+	query := fmt.Sprintf("@container='%s' and album='%s' and albumImage='true'", imagesContainerName, album)
+	filteredBlobs, err := queryBlobsByTags(client, storageUrl, query)
+	if err != nil {
+		slog.Error("Error getting blobs by tags", "error", err)
+		return nil, err
+	}
+
+	if len(filteredBlobs) <= 0 {
+		return []models.Blob{}, fmt.Errorf("no album image found for album: %s", album)
+	}
+
+	return filteredBlobs, nil
+}
+
 func queryBlobsByTags(client *azblob.Client, storageUrl string, query string) (blobResult []models.Blob, err error) {
 	ctx := context.Background()
 	var blobs []models.Blob
@@ -558,7 +583,7 @@ func queryBlobsByTags(client *azblob.Client, storageUrl string, query string) (b
 
 	for _, _blob := range resp.Blobs {
 		blobPath := fmt.Sprintf("%s/%s/%s", storageUrl, imagesContainerName, *_blob.Name)
-		slog.Info("blobPath", "path", blobPath)
+		slog.Debug("blobPath", "path", blobPath)
 
 		tags, err := utils.GetBlobTags(client, *_blob.Name, imagesContainerName, storageUrl)
 		if err != nil {

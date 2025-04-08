@@ -1,6 +1,8 @@
 name: deploy-infra-and-apis
 on:
   push:
+    branches:
+      - develop
     paths:
       - "infra/**"
   workflow_dispatch:
@@ -54,7 +56,7 @@ jobs:
 
       - name: create-resource-group
         id: create-resource-group
-        uses: azure/CLI@v1
+        uses: azure/CLI@v2
         with:
           azcliversion: 2.67.0
           inlineScript: |

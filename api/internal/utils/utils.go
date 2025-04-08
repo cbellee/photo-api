@@ -56,7 +56,7 @@ func CreateAzureBlobClient(storageUrl string, isProduction bool, azureClientId s
 			}
 		}
 	} else {
-		// any othger environment detected
+		// any other environment detected
 		var err error
 		slog.Info("Other environment detected, using 'AzureCLICredential'")
 		credential, err := azidentity.NewAzureCLICredential(nil)
@@ -89,17 +89,17 @@ func ResizeImage(imgBytes []byte, imageFormat string, blobName string, maxHeight
 	if height > width { // if height > width, then the image is portrait so resize height to maxHeight
 		newWidth := maxHeight * width / height
 		dst = image.NewRGBA((image.Rect(0, 0, newWidth, maxHeight)))
-		slog.Info("resizing image", "name", blobName, "original_height", height, "original_width", width, "new_height", maxHeight, "new_width", newWidth)
+		slog.Debug("resizing image", "name", blobName, "original_height", height, "original_width", width, "new_height", maxHeight, "new_width", newWidth)
 	} else { // if height <= width, then the image is landscape or square so resize width to maxWidth
 		newHeight := maxWidth * height / width
 		dst = image.NewRGBA((image.Rect(0, 0, maxWidth, newHeight)))
-		slog.Info("resizing image", "name", blobName, "original_height", height, "original_width", width, "new_height", newHeight, "new_width", maxWidth)
+		slog.Debug("resizing image", "name", blobName, "original_height", height, "original_width", width, "new_height", newHeight, "new_width", maxWidth)
 	}
 
 	// detect image type from 'imageFormat' value
 	switch imageFormat {
 	case "image/jpeg":
-		slog.Info("encoding jpeg", "name", blobName, "format", imageFormat)
+		slog.Debug("encoding jpeg", "name", blobName, "format", imageFormat)
 		src, _ = jpeg.Decode(bytes.NewReader(imgBytes))
 		draw.NearestNeighbor.Scale(dst, dst.Rect, src, src.Bounds(), draw.Over, nil)
 		err := jpeg.Encode(buf, dst, nil)
@@ -108,7 +108,7 @@ func ResizeImage(imgBytes []byte, imageFormat string, blobName string, maxHeight
 			return nil, err
 		}
 	case "image/png":
-		slog.Info("encoding jpeg", "name", blobName, "format", imageFormat)
+		slog.Debug("encoding jpeg", "name", blobName, "format", imageFormat)
 		src, _ = png.Decode(bytes.NewReader(imgBytes))
 		draw.NearestNeighbor.Scale(dst, dst.Rect, src, src.Bounds(), draw.Over, nil)
 		err := png.Encode(buf, dst)
@@ -117,7 +117,7 @@ func ResizeImage(imgBytes []byte, imageFormat string, blobName string, maxHeight
 			return nil, err
 		}
 	case "image/gif":
-		slog.Info("encoding jpeg", "name", blobName, "format", imageFormat)
+		slog.Debug("encoding jpeg", "name", blobName, "format", imageFormat)
 		src, _ = gif.Decode(bytes.NewReader(imgBytes))
 		draw.NearestNeighbor.Scale(dst, dst.Rect, src, src.Bounds(), draw.Over, nil)
 		err := gif.Encode(buf, dst, nil)
@@ -142,7 +142,7 @@ func ConvertToEvent(b *common.BindingEvent) (models.Event, error) {
 	if err != nil {
 		return evt, err
 	}
-	slog.Info("unmarshalled event", "event_url", evt.Data.Url)
+	slog.Debug("unmarshalled event", "event_url", evt.Data.Url)
 
 	return evt, nil
 }
@@ -193,7 +193,7 @@ func GetBlobTags(client *azblob.Client, blobPath string, container string, stora
 		return nil, err
 	}
 
-	slog.Info("got blob tags", "blob", blobPath, "tags", tagResponse.BlobTags)
+	slog.Debug("got blob tags", "blob", blobPath, "tags", tagResponse.BlobTags)
 	tags = make(map[string]string)
 	for _, t := range tagResponse.BlobTags.BlobTagSet {
 		tags[*t.Key] = *t.Value
@@ -208,14 +208,13 @@ func SetBlobTags(client *azblob.Client, blobPath string, container string, stora
 	blockBlob := client.ServiceClient().NewContainerClient(container).NewBlockBlobClient(blobPath)
 
 	// set blob tags
-	slog.Info("set blob tags", "blob", blobPath, "tags", tags)
 	setTagResponse, err := blockBlob.SetTags(ctx, tags, nil)
 	if err != nil {
 		slog.Error("error setting blob tags", "blob_url", blobUrl, "error", err)
 		return err
 	}
 
-	slog.Info("set blob tags", "blob", blobPath, "tags", tags, "response", setTagResponse)
+	slog.Debug("set blob tags", "blob", blobPath, "tags", tags, "response", setTagResponse)
 	return nil
 }
 
@@ -339,7 +338,6 @@ func SaveBlobStreamWithTagsAndMetadata(
 		md[key] = &v
 	}
 
-	slog.Info("uploading blob with tags and metadata", "url", blobUrl, "tags", tags, "metadata", md)
 	response, err := blockBlob.UploadStream(ctx, bytes.NewReader(blobBytes), &blockblob.UploadStreamOptions{
 		Tags:     tags,
 		Metadata: md,
@@ -366,7 +364,7 @@ func SaveBlobStreamWithTagsMetadataAndContentType(
 
 	blobUrl := fmt.Sprintf("%s/%s/%s", storageUrl, container, blobPath)
 	blockBlob := client.ServiceClient().NewContainerClient(container).NewBlockBlobClient(blobPath)
-	slog.Info("content-type", "type", contentType)
+	slog.Debug("content-type", "type", contentType)
 
 	md := make(map[string]*string)
 	for key, value := range metadata {
@@ -374,7 +372,6 @@ func SaveBlobStreamWithTagsMetadataAndContentType(
 		md[key] = &v
 	}
 
-	slog.Info("uploading blob with tags and metadata", "url", blobUrl, "tags", tags, "metadata", md)
 	response, err := blockBlob.UploadStream(ctx, bytes.NewReader(blobBytes), &blockblob.UploadStreamOptions{
 		Tags:     tags,
 		Metadata: md,
@@ -393,13 +390,13 @@ func SaveBlobStreamWithTagsMetadataAndContentType(
 
 func GetBlobNameAndPrefix(blobPath string) (string, string) {
 	blobSplit := strings.Split(blobPath, "/")
-	slog.Info("blob_split", "split", blobSplit)
+	slog.Debug("blob_split", "split", blobSplit)
 
 	blobName := blobSplit[len(blobSplit)-1]
-	slog.Info("blob_name", "name", blobName)
+	slog.Debug("blob_name", "name", blobName)
 
 	blobPrefix := fmt.Sprintf("%s/%s/%s", blobSplit[len(blobSplit)-3], blobSplit[len(blobSplit)-2], blobSplit[len(blobSplit)-1])
-	slog.Info("blob_prefix", "prefix", blobPrefix)
+	slog.Debug("blob_prefix", "prefix", blobPrefix)
 	return blobName, blobPrefix
 }
 
@@ -452,7 +449,7 @@ func VerifyToken(r *http.Request, jwksURL string) (*models.MyClaims, error) {
 	ok := false
 
 	parsedToken, err := jwt.ParseWithClaims(tokenString, &models.MyClaims{}, k.Keyfunc)
-	slog.Info("parsed token", "token", parsedToken)
+	slog.Debug("parsed token", "token", parsedToken)
 	if err != nil {
 		slog.Error("Error Parsing JWT", "error", err)
 	} else if claims, ok = parsedToken.Claims.(*models.MyClaims); ok {

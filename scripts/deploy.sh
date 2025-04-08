@@ -12,7 +12,7 @@ done
 
 LOCATION='australiaeast'
 SUBSCRIPTION_ID='655845bb-6fb9-4adf-bf80-5776ea887bc5'
-RG_NAME="photo-app-rg"
+RG_NAME="photo-app-${LOCATION}-rg"
 SEMVER='0.1.0'
 REV=$(git rev-parse --short HEAD)
 TAG="$SEMVER-$REV"
@@ -26,8 +26,6 @@ UPLOADS_CONTAINER_NAME='uploads'
 IMAGES_CONTAINER_NAME='images'
 
 # az ad sp create-for-rbac --name photo-api-sp --role contributor --scopes /subscriptions/$SUBSCRIPTION_ID --json-auth
-
-
 
 az group create --location $LOCATION --name $RG_NAME
 
