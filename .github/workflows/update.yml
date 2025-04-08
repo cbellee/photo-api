@@ -1,8 +1,8 @@
 name: update-container-apps
 on:
-  push:
-    paths:
-      - "api/**"
+#  push:
+#    branches:
+#      - develop
   workflow_dispatch:
 
 env:
