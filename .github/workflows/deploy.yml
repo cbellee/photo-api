@@ -152,6 +152,5 @@ jobs:
             --parameters githubUsername=${{ github.actor }} \
             --parameters cNameRecord=${{ vars.CNAME }} \
             --parameters zoneName=${{ vars.ZONE_NAME }} \
-            --parameters appSecret=${{ secrets.APP_SECRET }} \
             --parameters clientId=${{ secrets.CLIENT_ID }} \
             --parameters tenantId=${{ secrets.TENANT_ID }} \
