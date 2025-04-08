@@ -151,6 +151,4 @@ jobs:
             --parameters ghcrName='ghcr.io' \
             --parameters githubUsername=${{ github.actor }} \
             --parameters cNameRecord=${{ vars.CNAME }} \
-            --parameters zoneName=${{ vars.ZONE_NAME }} \
-            --parameters clientId=${{ secrets.CLIENT_ID }} \
-            --parameters tenantId=${{ secrets.TENANT_ID }} \
+            --parameters zoneName=${{ vars.ZONE_NAME }}
