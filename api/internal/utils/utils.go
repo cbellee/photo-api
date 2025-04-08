@@ -241,7 +241,7 @@ func GetBlobMetadata(client *azblob.Client, blobPath string, container string, s
 		m[key] = *v
 	}
 
-	slog.Debug("got blob metadata", "blob", blobPath)
+	slog.Debug("got blob metadata", "blob_path", blobPath)
 	return m, nil
 }
 

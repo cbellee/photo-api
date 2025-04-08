@@ -605,6 +605,6 @@ func queryBlobsByTags(client *azblob.Client, storageUrl string, query string) (b
 
 		blobs = append(blobs, b)
 	}
-	slog.Info("found blobs by tag query", "blobs", blobs)
+	slog.Info("found blobs by tag query", "num_blobs", len(blobs))
 	return blobs, nil
 }
