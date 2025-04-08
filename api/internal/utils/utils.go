@@ -241,7 +241,7 @@ func GetBlobMetadata(client *azblob.Client, blobPath string, container string, s
 		m[key] = *v
 	}
 
-	slog.Info("got blob metadata", "blob", blobPath, "metadata", m)
+	slog.Debug("got blob metadata", "blob", blobPath)
 	return m, nil
 }
 
@@ -347,7 +347,7 @@ func SaveBlobStreamWithTagsAndMetadata(
 		return err
 	}
 
-	slog.Info("uploaded blob stream", "blob_url", blobUrl, "tags", tags, "metadata", metadata, "response", response)
+	slog.Info("uploaded blob stream", "blob_url", blobUrl, "tags", tags, "response", response)
 	return nil
 }
 
@@ -384,7 +384,7 @@ func SaveBlobStreamWithTagsMetadataAndContentType(
 		return err
 	}
 
-	slog.Info("uploaded blob stream", "blob_url", blobUrl, "tags", tags, "metadata", metadata, "response", response)
+	slog.Info("uploaded blob stream", "blob_url", blobUrl, "tags", tags, "response", response)
 	return nil
 }
 
@@ -453,7 +453,7 @@ func VerifyToken(r *http.Request, jwksURL string) (*models.MyClaims, error) {
 	if err != nil {
 		slog.Error("Error Parsing JWT", "error", err)
 	} else if claims, ok = parsedToken.Claims.(*models.MyClaims); ok {
-		fmt.Println(claims)
+		slog.Debug("Parsed Claims", "claims", claims)
 	} else {
 		slog.Error("Error Parsing Claims", "error", err)
 	}
