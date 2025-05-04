@@ -82,7 +82,6 @@ jobs:
         id: login-azure
         uses: azure/login@v2
         with:
-          with:
           client-id: ${{ inputs.client-id }}
           tenant-id: ${{ inputs.tenant-id }}
           subscription-id: ${{ inputs.subscription-id }}
@@ -159,7 +158,6 @@ jobs:
       id: login-azure
       uses: azure/login@v2
       with:
-        with:
         client-id: ${{ inputs.client-id }}
         tenant-id: ${{ inputs.tenant-id }}
         subscription-id: ${{ inputs.subscription-id }}
