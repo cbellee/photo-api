@@ -111,7 +111,7 @@ jobs:
       client-id: ${{ vars.UMID_CLIENT_ID  }}
       subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
       tenant-id: ${{ vars.AZURE_TENANT_ID }}
-      cname: dev-photo
+      cname: photo-dev
       location: australiaeast
       template-file-path: './infra/main.bicep'
       environment: staging
