@@ -21,10 +21,10 @@ on:
         required: true
         type: string
         default: './infra/main.bicep'
-      photoApiImage:
+      photo-api-image:
         required: true
         type: string
-      resizeApiImage:
+      resize-api-image:
         required: true
         type: string
       photo-api-name:
@@ -105,12 +105,12 @@ jobs:
 
       - name: build-and-push-image
         run: |
-            docker build --tag "${{ inputs.photoApiImage }}" \
+            docker build --tag "${{ inputs.photo-api-image }}" \
             --build-arg SERVICE_NAME=${{ inputs.photo-api-name }} \
             --build-arg SERVICE_PORT=${{ inputs.photo-api-port }} \
             -f ./Dockerfile .
 
-            docker push "${{ inputs.photoApiImage }}"
+            docker push "${{ inputs.photo-api-image }}"
 
   build-resize-api-job:
     runs-on: ubuntu-latest
@@ -130,12 +130,12 @@ jobs:
 
       - name: build-and-push-image
         run: |
-            docker build --tag "${{ inputs.resizeApiImage }}" \
+            docker build --tag "${{ inputs.resize-api-image }}" \
             --build-arg SERVICE_NAME=${{ inputs.resize-api-name }} \
             --build-arg SERVICE_PORT=${{ inputs.resize-api-port }} \
             -f ./Dockerfile .
 
-            docker push "${{ inputs.resizeApiImage }}"
+            docker push "${{ inputs.resize-api-image }}"
 
   build-and-deploy-infra-job:
     runs-on: ubuntu-latest
@@ -166,8 +166,8 @@ jobs:
             --name deploy-infra \
             --resource-group ${{ needs.deploy-rg-job.outputs.rgName}} \
             --template-file ${{ inputs.template-file-path }} \
-            --parameters photoApiContainerImage=${{ inputs.photoApiImage }} \
-            --parameters resizeApiContainerImage=${{ inputs.resizeApiImage }} \
+            --parameters photoApiContainerImage=${{ inputs.photo-api-image }} \
+            --parameters resizeApiContainerImage=${{ inputs.resize-api-image }} \
             --parameters ghcrPullToken=${{ secrets.PAT_TOKEN }} \
             --parameters ghcrName='ghcr.io' \
             --parameters githubUsername=${{ github.actor }} \
