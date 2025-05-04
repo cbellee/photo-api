@@ -91,57 +91,6 @@ jobs:
           inlineScript: |
             az group create --name $RG_NAME --location ${{ inputs.location }}
 
-  build-photo-api-job:
-    runs-on: ubuntu-latest
-    needs: [deploy-rg-job]
-    environment: ${{ inputs.environment }}
-    steps:
-      - name: checkout-code
-        id: checkout-code
-        uses: actions/checkout@main
-
-      - name: login-ghcr
-        id: login-ghcr
-        uses: docker/login-action@v1
-        with:
-          registry: ghcr.io
-          username: ${{github.actor}}
-          password: ${{secrets.GITHUB_TOKEN}}
-
-      - name: build-and-push-image
-        run: |
-            docker build --tag "${{ inputs.photo-api-image }}" \
-            --build-arg SERVICE_NAME=${{ inputs.photo-api-name }} \
-            --build-arg SERVICE_PORT=${{ inputs.photo-api-port }} \
-            -f ./Dockerfile .
-
-            docker push "${{ inputs.photo-api-image }}"
-
-  build-resize-api-job:
-    runs-on: ubuntu-latest
-    needs: deploy-rg-job
-    steps:
-      - name: checkout-code
-        id: checkout-code
-        uses: actions/checkout@main
-
-      - name: login-ghcr
-        id: login-ghcr
-        uses: docker/login-action@v1
-        with:
-          registry: ghcr.io
-          username: ${{github.actor}}
-          password: ${{secrets.GITHUB_TOKEN}}
-
-      - name: build-and-push-image
-        run: |
-            docker build --tag "${{ inputs.resize-api-image }}" \
-            --build-arg SERVICE_NAME=${{ inputs.resize-api-name }} \
-            --build-arg SERVICE_PORT=${{ inputs.resize-api-port }} \
-            -f ./Dockerfile .
-
-            docker push "${{ inputs.resize-api-image }}"
-
   build-and-deploy-infra-job:
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
