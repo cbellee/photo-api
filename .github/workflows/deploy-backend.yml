@@ -127,7 +127,7 @@ jobs:
 
   deploy-to-production:
     uses: cbellee/photo-api/.github/workflows/deploy-backend-template.yml@main
-    needs: [gen-image-names-job, build-photo-api-job, build-resize-api-job]
+    needs: [gen-image-names-job, build-photo-api-job, build-resize-api-job, deploy-to-staging]
     secrets: inherit
     concurrency: 
       group: production-backend-deployment

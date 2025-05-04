@@ -94,7 +94,7 @@ jobs:
   build-and-deploy-infra-job:
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
-    needs: [deploy-rg-job, build-photo-api-job, build-resize-api-job]
+    needs: [deploy-rg-job]
     steps:
     - name: checkout-code
       id: checkout-code
