@@ -2,6 +2,9 @@ name: deploy-backend-template
 on:
   workflow_call:
     inputs:
+      client-id:
+        required: true
+        type: string
       environment:
         required: true
         type: string
@@ -74,7 +77,7 @@ jobs:
         uses: azure/login@v2
         with:
           with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          client-id: ${{ inputs.client-id }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
@@ -151,7 +154,7 @@ jobs:
       uses: azure/login@v2
       with:
         with:
-        client-id: ${{ secrets.AZURE_CLIENT_ID }}
+        client-id: ${{ inputs.client-id }}
         tenant-id: ${{ secrets.AZURE_TENANT_ID }}
         subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
