@@ -97,7 +97,7 @@ jobs:
             docker push "${{ needs.gen-image-names-job.outputs.resizeApiImage }}"
 
   deploy-to-staging:
-    uses: cbellee/photo-api/.github/workflows/templates/deploy-backend-template.yml@main
+    uses: cbellee/photo-api/.github/workflows/deploy-backend-template.yml@main
     needs: [gen-image-names-job, build-photo-api-job, build-resize-api-job]
     secrets: inherit
     concurrency: 
@@ -120,7 +120,7 @@ jobs:
       version: 1.0.0
 
   deploy-to-production:
-    uses: cbellee/photo-api/.github/workflows/templates/deploy-backend-template.yml@main
+    uses: cbellee/photo-api/.github/workflows/deploy-backend-template.yml@main
     needs: [gen-image-names-job, build-photo-api-job, build-resize-api-job]
     secrets: inherit
     concurrency: 
