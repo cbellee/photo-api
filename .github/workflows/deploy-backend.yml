@@ -9,6 +9,8 @@ on:
 
 permissions: 
   packages: write
+  id-token: write
+  contents: read
 
 env:
   APP_NAME: 'photo-app'

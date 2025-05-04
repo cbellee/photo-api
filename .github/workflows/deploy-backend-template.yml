@@ -57,11 +57,6 @@ on:
         type: string
         default: '1.0.0'
 
-permissions: 
-  packages: write
-  id-token: write
-  contents: read
-
 jobs:
   deploy-rg-job:
     runs-on: ubuntu-latest
@@ -182,4 +177,3 @@ jobs:
             --parameters githubUsername=${{ github.actor }} \
             --parameters cNameRecord=${{ inputs.cname }} \
             --parameters zoneName=${{ inputs.domain-name }}
-            
