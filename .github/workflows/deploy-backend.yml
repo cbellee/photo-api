@@ -38,6 +38,7 @@ jobs:
         id: short-sha
         run: |
             echo "sha: sha=$(git rev-parse --short HEAD)"
+            echo "sha=$(git rev-parse --short HEAD)" >> "$GITHUB_ENV"
             echo "sha=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: gen-image-names
