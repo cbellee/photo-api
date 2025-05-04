@@ -1,0 +1,143 @@
+name: deploy-backend
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "infra/**"
+  workflow_dispatch:
+
+permissions: 
+  packages: write
+
+env:
+  APP_NAME: 'photo-app'
+  TEMPLATE_FILE_PATH: ./infra/main.bicep
+  PHOTO_API_NAME: 'photo'
+  PHOTO_API_PORT: 8080
+  RESIZE_API_NAME: 'resize'
+  RESIZE_API_PORT: 8080
+  DOMAIN_NAME: 'bellee.net'
+  VERSION: 1.0.0
+  
+jobs:
+  gen-image-names-job:
+    runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.short-sha.outputs.sha }}
+      photoApiImage: ${{ steps.gen-image-names.outputs.photoApiImage }}
+      resizeApiImage: ${{ steps.gen-image-names.outputs.resizeApiImage }}
+    steps:
+      - name: checkout-code
+        id: checkout-code
+        uses: actions/checkout@main
+
+      - name: short-sha
+        id: short-sha
+        run: |
+            echo "sha: sha=$(git rev-parse --short HEAD)"
+            echo "sha=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: gen-image-names
+        id: gen-image-names
+        run: |
+          echo "photoApiImage: ghcr.io/${GITHUB_REPOSITORY_OWNER}/${{ env.PHOTO_API_NAME }}:${{ env.VERSION }}-$SHA"
+          echo "photoApiImage=ghcr.io/${GITHUB_REPOSITORY_OWNER}/${{ env.PHOTO_API_NAME }}:${{ env.VERSION }}-$SHA" >> $GITHUB_OUTPUT
+          echo "resizeApiImage: ghcr.io/${GITHUB_REPOSITORY_OWNER}/${{ env.RESIZE_API_NAME }}:${{ env.VERSION }}-$SHA"
+          echo "resizeApiImage=ghcr.io/${GITHUB_REPOSITORY_OWNER}/${{ env.RESIZE_API_NAME }}:${{ env.VERSION }}-$SHA" >> $GITHUB_OUTPUT
+
+  build-photo-api-job:
+    runs-on: ubuntu-latest
+    needs: gen-image-names-job
+    steps:
+      - name: checkout-code
+        id: checkout-code
+        uses: actions/checkout@main
+
+      - name: login-ghcr
+        id: login-ghcr
+        uses: docker/login-action@v1
+        with:
+          registry: ghcr.io
+          username: ${{github.actor}}
+          password: ${{secrets.GITHUB_TOKEN}}
+
+      - name: build-and-push-image
+        run: |
+            docker build --tag "${{ needs.gen-image-names-job.outputs.photoApiImage }}" \
+            --build-arg SERVICE_NAME=${{ env.PHOTO_API_NAME }} \
+            --build-arg SERVICE_PORT=${{ env.PHOTO_API_PORT }} \
+            -f ./Dockerfile .
+
+            docker push "${{ needs.gen-image-names-job.outputs.photoApiImage }}"
+
+  build-resize-api-job:
+    runs-on: ubuntu-latest
+    needs: gen-image-names-job
+    steps:
+      - name: checkout-code
+        id: checkout-code
+        uses: actions/checkout@main
+
+      - name: login-ghcr
+        id: login-ghcr
+        uses: docker/login-action@v1
+        with:
+          registry: ghcr.io
+          username: ${{github.actor}}
+          password: ${{secrets.GITHUB_TOKEN}}
+
+      - name: build-and-push-image
+        run: |
+            docker build --tag "${{ needs.gen-image-names-job.outputs.resizeApiImage }}" \
+            --build-arg SERVICE_NAME=${{ env.RESIZE_API_NAME }} \
+            --build-arg SERVICE_PORT=${{ env.RESIZE_API_PORT }} \
+            -f ./Dockerfile .
+
+            docker push "${{ needs.gen-image-names-job.outputs.resizeApiImage }}"
+
+  deploy-to-staging:
+    uses: cbellee/photo-api/.github/workflows/templates/deploy-backend-template.yml@main
+    needs: [gen-image-names-job, build-photo-api-job, build-resize-api-job]
+    secrets: inherit
+    concurrency: 
+      group: staging-backend-deployment
+      cancel-in-progress: true
+    if: github.ref == 'refs/heads/main' 
+    with:
+      cname: dev-photo
+      location: australiaeast
+      template-file-path: './infra/main.bicep'
+      environment: staging
+      app-name: ${{ vars.APP_NAME }}
+      domain-name: ${{ vars.ZONE_NAME }}
+      photo-api-name: photo
+      photo-api-port: 8080
+      resize-api-name: resize
+      resize-api-port: 8080
+      photo-api-image: ${{ needs.gen-image-names-job.outputs.photoApiImage }}
+      resize-api-image: ${{ needs.gen-image-names-job.outputs.resizeApiImage }}
+      version: 1.0.0
+
+  deploy-to-production:
+    uses: cbellee/photo-api/.github/workflows/templates/deploy-backend-template.yml@main
+    needs: [gen-image-names-job, build-photo-api-job, build-resize-api-job]
+    secrets: inherit
+    concurrency: 
+      group: production-backend-deployment
+      cancel-in-progress: true
+    if: github.ref == 'refs/heads/main' 
+    with:
+      cname: photo
+      location: uksouth
+      template-file-path: './infra/main.bicep'
+      environment: production
+      app-name: ${{ vars.APP_NAME }}
+      domain-name: ${{ vars.ZONE_NAME }}
+      photo-api-name: photo
+      photo-api-port: 8080
+      resize-api-name: resize
+      resize-api-port: 8080
+      photo-api-image: ${{ needs.gen-image-names-job.outputs.photoApiImage }}
+      resize-api-image: ${{ needs.gen-image-names-job.outputs.resizeApiImage }}
+      version: 1.0.0

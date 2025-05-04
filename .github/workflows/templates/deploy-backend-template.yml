@@ -1,0 +1,175 @@
+name: deploy-backend-template
+on:
+  workflow_call:
+    inputs:
+      environment:
+        required: true
+        type: string
+      cname:
+        required: true
+        type: string
+      domain-name:
+        required: true
+        type: string
+      app-name:
+        required: true
+        type: string
+      location:
+        required: true
+        type: string
+      template-file-path:
+        required: true
+        type: string
+        default: './infra/main.bicep'
+      photoApiImage:
+        required: true
+        type: string
+      resizeApiImage:
+        required: true
+        type: string
+      photo-api-name:
+        required: true
+        type: string
+        default: 'photo'
+      photo-api-port:
+        required: true
+        type: string
+        default: '8080'
+      resize-api-name:
+        required: true
+        type: string
+        default: 'resize'
+      resize-api-port:
+        required: true
+        type: string
+        default: '8080'
+      version:
+        required: true
+        type: string
+        default: '1.0.0'
+
+permissions: 
+  packages: write
+
+jobs:
+  deploy-rg-job:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    outputs:
+      rgName: ${{ steps.gen-rg-name.outputs.rgName }}
+    steps:
+      - name: checkout-code
+        id: checkout-code
+        uses: actions/checkout@main
+
+      - name: gen-rg-name
+        id: gen-rg-name
+        run: |
+            echo "rgName: ${{ inputs.app-name }}-${{ inputs.location }}-rg"
+            echo "rgName=${{ inputs.app-name }}-${{ inputs.location }}-rg" >> "$GITHUB_OUTPUT"
+            echo "RG_NAME=${{ inputs.app-name }}-${{ inputs.location }}-rg" >> "$GITHUB_ENV"
+
+      - name: login-azure
+        id: login-azure
+        uses: azure/login@v2
+        with:
+          with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: create-resource-group
+        id: create-resource-group
+        uses: azure/CLI@v2
+        with:
+          azcliversion: 2.67.0
+          inlineScript: |
+            az group create --name $RG_NAME --location ${{ inputs.location }}
+
+  build-photo-api-job:
+    runs-on: ubuntu-latest
+    needs: [deploy-rg-job]
+    environment: ${{ inputs.environment }}
+    steps:
+      - name: checkout-code
+        id: checkout-code
+        uses: actions/checkout@main
+
+      - name: login-ghcr
+        id: login-ghcr
+        uses: docker/login-action@v1
+        with:
+          registry: ghcr.io
+          username: ${{github.actor}}
+          password: ${{secrets.GITHUB_TOKEN}}
+
+      - name: build-and-push-image
+        run: |
+            docker build --tag "${{ inputs.photoApiImage }}" \
+            --build-arg SERVICE_NAME=${{ inputs.photo-api-name }} \
+            --build-arg SERVICE_PORT=${{ inputs.photo-api-port }} \
+            -f ./Dockerfile .
+
+            docker push "${{ inputs.photoApiImage }}"
+
+  build-resize-api-job:
+    runs-on: ubuntu-latest
+    needs: deploy-rg-job
+    steps:
+      - name: checkout-code
+        id: checkout-code
+        uses: actions/checkout@main
+
+      - name: login-ghcr
+        id: login-ghcr
+        uses: docker/login-action@v1
+        with:
+          registry: ghcr.io
+          username: ${{github.actor}}
+          password: ${{secrets.GITHUB_TOKEN}}
+
+      - name: build-and-push-image
+        run: |
+            docker build --tag "${{ inputs.resizeApiImage }}" \
+            --build-arg SERVICE_NAME=${{ inputs.resize-api-name }} \
+            --build-arg SERVICE_PORT=${{ inputs.resize-api-port }} \
+            -f ./Dockerfile .
+
+            docker push "${{ inputs.resizeApiImage }}"
+
+  build-and-deploy-infra-job:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    needs: [deploy-rg-job, build-photo-api-job, build-resize-api-job]
+    steps:
+    - name: checkout-code
+      id: checkout-code
+      uses: actions/checkout@main
+    
+    - name: login-azure
+      id: login-azure
+      uses: azure/login@v2
+      with:
+        with:
+        client-id: ${{ secrets.AZURE_CLIENT_ID }}
+        tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+        subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+    - name: deploy-infra-cli
+      id: deploy-infra-cli
+      uses: azure/cli@v2
+      continue-on-error: false
+      with:
+        azcliversion: 2.67.0
+        inlineScript: |
+          az deployment group create \
+            --name deploy-infra \
+            --resource-group ${{ needs.deploy-rg-job.outputs.rgName}} \
+            --template-file ${{ inputs.template-file-path }} \
+            --parameters photoApiContainerImage=${{ inputs.photoApiImage }} \
+            --parameters resizeApiContainerImage=${{ inputs.resizeApiImage }} \
+            --parameters ghcrPullToken=${{ secrets.PAT_TOKEN }} \
+            --parameters ghcrName='ghcr.io' \
+            --parameters githubUsername=${{ github.actor }} \
+            --parameters cNameRecord=${{ inputs.cname }} \
+            --parameters zoneName=${{ inputs.domain-name }}

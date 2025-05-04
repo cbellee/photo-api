@@ -5,23 +5,29 @@ on:
       - "infra/**"
   workflow_dispatch:
 
+permissions: 
+  packages: write
+
 env:
-  DNS_ZONE_RG_NAME: 'external-domain-rg'
   TEMPLATE_FILE_PATH: ./infra/main.bicep
   PHOTO_API_NAME: 'photo'
   PHOTO_API_PORT: 8080
   RESIZE_API_NAME: 'resize'
   RESIZE_API_PORT: 8080
   VERSION: 1.0.0
-
+  CLOUDFLARE_ZONE_ID: 'b553a0e598bd23879036daf46b81cbb3'
+  CLOUDFLARE_EMAIL: 'christian.bellee@gmail.com'
+  CLOUDFLARE_API_KEY: 'cloudflare_api_key'
+  DNS_SCRIPT_URI: 'https://raw.githubusercontent.com/cbellee/photo-api/refs/heads/main/scripts/cloudflare-dns.ps1'
+  CLOUD_CONNECTOR_SCRIPT_URI: 'https://raw.githubusercontent.com/cbellee/photo-api/refs/heads/main/scripts/cloudflare-connector-rule.ps1'
+  
 jobs:
-  deploy-acr-job:
+  deploy-rg-job:
     runs-on: ubuntu-latest
     outputs:
-      acrName: ${{ steps.deploy-acr-outputs.outputs.acrName }}
-      resizeApiImage: ${{ steps.deploy-acr-outputs.outputs.resizeApiImage }}
-      photoApiImage: ${{ steps.deploy-acr-outputs.outputs.photoApiImage }}
       rgName: ${{ steps.gen-rg-name.outputs.rgName }}
+      photoApiImage: ${{ steps.gen-image-names.outputs.photoApiImage }}
+      resizeApiImage: ${{ steps.gen-image-names.outputs.resizeApiImage }}
     steps:
       - name: checkout-code
         id: checkout-code
@@ -54,89 +60,72 @@ jobs:
           inlineScript: |
             az group create --name $RG_NAME --location ${{ vars.LOCATION }}
 
-      - name: deploy-acr
-        id: deploy-acr
-        uses:  azure/arm-deploy@v2
-        with:
-          deploymentName: deploy-acr
-          resourceGroupName: ${{ env.RG_NAME }}
-          template: ./infra/modules/acr.bicep
-
-      - name: deploy-acr-outputs
-        id: deploy-acr-outputs
-        env:
-          SHA: ${{ env.SHA }}
-          ACR_NAME: ${{ steps.deploy-acr.outputs.acrName }}
+      - name: gen-image-names
+        id: gen-image-names
         run: |
-          echo "acrName: ${{ env.ACR_NAME }}"
-          echo "acrName=${{ env.ACR_NAME }}" >> "$GITHUB_OUTPUT"
-          echo "photoApiImage: ${{ env.ACR_NAME }}.azurecr.io/${{ env.PHOTO_API_NAME }}:${{ env.VERSION }}-$SHA"
-          echo "photoApiImage=${{ env.ACR_NAME }}.azurecr.io/${{ env.PHOTO_API_NAME }}:${{ env.VERSION }}-$SHA" >> $GITHUB_OUTPUT
-          echo "resizeApiImage: ${{ env.ACR_NAME }}.azurecr.io/${{ env.RESIZE_API_NAME }}:${{ env.VERSION }}-$SHA"
-          echo "resizeApiImage=${{ env.ACR_NAME }}.azurecr.io/${{ env.RESIZE_API_NAME }}:${{ env.VERSION }}-$SHA" >> $GITHUB_OUTPUT
+          echo "photoApiImage: ghcr.io/${GITHUB_REPOSITORY_OWNER}/${{ env.PHOTO_API_NAME }}:${{ env.VERSION }}-$SHA"
+          echo "photoApiImage=ghcr.io/${GITHUB_REPOSITORY_OWNER}/${{ env.PHOTO_API_NAME }}:${{ env.VERSION }}-$SHA" >> $GITHUB_OUTPUT
+          echo "resizeApiImage: ghcr.io/${GITHUB_REPOSITORY_OWNER}/${{ env.RESIZE_API_NAME }}:${{ env.VERSION }}-$SHA"
+          echo "resizeApiImage=ghcr.io/${GITHUB_REPOSITORY_OWNER}/${{ env.RESIZE_API_NAME }}:${{ env.VERSION }}-$SHA" >> $GITHUB_OUTPUT
 
   build-photo-api-job:
     runs-on: ubuntu-latest
-    needs: [deploy-acr-job]
+    needs: [deploy-rg-job]
     steps:
       - name: checkout-code
         id: checkout-code
         uses: actions/checkout@main
 
-      - name: login-azure
-        id: login-azure
-        uses: azure/login@v2
+      - name: login-ghcr
+        id: login-ghcr
+        uses: docker/login-action@v1
         with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
+          registry: ghcr.io
+          username: ${{github.actor}}
+          password: ${{secrets.GITHUB_TOKEN}}
 
-      - name: acr-build-photo-api
-        id: acr-build-photo-api
-        uses: azure/cli@v2
-        with:
-          azcliversion: 2.67.0
-          inlineScript: |
-            az acr build \
-              --registry ${{ needs.deploy-acr-job.outputs.acrName }} \
-              -t "${{ needs.deploy-acr-job.outputs.photoApiImage }}" \
-              --build-arg SERVICE_NAME=${{ env.PHOTO_API_NAME }} \
-              --build-arg SERVICE_PORT=${{ env.PHOTO_API_PORT }} \
-              -f ./Dockerfile .
+      - name: build-and-push-image
+        run: |
+            docker build --tag "${{ needs.deploy-rg-job.outputs.photoApiImage }}" \
+            --build-arg SERVICE_NAME=${{ env.PHOTO_API_NAME }} \
+            --build-arg SERVICE_PORT=${{ env.PHOTO_API_PORT }} \
+            -f ./Dockerfile .
+
+            docker push "${{ needs.deploy-rg-job.outputs.photoApiImage }}"
 
   build-resize-api-job:
     runs-on: ubuntu-latest
-    needs: deploy-acr-job
+    needs: deploy-rg-job
     steps:
       - name: checkout-code
         id: checkout-code
         uses: actions/checkout@main
 
-      - name: login-azure
-        id: login-azure
-        uses: azure/login@v2
+      - name: login-ghcr
+        id: login-ghcr
+        uses: docker/login-action@v1
         with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
+          registry: ghcr.io
+          username: ${{github.actor}}
+          password: ${{secrets.GITHUB_TOKEN}}
 
-      - name: acr-build-resize-api
-        id: acr-build-resize-api
-        uses: azure/cli@v2
-        with:
-          azcliversion: 2.67.0
-          inlineScript: |
-            az acr build \
-              --registry ${{ needs.deploy-acr-job.outputs.acrName }} \
-              -t "${{ needs.deploy-acr-job.outputs.resizeApiImage }}" \
-              --build-arg SERVICE_NAME=${{ env.RESIZE_API_NAME }} \
-              --build-arg SERVICE_PORT=${{ env.RESIZE_API_PORT }} \
-              -f ./Dockerfile .
+      - name: build-and-push-image
+        run: |
+            docker build --tag "${{ needs.deploy-rg-job.outputs.resizeApiImage }}" \
+            --build-arg SERVICE_NAME=${{ env.RESIZE_API_NAME }} \
+            --build-arg SERVICE_PORT=${{ env.RESIZE_API_PORT }} \
+            -f ./Dockerfile .
+
+            docker push "${{ needs.deploy-rg-job.outputs.resizeApiImage }}"
 
   build-and-deploy-infra-job:
     runs-on: ubuntu-latest
-    needs: [deploy-acr-job, build-photo-api-job, build-resize-api-job]
+    needs: [deploy-rg-job, build-photo-api-job, build-resize-api-job]
     steps:
     - name: checkout-code
       id: checkout-code
       uses: actions/checkout@main
-
+    
     - name: login-azure
       id: login-azure
       uses: azure/login@v2
@@ -152,10 +141,19 @@ jobs:
         inlineScript: |
           az deployment group create \
             --name deploy-infra \
-            --resource-group ${{ needs.deploy-acr-job.outputs.rgName}} \
+            --resource-group ${{ needs.deploy-rg-job.outputs.rgName}} \
             --template-file ${{ env.TEMPLATE_FILE_PATH }} \
-            --parameters acrName=${{ needs.deploy-acr-job.outputs.acrName }} \
-            --parameters photoApiContainerImage=${{ needs.deploy-acr-job.outputs.photoApiImage }} \
-            --parameters resizeApiContainerImage=${{ needs.deploy-acr-job.outputs.resizeApiImage }} \
-            --parameters dnsResourceGroupName=${{ env.DNS_ZONE_RG_NAME }}
-            
+            --parameters photoApiContainerImage=${{ needs.deploy-rg-job.outputs.photoApiImage }} \
+            --parameters resizeApiContainerImage=${{ needs.deploy-rg-job.outputs.resizeApiImage }} \
+            --parameters ghcrPullToken=${{ secrets.PAT_TOKEN }} \
+            --parameters ghcrName='ghcr.io' \
+            --parameters githubUsername=${{ github.actor }} \
+            --parameters cNameRecord=${{ vars.CNAME }} \
+            --parameters zoneName=${{ vars.ZONE_NAME }} \
+            --parameters cloudFlareApiToken=${{ secrets.CLOUDFLARE_API_TOKEN }} \
+            --parameters cloudFlareZoneId=${{ secrets.CLOUDFLARE_ZONE_ID }} \
+            --parameters dnsScriptUri=${{ env.DNS_SCRIPT_URI }} \
+            --parameters cloudConnectorScriptUri=${{ env.CLOUD_CONNECTOR_SCRIPT_URI }} \
+            --parameters appSecret=${{ secrets.APP_SECRET }} \
+            --parameters clientId=${{ secrets.CLIENT_ID }} \
+            --parameters tenantId=${{ secrets.TENANT_ID }} \
