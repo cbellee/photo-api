@@ -105,7 +105,9 @@ jobs:
       cancel-in-progress: true
     if: github.ref == 'refs/heads/main' 
     with:
-      client-id: '8e3cf0c1-3756-42b2-8192-9fb21fb9f5fc'
+      client-id: ${{ vars.UMID_CLIENT_ID  }}
+      subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      tenant-id: ${{ vars.AZURE_TENANT_ID }}
       cname: dev-photo
       location: australiaeast
       template-file-path: './infra/main.bicep'
@@ -129,7 +131,9 @@ jobs:
       cancel-in-progress: true
     if: github.ref == 'refs/heads/main' 
     with:
-      client-id: '8e3cf0c1-3756-42b2-8192-9fb21fb9f5fc'
+      client-id: ${{ vars.UMID_CLIENT_ID  }}
+      subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      tenant-id: ${{ vars.AZURE_TENANT_ID }}
       cname: photo
       location: uksouth
       template-file-path: './infra/main.bicep'

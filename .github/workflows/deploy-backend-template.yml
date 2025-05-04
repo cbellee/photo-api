@@ -2,6 +2,12 @@ name: deploy-backend-template
 on:
   workflow_call:
     inputs:
+      subscription-id:
+        required: true
+        type: string
+      tenant-id:
+        required: true
+        type: string
       client-id:
         required: true
         type: string
@@ -78,8 +84,8 @@ jobs:
         with:
           with:
           client-id: ${{ inputs.client-id }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          tenant-id: ${{ inputs.tenant-id }}
+          subscription-id: ${{ inputs.subscription-id }}
 
       - name: create-resource-group
         id: create-resource-group
@@ -155,8 +161,8 @@ jobs:
       with:
         with:
         client-id: ${{ inputs.client-id }}
-        tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-        subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+        tenant-id: ${{ inputs.tenant-id }}
+        subscription-id: ${{ inputs.subscription-id }}
 
     - name: deploy-infra-cli
       id: deploy-infra-cli
