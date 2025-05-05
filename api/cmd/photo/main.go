@@ -116,7 +116,7 @@ func tagListHandler(client *azblob.Client, storageUrl string) http.HandlerFunc {
 			return
 		}
 
-		slog.Info("blob tag map", "value", blobTagList)
+		slog.Debug("blob tag map", "value", blobTagList)
 
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(blobTagList)
@@ -195,7 +195,7 @@ func photoHandler(client *azblob.Client, storageUrl string) http.HandlerFunc {
 		}
 
 		// retun JSON array of objects
-		slog.Info("filtered photos", "metadata", photos)
+		slog.Debug("filtered photos", "metadata", photos)
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(photos)
 	}
@@ -213,7 +213,7 @@ func updateHandler(client *azblob.Client, storageUrl string, roleName string, jw
 		// ensure the caller has the required role claim
 		photoUploadClaim := slices.Contains(claims.Roles, roleName)
 		if photoUploadClaim {
-			slog.Info("role claim found in token", "roles", claims.Roles)
+			slog.Debug("role claim found in token", "roles", claims.Roles)
 		} else {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
@@ -305,7 +305,7 @@ func uploadHandler(client *azblob.Client, storageUrl string, roleName string, jw
 		// ensure the user has the required role claim
 		photoUploadClaim := slices.Contains(claims.Roles, roleName)
 		if photoUploadClaim {
-			slog.Info("role claim found in token", "roles", claims.Roles)
+			slog.Debug("role claim found in token", "roles", claims.Roles)
 		} else {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
@@ -328,8 +328,6 @@ func uploadHandler(client *azblob.Client, storageUrl string, roleName string, jw
 			slog.Error("error marshalling json", "error", err)
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		}
-
-		slog.Info("json data", "data", it)
 
 		fh := r.MultipartForm.File["photo"]
 
@@ -407,7 +405,7 @@ func collectionHandler(client *azblob.Client, storageUrl string) http.HandlerFun
 		var filteredBlobs []models.Blob
 
 		query := fmt.Sprintf("@container='%s' and collectionImage='true'", imagesContainerName)
-		slog.Info("query", "query", query)
+		slog.Debug("query", "query", query)
 		filteredBlobs, err := queryBlobsByTags(client, storageUrl, query)
 		if err != nil {
 			slog.Error("Error getting blobs by tags", "error", err)
@@ -443,7 +441,7 @@ func collectionHandler(client *azblob.Client, storageUrl string) http.HandlerFun
 		}
 		
 		for _, r := range filteredBlobs {
-			slog.Info("Filtered Blobs", "Name", r.Name, "Metadata", r.MetaData, "Tags", r.Tags, "Path", r.Path)
+			slog.Debug("Filtered Blobs", "Name", r.Name, "Metadata", r.MetaData, "Tags", r.Tags, "Path", r.Path)
 			width, err := strconv.ParseInt(r.MetaData["Width"], 10, 32)
 			if err != nil {
 				slog.Error("error converting string 'width' to int", "error", err)
@@ -495,7 +493,7 @@ func albumHandler(client *azblob.Client, storageUrl string) http.HandlerFunc {
 		photos := []models.Photo{}
 
 		for _, r := range filteredBlobs {
-			slog.Info("Filtered Blobs", "Name", r.Name, "Metadata", r.MetaData, "Tags", r.Tags, "Path", r.Path)
+			slog.Debug("Filtered Blobs", "Name", r.Name, "Metadata", r.MetaData, "Tags", r.Tags, "Path", r.Path)
 			width, err := strconv.ParseInt(r.MetaData["Width"], 10, 32)
 			if err != nil {
 				slog.Error("error converting string 'width' to int", "error", err)
@@ -558,7 +556,6 @@ func queryBlobsByTags(client *azblob.Client, storageUrl string, query string) (b
 
 	for _, _blob := range resp.Blobs {
 		blobPath := fmt.Sprintf("%s/%s/%s", storageUrl, imagesContainerName, *_blob.Name)
-		slog.Info("blobPath", "path", blobPath)
 
 		tags, err := utils.GetBlobTags(client, *_blob.Name, imagesContainerName, storageUrl)
 		if err != nil {
@@ -580,6 +577,11 @@ func queryBlobsByTags(client *azblob.Client, storageUrl string, query string) (b
 
 		blobs = append(blobs, b)
 	}
-	slog.Info("found blobs by tag query", "blobs", blobs)
+	if len(blobs) <= 0 {	
+		slog.Error("no blobs found", "query", query)
+		return nil, fmt.Errorf("no blobs found for query: %s", query)
+	}
+
+	slog.Info("found blobs by tag query", "query", query, "num_blobs", len(blobs))
 	return blobs, nil
 }

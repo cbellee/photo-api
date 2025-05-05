@@ -32,6 +32,7 @@ import (
 func CreateAzureBlobClient(storageUrl string, isProduction bool, azureClientId string) (client *azblob.Client, err error) {
 	if isProduction {
 		if azureClientId == "" {
+			slog.Error("azureClientId is required in production")
 			return nil, fmt.Errorf("azureClientId is required in production")
 		}
 
@@ -193,7 +194,7 @@ func GetBlobTags(client *azblob.Client, blobPath string, container string, stora
 		return nil, err
 	}
 
-	slog.Info("got blob tags", "blob", blobPath, "tags", tagResponse.BlobTags)
+	slog.Debug("got blob tags", "blob", blobPath, "tags", tagResponse.BlobTags)
 	tags = make(map[string]string)
 	for _, t := range tagResponse.BlobTags.BlobTagSet {
 		tags[*t.Key] = *t.Value
@@ -208,14 +209,15 @@ func SetBlobTags(client *azblob.Client, blobPath string, container string, stora
 	blockBlob := client.ServiceClient().NewContainerClient(container).NewBlockBlobClient(blobPath)
 
 	// set blob tags
-	slog.Info("set blob tags", "blob", blobPath, "tags", tags)
+	slog.Info("setting blob tags", "blob", blobPath)
+	slog.Debug("tags", "blob", blobPath, "tags", tags)
 	setTagResponse, err := blockBlob.SetTags(ctx, tags, nil)
 	if err != nil {
 		slog.Error("error setting blob tags", "blob_url", blobUrl, "error", err)
 		return err
 	}
 
-	slog.Info("set blob tags", "blob", blobPath, "tags", tags, "response", setTagResponse)
+	slog.Debug("set blob tags", "blob", blobPath, "tags", tags, "response", setTagResponse)
 	return nil
 }
 
@@ -242,7 +244,7 @@ func GetBlobMetadata(client *azblob.Client, blobPath string, container string, s
 		m[key] = *v
 	}
 
-	slog.Info("got blob metadata", "blob", blobPath, "metadata", m)
+	slog.Debug("got blob metadata", "blob", blobPath, "metadata", m)
 	return m, nil
 }
 
@@ -317,7 +319,7 @@ func GetBlobStream(client *azblob.Client, ctx context.Context, blobPath string, 
 		slog.Error("error reading blob stream", "blob_url", blobUrl, "error", err, "bytes_read", bytesRead)
 	}
 
-	slog.Info("blob stream", "blob_url", blobUrl, "bytes_read", bytesRead)
+	slog.Info("got blob stream", "blob_url", blobUrl, "bytes_read", bytesRead)
 	return buffer, nil
 }
 
@@ -339,7 +341,6 @@ func SaveBlobStreamWithTagsAndMetadata(
 		md[key] = &v
 	}
 
-	slog.Info("uploading blob with tags and metadata", "url", blobUrl, "tags", tags, "metadata", md)
 	response, err := blockBlob.UploadStream(ctx, bytes.NewReader(blobBytes), &blockblob.UploadStreamOptions{
 		Tags:     tags,
 		Metadata: md,
@@ -349,7 +350,8 @@ func SaveBlobStreamWithTagsAndMetadata(
 		return err
 	}
 
-	slog.Info("uploaded blob stream", "blob_url", blobUrl, "tags", tags, "metadata", metadata, "response", response)
+	slog.Info("uploaded blob stream", "url", blobUrl)
+	slog.Debug("uploaded blob stream", "blob_url", blobUrl, "tags", tags, "metadata", metadata, "response", response)
 	return nil
 }
 
@@ -366,7 +368,7 @@ func SaveBlobStreamWithTagsMetadataAndContentType(
 
 	blobUrl := fmt.Sprintf("%s/%s/%s", storageUrl, container, blobPath)
 	blockBlob := client.ServiceClient().NewContainerClient(container).NewBlockBlobClient(blobPath)
-	slog.Info("content-type", "type", contentType)
+	slog.Debug("content-type", "type", contentType)
 
 	md := make(map[string]*string)
 	for key, value := range metadata {
@@ -374,7 +376,6 @@ func SaveBlobStreamWithTagsMetadataAndContentType(
 		md[key] = &v
 	}
 
-	slog.Info("uploading blob with tags and metadata", "url", blobUrl, "tags", tags, "metadata", md)
 	response, err := blockBlob.UploadStream(ctx, bytes.NewReader(blobBytes), &blockblob.UploadStreamOptions{
 		Tags:     tags,
 		Metadata: md,
@@ -387,19 +388,19 @@ func SaveBlobStreamWithTagsMetadataAndContentType(
 		return err
 	}
 
-	slog.Info("uploaded blob stream", "blob_url", blobUrl, "tags", tags, "metadata", metadata, "response", response)
+	slog.Debug("uploaded blob stream", "blob_url", blobUrl, "tags", tags, "metadata", metadata, "response", response)
 	return nil
 }
 
 func GetBlobNameAndPrefix(blobPath string) (string, string) {
 	blobSplit := strings.Split(blobPath, "/")
-	slog.Info("blob_split", "split", blobSplit)
+	slog.Debug("blob_split", "split", blobSplit)
 
 	blobName := blobSplit[len(blobSplit)-1]
-	slog.Info("blob_name", "name", blobName)
+	slog.Debug("blob_name", "name", blobName)
 
 	blobPrefix := fmt.Sprintf("%s/%s/%s", blobSplit[len(blobSplit)-3], blobSplit[len(blobSplit)-2], blobSplit[len(blobSplit)-1])
-	slog.Info("blob_prefix", "prefix", blobPrefix)
+	slog.Debug("blob_prefix", "prefix", blobPrefix)
 	return blobName, blobPrefix
 }
 
@@ -452,11 +453,11 @@ func VerifyToken(r *http.Request, jwksURL string) (*models.MyClaims, error) {
 	ok := false
 
 	parsedToken, err := jwt.ParseWithClaims(tokenString, &models.MyClaims{}, k.Keyfunc)
-	slog.Info("parsed token", "token", parsedToken)
+	slog.Debug("parsed token", "token", parsedToken)
 	if err != nil {
 		slog.Error("Error Parsing JWT", "error", err)
 	} else if claims, ok = parsedToken.Claims.(*models.MyClaims); ok {
-		fmt.Println(claims)
+		slog.Debug("parsed token claims", "claims", claims)
 	} else {
 		slog.Error("Error Parsing Claims", "error", err)
 	}

@@ -96,7 +96,7 @@ func ResizeHandler(ctx context.Context, in *common.BindingEvent) (out []byte, er
 		slog.Error("error converting BindingEvent to struct", "error", err)
 	}
 
-	slog.Info("input binding handler",
+	slog.Debug("input binding handler",
 		"name", uploadsQueueBinding,
 		"subject", evt.Subject,
 		"topic", evt.Topic,
@@ -122,7 +122,7 @@ func ResizeHandler(ctx context.Context, in *common.BindingEvent) (out []byte, er
 	collection := path[len(path)-3]
 	album := path[len(path)-2]
 
-	slog.Info("tag data", "container", container, "blob_path", blobPath, "album", album, "collection", collection)
+	slog.Info("setting tag data", "container", container, "blob_path", blobPath, "album", album, "collection", collection)
 
 	blobStream, err := utils.GetBlobStream(client, ctx, blobPath, container, client.URL())
 	if err != nil {
@@ -136,7 +136,6 @@ func ResizeHandler(ctx context.Context, in *common.BindingEvent) (out []byte, er
 		slog.Error("error getting blob tags", "blob", blobPath, "error", err)
 		return nil, err
 	}
-	slog.Info("found blob tags", "blob_path", blobPath, "tags", tags)
 
 	// get metadata
 	metadata, err := utils.GetBlobMetadata(client, blobPath, container, client.URL())
@@ -144,12 +143,8 @@ func ResizeHandler(ctx context.Context, in *common.BindingEvent) (out []byte, er
 		slog.Error("error getting blob metadata", "blob", blobPath, "error", err)
 		return nil, err
 	}
-	slog.Info("found blob metadata", "blob_path", blobPath, "metadata", metadata)
 
 	// resize image
-	numBytes := blobStream.Len()
-	slog.Info("blobStream buffer bytes", "numBytes", numBytes)
-
 	imgBytes, err := utils.ResizeImage(blobStream.Bytes(), evt.Data.ContentType, blobPath, mih, miw)
 	if err != nil {
 		slog.Error("error resizing image", "blob_path", blobPath, "error", err)
@@ -162,8 +157,7 @@ func ResizeHandler(ctx context.Context, in *common.BindingEvent) (out []byte, er
 	}
 
 	numImgBytes := len(imgBytes)
-	slog.Info("resized bytes", "numImageBytes", numImgBytes)
-	slog.Info("resized image dimensions", "height", img.Height, "width", img.Width)
+	slog.Info("resized image", "blob_path", blobPath, "height", img.Height, "width", img.Width, "numImageBytes", numImgBytes)
 
 	// add metadata
 	imgSize := len(imgBytes)
@@ -171,14 +165,6 @@ func ResizeHandler(ctx context.Context, in *common.BindingEvent) (out []byte, er
 	metadata["Size"] = imgSizeStr
 	metadata["Height"] = fmt.Sprint(img.Height)
 	metadata["Width"] = fmt.Sprint(img.Width)
-
-	blobName, _ := utils.GetBlobNameAndPrefix(blobPath)
-	slog.Info("added blob metadata", "blob_name", blobName, "metadata", metadata)
-
-	// add tags
-	// tags["url"] = fmt.Sprintf("%s/%s/%s", client.URL(), imagesContainerName, blobPath)
-
-	slog.Info("added blob tags", "blob_name", blobName, "tags", tags)
 
 	// save resized image
 	err = utils.SaveBlobStreamWithTagsAndMetadata(client, ctx, imgBytes, blobPath, imagesContainerName, client.URL(), tags, metadata)
