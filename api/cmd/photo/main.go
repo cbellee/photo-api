@@ -33,7 +33,7 @@ var (
 	azureClientId        = utils.GetEnvValue("AZURE_CLIENT_ID", "")
 	imagesContainerName  = utils.GetEnvValue("IMAGES_CONTAINER_NAME", "images")
 	storageConfig        = models.StorageConfig{
-		StorageAccount:       utils.GetEnvValue("STORAGE_ACCOUNT_NAME", "storhw3eyjlyy236y"),
+		StorageAccount:       utils.GetEnvValue("STORAGE_ACCOUNT_NAME", "stor6aq2g56sfcosi"),
 		StorageAccountSuffix: utils.GetEnvValue("STORAGE_ACCOUNT_SUFFIX", "blob.core.windows.net"),
 	}
 	memoryLimitMb = int64(32)
@@ -375,7 +375,7 @@ func uploadHandler(client *azblob.Client, storageUrl string, roleName string, jw
 		exifData, err = exif.GetExifJSON(*buf)
 		if err != nil {
 			slog.Error("error getting exif data", "error", err)
-			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			//http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		}
 
 		md := make(map[string]string)
