@@ -375,7 +375,7 @@ func uploadHandler(client *azblob.Client, storageUrl string, roleName string, jw
 		exifData, err = exif.GetExifJSON(*buf)
 		if err != nil {
 			slog.Error("error getting exif data", "error", err)
-			//http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			//http.Error(w, "Internal Server Error - 500", http.StatusInternalServerError) 
 		}
 
 		md := make(map[string]string)
