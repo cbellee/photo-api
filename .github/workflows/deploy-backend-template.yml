@@ -87,7 +87,7 @@ jobs:
         id: create-resource-group
         uses: azure/CLI@v2
         with:
-          azcliversion: 2.72.0
+          azcliversion: latest
           inlineScript: |
             az group create --name $RG_NAME --location ${{ inputs.location }}
 
@@ -113,7 +113,7 @@ jobs:
       uses: azure/cli@v2
       continue-on-error: false
       with:
-        azcliversion: 2.72.0
+        azcliversion: latest
         inlineScript: |
           az deployment group create \
             --name deploy-infra \
