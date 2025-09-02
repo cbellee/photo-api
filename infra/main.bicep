@@ -6,6 +6,7 @@ param zoneName string = 'bellee.net'
 param cNameRecord string = 'photo'
 param ghcrName string = 'ghcr.io'
 param githubUsername string = 'cbellee'
+param jwksUrl string = 'https://0cd02bb5-3c24-4f77-8b19-99223d65aa67.ciamlogin.com/0cd02bb5-3c24-4f77-8b19-99223d65aa67/discovery/v2.0/keys?appid=689078c3-c0ad-4c10-a0d3-1c430c2e471d'
 /* param utcValue string = utcNow()
 param cloudFlareZoneId string
 param cloudFlareApiToken string
@@ -399,6 +400,14 @@ resource photoApi 'Microsoft.App/containerApps@2023-11-02-preview' = {
             {
               name: 'CORS_ORIGINS'
               value: corsOrigins
+            }
+            {
+              name: 'JWKS_URL'
+              value: jwksUrl
+            }
+            {
+              name: 'ROLE_NAME'
+              value: 'photo.upload'
             }
           ]
         }

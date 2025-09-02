@@ -38,7 +38,7 @@ var (
 	}
 	memoryLimitMb = int64(32)
 	isProduction  = false
-	jwksURL       = utils.GetEnvValue("JWKS_URL", "https://login.microsoftonline.com/0cd02bb5-3c24-4f77-8b19-99223d65aa67/discovery/keys?appid=689078c3-c0ad-4c10-a0d3-1c430c2e471d")
+	jwksURL       = utils.GetEnvValue("JWKS_URL", "https://0cd02bb5-3c24-4f77-8b19-99223d65aa67.ciamlogin.com/0cd02bb5-3c24-4f77-8b19-99223d65aa67/discovery/v2.0/keys?appid=689078c3-c0ad-4c10-a0d3-1c430c2e471d")
 	roleName      = utils.GetEnvValue("ROLE_NAME", "photo.upload")
 )
 

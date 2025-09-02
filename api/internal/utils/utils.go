@@ -150,8 +150,10 @@ func ConvertToEvent(b *common.BindingEvent) (models.Event, error) {
 
 func GetEnvValue(key, fallback string) string {
 	if value, ok := os.LookupEnv(key); ok {
+		slog.Info("value found", "key", key, "value", value)
 		return value
 	}
+	slog.Warn("value not found", "key", key, "default_value", fallback)
 	return fallback
 }
 
