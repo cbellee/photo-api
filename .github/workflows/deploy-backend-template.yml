@@ -113,7 +113,7 @@ jobs:
       uses: azure/cli@v2
       continue-on-error: false
       with:
-        azcliversion: 2.67.0
+        azcliversion: 2.72.0
         inlineScript: |
           az deployment group create \
             --name deploy-infra \
