@@ -87,7 +87,7 @@ jobs:
         id: create-resource-group
         uses: azure/CLI@v2
         with:
-          azcliversion: 2.67.0
+          azcliversion: 2.72.0
           inlineScript: |
             az group create --name $RG_NAME --location ${{ inputs.location }}
 
