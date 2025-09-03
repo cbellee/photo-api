@@ -14,6 +14,7 @@ import (
 	"math"
 	"net/http"
 	"os"
+	"regexp"
 	"strings"
 
 	"github.com/cbellee/photo-api/internal/models"
@@ -355,6 +356,30 @@ func SaveBlobStreamWithTagsAndMetadata(
 	slog.Info("uploaded blob stream", "url", blobUrl)
 	slog.Debug("uploaded blob stream", "blob_url", blobUrl, "tags", tags, "metadata", metadata, "response", response)
 	return nil
+}
+
+func StripInvalidTagCharacters(value string) (sanitisedValue string) {
+	// Remove invalid tag characters from tags values
+	// Lowercase and uppercase letters (a-z, A-Z)
+	// Digits (0-9)
+	// A space ( )
+	// Plus (+), minus (-), period (.), slash (/), colon (:), equals (=), and underscore (_)
+
+	// if value is empty, return an empty string
+	if len(value) <= 0 {
+		slog.Warn("tag value is empty")
+		return ""
+	}
+
+	// Test regex for characters not in the regex
+	var re = regexp.MustCompile(`[^a-zA-Z0-9/s/._]`)
+	if re.MatchString(value) {
+		sanitisedValue = re.ReplaceAllString(value, "")
+		return sanitisedValue
+	}
+
+	// no invalid characters found, return original string
+	return value
 }
 
 func SaveBlobStreamWithTagsMetadataAndContentType(

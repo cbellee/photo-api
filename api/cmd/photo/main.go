@@ -353,6 +353,12 @@ func uploadHandler(client *azblob.Client, storageUrl string, roleName string, jw
 			tags["albumImage"] = "false"
 		}
 
+		// ensure tag index values are stripped of invalid characters
+		for k, v := range tags {
+			cleanVal := utils.StripInvalidTagCharacters(v)
+			tags[k] = cleanVal
+		}
+		
 		file, err := fh[0].Open()
 		if err != nil {
 			slog.Error("error opening file", "filename", fh[0].Filename, "error", err)

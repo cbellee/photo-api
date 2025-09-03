@@ -115,6 +115,29 @@ func TestGetEnvValue(t *testing.T) {
 	}
 }
 
+func TestStripInvalidTagValue(t *testing.T) {
+
+	// Test cases
+	tests := []struct {
+		value  string
+		expectedValue string
+	}{
+		{"Mum_&_Dad.jpg", "Mum__Dad.jpg"},
+		{"HelloWorld", "HelloWorld"},
+		{"THis is an invalid str*ng.png", "THisisaninvalidstrng.png"},
+		{"This is /   [] an invalid Str%$g.%$#gif", "Thisis/aninvalidStrg.gif"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.value, func(t *testing.T) {
+			actualValue := StripInvalidTagCharacters(tt.value)
+			if actualValue != tt.expectedValue {
+				t.Errorf("expected %s, got %s", tt.expectedValue, actualValue)
+			}
+		})
+	}
+}
+
 // Mocking azblob.Client
 type MockBlobClient struct {
 	mock.Mock
