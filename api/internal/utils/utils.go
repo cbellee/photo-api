@@ -372,7 +372,7 @@ func StripInvalidTagCharacters(value string) (sanitisedValue string) {
 	}
 
 	// Test regex for characters not in the regex
-	var re = regexp.MustCompile(`[^a-zA-Z0-9/s/._]`)
+	var re = regexp.MustCompile(`[^a-zA-Z0-9\s\./+-:+_]`)
 	if re.MatchString(value) {
 		sanitisedValue = re.ReplaceAllString(value, "")
 		return sanitisedValue

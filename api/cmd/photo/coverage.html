@@ -1,0 +1,696 @@
+
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+		<title>photo: Go Coverage Report</title>
+		<style>
+			body {
+				background: black;
+				color: rgb(80, 80, 80);
+			}
+			body, pre, #legend span {
+				font-family: Menlo, monospace;
+				font-weight: bold;
+			}
+			#topbar {
+				background: black;
+				position: fixed;
+				top: 0; left: 0; right: 0;
+				height: 42px;
+				border-bottom: 1px solid rgb(80, 80, 80);
+			}
+			#content {
+				margin-top: 50px;
+			}
+			#nav, #legend {
+				float: left;
+				margin-left: 10px;
+			}
+			#legend {
+				margin-top: 12px;
+			}
+			#nav {
+				margin-top: 10px;
+			}
+			#legend span {
+				margin: 0 5px;
+			}
+			.cov0 { color: rgb(192, 0, 0) }
+.cov1 { color: rgb(128, 128, 128) }
+.cov2 { color: rgb(116, 140, 131) }
+.cov3 { color: rgb(104, 152, 134) }
+.cov4 { color: rgb(92, 164, 137) }
+.cov5 { color: rgb(80, 176, 140) }
+.cov6 { color: rgb(68, 188, 143) }
+.cov7 { color: rgb(56, 200, 146) }
+.cov8 { color: rgb(44, 212, 149) }
+.cov9 { color: rgb(32, 224, 152) }
+.cov10 { color: rgb(20, 236, 155) }
+
+		</style>
+	</head>
+	<body>
+		<div id="topbar">
+			<div id="nav">
+				<select id="files">
+				
+				<option value="file0">github.com/cbellee/photo-api/cmd/photo/main.go (0.7%)</option>
+				
+				</select>
+			</div>
+			<div id="legend">
+				<span>not tracked</span>
+			
+				<span class="cov0">not covered</span>
+				<span class="cov8">covered</span>
+			
+			</div>
+		</div>
+		<div id="content">
+		
+		<pre class="file" id="file0" style="display: none">package main
+
+import (
+        "bytes"
+        "context"
+        "encoding/json"
+        "fmt"
+        "image"
+        "io"
+        "log"
+        "log/slog"
+        "maps"
+        "net/http"
+        "os"
+        "slices"
+        "strconv"
+        "strings"
+
+        "github.com/cbellee/photo-api/internal/exif"
+        "github.com/cbellee/photo-api/internal/models"
+        "github.com/cbellee/photo-api/internal/utils"
+        "github.com/rs/cors"
+
+        azlog "github.com/Azure/azure-sdk-for-go/sdk/azcore/log"
+        "github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+        "github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
+)
+
+var (
+        serviceName          = utils.GetEnvValue("SERVICE_NAME", "photoService")
+        servicePort          = utils.GetEnvValue("SERVICE_PORT", "8080")
+        uploadsContainerName = utils.GetEnvValue("UPLOADS_CONTAINER_NAME", "uploads")
+        azureClientId        = utils.GetEnvValue("AZURE_CLIENT_ID", "")
+        imagesContainerName  = utils.GetEnvValue("IMAGES_CONTAINER_NAME", "images")
+        storageConfig        = models.StorageConfig{
+                StorageAccount:       utils.GetEnvValue("STORAGE_ACCOUNT_NAME", "stor6aq2g56sfcosi"),
+                StorageAccountSuffix: utils.GetEnvValue("STORAGE_ACCOUNT_SUFFIX", "blob.core.windows.net"),
+        }
+        memoryLimitMb = int64(32)
+        isProduction  = false
+        jwksURL       = utils.GetEnvValue("JWKS_URL", "https://0cd02bb5-3c24-4f77-8b19-99223d65aa67.ciamlogin.com/0cd02bb5-3c24-4f77-8b19-99223d65aa67/discovery/v2.0/keys?appid=689078c3-c0ad-4c10-a0d3-1c430c2e471d")
+        roleName      = utils.GetEnvValue("ROLE_NAME", "photo.upload")
+)
+
+func main() <span class="cov0" title="0">{
+        corsString := utils.GetEnvValue("CORS_ORIGINS", "http://localhost:5173,https://gallery.bellee.net,https://photos.bellee.net,https://photos.bellee.net")
+        corsOrigins := strings.Split(corsString, ",")
+        slog.Info("cors origins", "origins", corsOrigins)
+
+        // enable azure SDK logging
+        azlog.SetListener(func(event azlog.Event, s string) </span><span class="cov0" title="0">{
+                slog.Info("azlog", "event", event, "message", s)
+        }</span>)
+
+        // include only azidentity credential logs
+        <span class="cov0" title="0">azlog.SetEvents(azidentity.EventAuthentication)
+
+        logger := slog.New(slog.NewJSONHandler(os.Stdout, &amp;slog.HandlerOptions{
+                AddSource: true,
+                Level:     slog.LevelInfo,
+        }))
+        slog.SetDefault(logger)
+
+        slog.Info("current storage account", "name", storageConfig.StorageAccount)
+
+        storageUrl := fmt.Sprintf("https://%s.%s", storageConfig.StorageAccount, storageConfig.StorageAccountSuffix)
+        slog.Info("storage url", "url", storageUrl)
+
+        // check if running in Azure Container App
+        if _, exists := os.LookupEnv("CONTAINER_APP_NAME"); exists </span><span class="cov0" title="0">{
+                isProduction = true
+        }</span> else<span class="cov0" title="0"> {
+                slog.Info("'CONTAINER_APP_NAME' env var not found, running in local environment")
+        }</span>
+
+        <span class="cov0" title="0">client, err := utils.CreateAzureBlobClient(storageUrl, isProduction, azureClientId)
+        if err != nil </span><span class="cov0" title="0">{
+                slog.Error("error creating blob client", "error", err)
+                return
+        }</span>
+
+        <span class="cov0" title="0">port := fmt.Sprintf(":%s", servicePort)
+        api := http.NewServeMux()
+
+        api.HandleFunc("GET /api", collectionHandler(client, storageUrl))
+        api.HandleFunc("GET /api/{collection}", albumHandler(client, storageUrl))
+        api.HandleFunc("GET /api/{collection}/{album}", photoHandler(client, storageUrl))
+        api.HandleFunc("POST /api/upload", uploadHandler(client, storageUrl, roleName, jwksURL))
+        api.HandleFunc("PUT /api/update/{collection}/{album}/{id}", updateHandler(client, storageUrl, roleName, jwksURL))
+        api.HandleFunc("GET /api/tags", tagListHandler(client, storageUrl))
+
+        slog.Info("server listening", "name", serviceName, "port", port)
+
+        opt := cors.Options{
+                AllowedOrigins:   corsOrigins,
+                AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"},
+                AllowedHeaders:   []string{"Origin", "X-Requested-With", "Content-Type", "Accept", "Authorization"},
+                AllowCredentials: true,
+                MaxAge:           300,
+        }
+
+        c := cors.New(opt)
+        handler := c.Handler(api)
+
+        log.Fatal(http.ListenAndServe(port, handler))</span>
+}
+
+func tagListHandler(client *azblob.Client, storageUrl string) http.HandlerFunc <span class="cov8" title="1">{
+        return func(w http.ResponseWriter, r *http.Request) </span><span class="cov0" title="0">{
+
+                ctx := context.Background()
+
+                blobTagList, err := utils.GetBlobTagList(client, imagesContainerName, storageUrl, ctx)
+                if err != nil </span><span class="cov0" title="0">{
+                        slog.Error("error getting blob tag list", "error", err)
+                        return
+                }</span>
+
+                <span class="cov0" title="0">slog.Debug("blob tag map", "value", blobTagList)
+
+                w.Header().Set("Content-Type", "application/json")
+                json.NewEncoder(w).Encode(blobTagList)</span>
+        }
+}
+
+func photoHandler(client *azblob.Client, storageUrl string) http.HandlerFunc <span class="cov8" title="1">{
+        return func(w http.ResponseWriter, r *http.Request) </span><span class="cov0" title="0">{
+
+                collection := r.PathValue("collection")
+                if collection == "" </span><span class="cov0" title="0">{
+                        slog.Error("empty queryString", "name", "collection")
+                }</span>
+
+                <span class="cov0" title="0">album := r.PathValue("album")
+                if album == "" </span><span class="cov0" title="0">{
+                        slog.Error("empty queryString", "name", "album")
+                }</span>
+
+                // get photos with matching collection &amp; album tags
+                <span class="cov0" title="0">query := fmt.Sprintf("@container='%s' AND collection='%s' AND album='%s' AND isDeleted='false'", imagesContainerName, collection, album)
+                filteredBlobs, err := queryBlobsByTags(client, storageUrl, query)
+                if err != nil </span><span class="cov0" title="0">{
+                        slog.Error("Error getting blobs by tags", "error", err)
+                }</span>
+
+                <span class="cov0" title="0">photos := []models.Photo{}
+
+                for _, fb := range filteredBlobs </span><span class="cov0" title="0">{
+                        width, err := strconv.ParseInt(fb.MetaData["Width"], 10, 32)
+                        if err != nil </span><span class="cov0" title="0">{
+                                slog.Error("error converting string 'width' to int", "error", err)
+                        }</span>
+
+                        <span class="cov0" title="0">height, err := strconv.ParseInt(fb.MetaData["Height"], 10, 32)
+                        if err != nil </span><span class="cov0" title="0">{
+                                slog.Error("error converting string 'height' to int", "error", err)
+                        }</span>
+
+                        <span class="cov0" title="0">isDeleted, err := strconv.ParseBool(fb.Tags["isDeleted"])
+                        if err != nil </span><span class="cov0" title="0">{
+                                isDeleted = false
+                        }</span>
+
+                        <span class="cov0" title="0">albumImage, err := strconv.ParseBool(fb.Tags["albumImage"])
+                        if err != nil </span><span class="cov0" title="0">{
+                                albumImage = false
+                        }</span>
+
+                        <span class="cov0" title="0">collectionImage, err := strconv.ParseBool(fb.Tags["collectionImage"])
+                        if err != nil </span><span class="cov0" title="0">{
+                                collectionImage = false
+                        }</span>
+
+                        <span class="cov0" title="0">orienation, err := strconv.Atoi(fb.Tags["orientation"])
+                        if err != nil </span><span class="cov0" title="0">{
+                                orienation = 0
+                        }</span>
+
+                        <span class="cov0" title="0">photo := models.Photo{
+                                Src:             fb.Path,
+                                Name:            fb.Name,
+                                Width:           int(width),
+                                Height:          int(height),
+                                Album:           fb.Tags["album"],
+                                Collection:      fb.Tags["collection"],
+                                Description:     fb.Tags["description"],
+                                ExifData:        fb.MetaData["Exifdata"],
+                                IsDeleted:       isDeleted,
+                                Orientation:     orienation,
+                                AlbumImage:      albumImage,
+                                CollectionImage: collectionImage,
+                        }
+
+                        photos = append(photos, photo)</span>
+                }
+
+                // retun JSON array of objects
+                <span class="cov0" title="0">slog.Debug("filtered photos", "metadata", photos)
+                w.Header().Set("Content-Type", "application/json")
+                json.NewEncoder(w).Encode(photos)</span>
+        }
+}
+
+func updateHandler(client *azblob.Client, storageUrl string, roleName string, jwksURL string) http.HandlerFunc <span class="cov0" title="0">{
+        return func(w http.ResponseWriter, r *http.Request) </span><span class="cov0" title="0">{
+                // verify JWT token
+                claims, err := utils.VerifyToken(r, jwksURL)
+                if err != nil </span><span class="cov0" title="0">{
+                        http.Error(w, "You are not authorized to perform this operation", http.StatusUnauthorized)
+                        return
+                }</span>
+
+                // ensure the caller has the required role claim
+                <span class="cov0" title="0">photoUploadClaim := slices.Contains(claims.Roles, roleName)
+                if photoUploadClaim </span><span class="cov0" title="0">{
+                        slog.Debug("role claim found in token", "roles", claims.Roles)
+                }</span> else<span class="cov0" title="0"> {
+                        http.Error(w, "unauthorized", http.StatusUnauthorized)
+                        return
+                }</span>
+
+                <span class="cov0" title="0">if r.Body == nil </span><span class="cov0" title="0">{
+                        http.Error(w, "body is empty", http.StatusBadRequest)
+                        return
+                }</span>
+
+                // get photo tags from storage account and compare with updated tags
+                <span class="cov0" title="0">newTags := map[string]string{}
+                err = json.NewDecoder(r.Body).Decode(&amp;newTags)
+
+                if err != nil </span><span class="cov0" title="0">{
+                        http.Error(w, err.Error(), http.StatusBadRequest)
+                        return
+                }</span>
+
+                // get photo tags from storage account and compare with updated tags
+                <span class="cov0" title="0">currTags, err := utils.GetBlobTags(client, newTags["name"], imagesContainerName, storageUrl)
+                if err != nil </span><span class="cov0" title="0">{
+                        slog.Error("error getting blob tags", "error", err)
+                        http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+                }</span>
+
+                /* currMetadata, err := utils.GetBlobMetadata(client, newTags["name"], imagesContainerName, storageUrl)
+                if err != nil {
+                        slog.Error("error getting blob metadata", "error", err)
+                } */
+
+                // remote 'Url' tag from comparison
+                <span class="cov0" title="0">delete(currTags, "Url")
+
+                // add orientation to comparison
+                //currTags["orientation"] = newTags["orientation"]
+
+                if maps.Equal(currTags, newTags) </span><span class="cov0" title="0">{
+                        // return 304 Not Modified
+                        slog.Info("tags not modified", "tags", currTags)
+                        http.Error(w, "Tags not modified", http.StatusNotModified)
+                        return
+                }</span>
+
+                // get current image with collectionImage tag set to 'true'
+                <span class="cov0" title="0">currentCollectionImage, err := getCollectionImage(client, storageUrl, currTags["collection"])
+                if err != nil </span><span class="cov0" title="0">{
+                        slog.Error("error getting collection image", "error", err)
+                        http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+                        return
+                }</span>
+
+                // set CollectionImage tag to 'false' on existing image if it has been set to 'true' on the current image
+                <span class="cov0" title="0">if newTags["collectionImage"] == "true" &amp;&amp; currentCollectionImage[0].Tags["name"] != newTags["name"] </span><span class="cov0" title="0">{
+                        slog.Info("collection image set on another image. Setting 'collectionImage'", "collection", currTags["collection"], "image", currentCollectionImage[0].Name)
+
+                        // set collectionImage tag to 'false' on existing image
+                        currentCollectionImage[0].Tags["collectionImage"] = "false"
+
+                        // update blob metadata for previous image
+                        err = utils.SetBlobTags(client, currentCollectionImage[0].Name, imagesContainerName, storageUrl, currentCollectionImage[0].Tags)
+                        if err != nil </span><span class="cov0" title="0">{
+                                slog.Error("error setting collectionImage tag", "error", err)
+                                http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+                                return
+                        }</span>
+                }
+
+                // update blob metadata
+                <span class="cov0" title="0">err = utils.SetBlobTags(client, newTags["name"], imagesContainerName, storageUrl, newTags)
+                if err != nil </span><span class="cov0" title="0">{
+                        slog.Error("error updating blob metadata", "error", err)
+                        http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+                }</span>
+        }
+}
+
+func uploadHandler(client *azblob.Client, storageUrl string, roleName string, jwksURL string) http.HandlerFunc <span class="cov0" title="0">{
+        return func(w http.ResponseWriter, r *http.Request) </span><span class="cov0" title="0">{
+                ctx := context.Background()
+
+                // Verify JWT token
+                claims, err := utils.VerifyToken(r, jwksURL)
+                if err != nil </span><span class="cov0" title="0">{
+                        http.Error(w, "Unauthorized", http.StatusUnauthorized)
+                        return
+                }</span>
+
+                // ensure the user has the required role claim
+                <span class="cov0" title="0">photoUploadClaim := slices.Contains(claims.Roles, roleName)
+                if photoUploadClaim </span><span class="cov0" title="0">{
+                        slog.Debug("role claim found in token", "roles", claims.Roles)
+                }</span> else<span class="cov0" title="0"> {
+                        http.Error(w, "Unauthorized", http.StatusUnauthorized)
+                        return
+                }</span>
+
+                <span class="cov0" title="0">if r.Body == nil </span><span class="cov0" title="0">{
+                        http.Error(w, "Multipart form not found", http.StatusBadRequest)
+                        return
+                }</span>
+
+                <span class="cov0" title="0">err = r.ParseMultipartForm(memoryLimitMb &lt;&lt; 20) // 32Mb max memory size limit
+                if err != nil </span><span class="cov0" title="0">{
+                        http.Error(w, err.Error(), http.StatusBadRequest)
+                }</span>
+
+                <span class="cov0" title="0">it := models.ImageTags{}
+                m := r.MultipartForm.Value["metadata"][0]
+                err = json.Unmarshal([]byte(m), &amp;it)
+                if err != nil </span><span class="cov0" title="0">{
+                        slog.Error("error marshalling json", "error", err)
+                        http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+                }</span>
+
+                <span class="cov0" title="0">fh := r.MultipartForm.File["photo"]
+
+                fileNameWithPrefix := fmt.Sprintf("%s/%s/%s", it.Collection, it.Album, fh[0].Filename)
+
+                tags := make(map[string]string)
+                tags["name"] = fileNameWithPrefix
+                tags["description"] = it.Description
+                tags["collection"] = it.Collection
+                tags["album"] = it.Album
+                tags["isDeleted"] = strconv.FormatBool(it.IsDeleted)
+
+                // set album &amp; collection image tags
+                if it.CollectionImage </span><span class="cov0" title="0">{
+                        tags["collectionImage"] = "true"
+                }</span> else<span class="cov0" title="0"> {
+                        tags["collectionImage"] = "false"
+                }</span>
+
+                <span class="cov0" title="0">if it.AlbumImage </span><span class="cov0" title="0">{
+                        tags["albumImage"] = "true"
+                }</span> else<span class="cov0" title="0"> {
+                        tags["albumImage"] = "false"
+                }</span>
+
+                // ensure tag index values are stripped of invalid characters
+                <span class="cov0" title="0">for k, v := range tags </span><span class="cov0" title="0">{
+                        cleanVal := utils.StripInvalidTagCharacters(v)
+                        tags[k] = cleanVal
+                }</span>
+                
+                <span class="cov0" title="0">file, err := fh[0].Open()
+                if err != nil </span><span class="cov0" title="0">{
+                        slog.Error("error opening file", "filename", fh[0].Filename, "error", err)
+                        http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+                }</span>
+
+                <span class="cov0" title="0">buf := bytes.NewBuffer(nil)
+                if _, err := io.Copy(buf, file); err != nil </span><span class="cov0" title="0">{
+                        slog.Error("error copying to buffer", "filename", fh[0].Filename, "error", err)
+                        http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+                }</span>
+
+                <span class="cov0" title="0">img, _, err := image.DecodeConfig(bytes.NewReader(buf.Bytes()))
+                if err != nil </span><span class="cov0" title="0">{
+                        http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+                        log.Fatalln(err)
+                }</span>
+
+                <span class="cov0" title="0">exifData := string("")
+                exifData, err = exif.GetExifJSON(*buf)
+                if err != nil </span><span class="cov0" title="0">{
+                        slog.Error("error getting exif data", "error", err)
+                        //http.Error(w, "Internal Server Error - 500", http.StatusInternalServerError) 
+                }</span>
+
+                <span class="cov0" title="0">md := make(map[string]string)
+                md["height"] = fmt.Sprint(img.Height)
+                md["width"] = fmt.Sprint(img.Width)
+                md["size"] = strconv.Itoa(int(fh[0].Size))
+                md["exifData"] = exifData
+
+                utils.SaveBlobStreamWithTagsMetadataAndContentType(
+                        client,
+                        ctx,
+                        buf.Bytes(),
+                        fileNameWithPrefix,
+                        uploadsContainerName,
+                        storageUrl,
+                        tags,
+                        md,
+                        it.Type,
+                )</span>
+        }
+}
+
+func collectionHandler(client *azblob.Client, storageUrl string) http.HandlerFunc <span class="cov0" title="0">{
+        return func(w http.ResponseWriter, r *http.Request) </span><span class="cov0" title="0">{
+
+                // get photos with matching collection tags
+                var filteredBlobs []models.Blob
+
+                query := fmt.Sprintf("@container='%s' and collectionImage='true'", imagesContainerName)
+                slog.Debug("query", "query", query)
+                filteredBlobs, err := queryBlobsByTags(client, storageUrl, query)
+                if err != nil </span><span class="cov0" title="0">{
+                        slog.Error("Error getting blobs by tags", "error", err)
+                }</span>
+
+                <span class="cov0" title="0">if len(filteredBlobs) &lt;= 0 </span><span class="cov0" title="0">{
+                        // try a query without the collectionImage tag
+                        slog.Error("no collection images found, trying query without 'collectionImage' &amp; will set a default placeholder collectionImage", "query", query)
+
+                        query := fmt.Sprintf("@container='%s'", imagesContainerName)
+                        filteredBlobs, err := queryBlobsByTags(client, storageUrl, query)
+                        if err != nil </span><span class="cov0" title="0">{
+                                slog.Error("Error getting blobs by tags", "error", err)
+                        }</span>
+
+                        <span class="cov0" title="0">if len(filteredBlobs) &lt;= 0 || filteredBlobs == nil </span><span class="cov0" title="0">{
+                                slog.Error("no collection images found", "query", query)
+                                http.Error(w, "No collection images found", http.StatusNotFound)
+                        }</span> else<span class="cov0" title="0"> {
+                                // set the first image as the collection image &amp; write the tag back to the blob
+                                filteredBlobs[0].Tags["collectionImage"] = "true"
+                                err = utils.SetBlobTags(client, filteredBlobs[0].Name, imagesContainerName, storageUrl, filteredBlobs[0].Tags)
+                                if err != nil </span><span class="cov0" title="0">{
+                                        slog.Error("error setting collectionImage tag", "error", err)
+                                }</span>
+                        }
+                }
+
+                <span class="cov0" title="0">photos := []models.Photo{}
+
+                if filteredBlobs == nil || len(filteredBlobs) &lt;= 0 </span><span class="cov0" title="0">{
+                        http.Error(w, "No collection images found", http.StatusNotFound)
+                }</span>
+                
+                <span class="cov0" title="0">for _, r := range filteredBlobs </span><span class="cov0" title="0">{
+                        slog.Debug("Filtered Blobs", "Name", r.Name, "Metadata", r.MetaData, "Tags", r.Tags, "Path", r.Path)
+                        width, err := strconv.ParseInt(r.MetaData["Width"], 10, 32)
+                        if err != nil </span><span class="cov0" title="0">{
+                                slog.Error("error converting string 'width' to int", "error", err)
+                        }</span>
+
+                        <span class="cov0" title="0">height, err := strconv.ParseInt(r.MetaData["Height"], 10, 32)
+                        if err != nil </span><span class="cov0" title="0">{
+                                slog.Error("error converting string 'height' to int", "error", err)
+                        }</span>
+
+                        <span class="cov0" title="0">tags, err := utils.GetBlobTags(client, r.Name, imagesContainerName, storageUrl)
+                        if err != nil </span><span class="cov0" title="0">{
+                                slog.Error("error getting blob tagd", "error", err, "blobpath", r.Path)
+                        }</span>
+
+                        <span class="cov0" title="0">photo := models.Photo{
+                                Src:        r.Path,
+                                Name:       r.Name,
+                                Width:      int(width),
+                                Height:     int(height),
+                                Album:      tags["album"],
+                                Collection: tags["collection"],
+                        }
+
+                        photos = append(photos, photo)</span>
+                }
+
+                // retun JSON array of objects
+                <span class="cov0" title="0">w.Header().Set("Content-Type", "application/json")
+                json.NewEncoder(w).Encode(photos)</span>
+        }
+}
+
+func albumHandler(client *azblob.Client, storageUrl string) http.HandlerFunc <span class="cov0" title="0">{
+        return func(w http.ResponseWriter, r *http.Request) </span><span class="cov0" title="0">{
+
+                collection := r.PathValue("collection")
+                if collection == "" </span><span class="cov0" title="0">{
+                        slog.Error("empty queryString", "name", "collection")
+                }</span>
+
+                // get album placeholder photos with matching tags
+                <span class="cov0" title="0">query := fmt.Sprintf("@container='%s' and collection='%s' and albumImage='true'", imagesContainerName, collection)
+                filteredBlobs, err := queryBlobsByTags(client, storageUrl, query)
+                if err != nil </span><span class="cov0" title="0">{
+                        slog.Error("Error getting blobs by tags", "error", err)
+                }</span>
+
+                <span class="cov0" title="0">photos := []models.Photo{}
+
+                for _, r := range filteredBlobs </span><span class="cov0" title="0">{
+                        slog.Debug("Filtered Blobs", "Name", r.Name, "Metadata", r.MetaData, "Tags", r.Tags, "Path", r.Path)
+                        width, err := strconv.ParseInt(r.MetaData["Width"], 10, 32)
+                        if err != nil </span><span class="cov0" title="0">{
+                                slog.Error("error converting string 'width' to int", "error", err)
+                        }</span>
+
+                        <span class="cov0" title="0">height, err := strconv.ParseInt(r.MetaData["Height"], 10, 32)
+                        if err != nil </span><span class="cov0" title="0">{
+                                slog.Error("error converting string 'height' to int", "error", err)
+                        }</span>
+
+                        <span class="cov0" title="0">tags, err := utils.GetBlobTags(client, r.Name, imagesContainerName, storageUrl)
+                        if err != nil </span><span class="cov0" title="0">{
+                                slog.Error("error getting blob tagd", "error", err, "blobpath", r.Path)
+                        }</span>
+
+                        <span class="cov0" title="0">photo := models.Photo{
+                                Src:         r.Path,
+                                Name:        r.Name,
+                                Width:       int(width),
+                                Height:      int(height),
+                                Album:       tags["album"],
+                                Collection:  tags["collection"],
+                                Description: tags["description"],
+                        }
+
+                        photos = append(photos, photo)</span>
+                }
+
+                // retun JSON array of objects
+                <span class="cov0" title="0">w.Header().Set("Content-Type", "application/json")
+                json.NewEncoder(w).Encode(photos)</span>
+        }
+}
+
+func getCollectionImage(client *azblob.Client, storageUrl string, collection string) ([]models.Blob, error) <span class="cov0" title="0">{
+        // get photos with matching collection tags
+        query := fmt.Sprintf("@container='%s' and collection='%s' and collectionImage='true'", imagesContainerName, collection)
+        filteredBlobs, err := queryBlobsByTags(client, storageUrl, query)
+        if err != nil </span><span class="cov0" title="0">{
+                slog.Error("Error getting blobs by tags", "error", err)
+                return nil, err
+        }</span>
+
+        <span class="cov0" title="0">if len(filteredBlobs) &lt;= 0 </span><span class="cov0" title="0">{
+                return []models.Blob{}, fmt.Errorf("no collection image found for collection: %s", collection)
+        }</span>
+
+        <span class="cov0" title="0">return filteredBlobs, nil</span>
+}
+
+func queryBlobsByTags(client *azblob.Client, storageUrl string, query string) (blobResult []models.Blob, err error) <span class="cov0" title="0">{
+        ctx := context.Background()
+        var blobs []models.Blob
+
+        resp, err := client.ServiceClient().FilterBlobs(ctx, query, nil)
+        if err != nil </span><span class="cov0" title="0">{
+                slog.Error("error getting blobs by tags", "error", err)
+                return
+        }</span>
+
+        <span class="cov0" title="0">for _, _blob := range resp.Blobs </span><span class="cov0" title="0">{
+                blobPath := fmt.Sprintf("%s/%s/%s", storageUrl, imagesContainerName, *_blob.Name)
+
+                tags, err := utils.GetBlobTags(client, *_blob.Name, imagesContainerName, storageUrl)
+                if err != nil </span><span class="cov0" title="0">{
+                        slog.Error("error getting blob tags", "blobPath", blobPath, "error", err)
+                        return nil, err
+                }</span>
+
+                <span class="cov0" title="0">md, err := utils.GetBlobMetadata(client, *_blob.Name, *_blob.ContainerName, storageUrl)
+                if err != nil </span><span class="cov0" title="0">{
+                        slog.Error("error getting metadata", "blobPath", blobPath, "error", err)
+                }</span>
+
+                <span class="cov0" title="0">b := models.Blob{
+                        Name:     *_blob.Name,
+                        Path:     fmt.Sprintf("%s/%s/%s", storageUrl, imagesContainerName, *_blob.Name),
+                        Tags:     tags,
+                        MetaData: md,
+                }
+
+                blobs = append(blobs, b)</span>
+        }
+        <span class="cov0" title="0">if len(blobs) &lt;= 0 </span><span class="cov0" title="0">{        
+                slog.Error("no blobs found", "query", query)
+                return nil, fmt.Errorf("no blobs found for query: %s", query)
+        }</span>
+
+        <span class="cov0" title="0">slog.Info("found blobs by tag query", "query", query, "num_blobs", len(blobs))
+        return blobs, nil</span>
+}
+</pre>
+		
+		</div>
+	</body>
+	<script>
+	(function() {
+		var files = document.getElementById('files');
+		var visible;
+		files.addEventListener('change', onChange, false);
+		function select(part) {
+			if (visible)
+				visible.style.display = 'none';
+			visible = document.getElementById(part);
+			if (!visible)
+				return;
+			files.value = part;
+			visible.style.display = 'block';
+			location.hash = part;
+		}
+		function onChange() {
+			select(files.value);
+			window.scrollTo(0, 0);
+		}
+		if (location.hash != "") {
+			select(location.hash.substr(1));
+		}
+		if (!visible) {
+			select("file0");
+		}
+	})();
+	</script>
+</html>
