@@ -88,6 +88,7 @@ func main() {
 	api.HandleFunc("POST /api/upload", uploadHandler(client, storageUrl, roleName, jwksURL))
 	api.HandleFunc("PUT /api/update/{collection}/{album}/{id}", updateHandler(client, storageUrl, roleName, jwksURL))
 	api.HandleFunc("GET /api/tags", tagListHandler(client, storageUrl))
+	//api.HandleFunc("GET /api/hierarchy", blobHierarchyHandler(client, storageUrl, imagesContainerName))
 
 	slog.Info("server listening", "name", serviceName, "port", port)
 
@@ -120,6 +121,23 @@ func tagListHandler(client *azblob.Client, storageUrl string) http.HandlerFunc {
 
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(blobTagList)
+	}
+}
+
+func blobHierarchyHandler(client *azblob.Client, storageUrl string, containerName string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		prefix := ""
+		blobMap := make(map[string]string)
+		err := utils.ListBlobHierarchy(client, storageUrl, imagesContainerName, &prefix, blobMap)
+		if err != nil {
+			slog.Error("error getting blob tag list", "error", err)
+			return
+		}
+
+		//slog.Debug("blob tag map", "value", blobTagList)
+
+		w.Header().Set("Content-Type", "application/json")
+		//json.NewEncoder(w).Encode(blobTagList)
 	}
 }
 
