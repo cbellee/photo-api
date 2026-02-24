@@ -1,0 +1,31 @@
+package handler
+
+import (
+	"log/slog"
+	"net/http"
+	"slices"
+
+	"github.com/cbellee/photo-api/internal/utils"
+)
+
+// RequireRole is HTTP middleware that verifies a JWT bearer token and checks
+// that the caller has the specified role claim. On failure it returns 401/403.
+func RequireRole(roleName string, jwksURL string, next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		claims, err := utils.VerifyToken(r, jwksURL)
+		if err != nil {
+			slog.Error("token verification failed", "error", err)
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		if !slices.Contains(claims.Roles, roleName) {
+			slog.Warn("caller does not have required role", "required", roleName, "roles", claims.Roles)
+			http.Error(w, "Forbidden", http.StatusForbidden)
+			return
+		}
+
+		slog.Debug("role claim found in token", "roles", claims.Roles)
+		next(w, r)
+	}
+}
