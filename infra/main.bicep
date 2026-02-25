@@ -92,6 +92,10 @@ module storage './modules/stor.bicep' = {
     sku: 'Standard_LRS'
     setCustomDomain: false
     customDomainName: cName
+    corsAllowedOrigins: [
+      'http://localhost:5173'
+      'https://${cName}'
+    ]
   }
 }
 

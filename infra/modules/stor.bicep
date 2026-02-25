@@ -9,6 +9,7 @@ param isAllowSharedAccessKey bool = true
 param utcValue string = utcNow()
 param customDomainName string = ''
 param setCustomDomain bool = false
+param corsAllowedOrigins array = []
 
 @allowed([
   'Storage'
@@ -79,6 +80,29 @@ resource queueService 'Microsoft.Storage/storageAccounts/queueServices@2023-05-0
 resource blobService 'Microsoft.Storage/storageAccounts/blobServices@2023-05-01' = {
   parent: storage
   name: 'default'
+  properties: {
+    cors: {
+      corsRules: length(corsAllowedOrigins) > 0 ? [
+        {
+          allowedOrigins: corsAllowedOrigins
+          allowedMethods: [
+            'GET'
+            'HEAD'
+            'OPTIONS'
+          ]
+          allowedHeaders: [
+            '*'
+          ]
+          exposedHeaders: [
+            'Content-Length'
+            'Content-Type'
+            'Content-Range'
+          ]
+          maxAgeInSeconds: 3600
+        }
+      ] : []
+    }
+  }
 }
 
 resource storageQueues 'Microsoft.Storage/storageAccounts/queueServices/queues@2023-05-01' = [
