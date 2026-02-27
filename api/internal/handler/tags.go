@@ -11,7 +11,8 @@ import (
 // TagListHandler returns all collection→album tag mappings.
 func TagListHandler(store storage.BlobStore, cfg *Config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
+		ctx, span := tracer.Start(r.Context(), "handler.TagList")
+		defer span.End()
 
 		blobTagList, err := store.GetBlobTagList(ctx, cfg.ImagesContainerName, cfg.StorageUrl)
 		if err != nil {

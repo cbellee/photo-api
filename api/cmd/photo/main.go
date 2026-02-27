@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"log/slog"
@@ -11,14 +12,31 @@ import (
 	"github.com/cbellee/photo-api/internal/handler"
 	"github.com/cbellee/photo-api/internal/models"
 	"github.com/cbellee/photo-api/internal/storage"
+	"github.com/cbellee/photo-api/internal/telemetry"
 	"github.com/cbellee/photo-api/internal/utils"
 	"github.com/rs/cors"
 
 	azlog "github.com/Azure/azure-sdk-for-go/sdk/azcore/log"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"go.opentelemetry.io/contrib/bridges/otelslog"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 func main() {
+	// ── Telemetry ────────────────────────────────────────────────────
+	ctx := context.Background()
+	otelCfg := telemetry.Config{
+		ServiceName:    "photo-api",
+		ServiceVersion: "1.0.0",
+		OTLPEndpoint:   utils.GetEnvValue("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317"),
+	}
+	providers, err := telemetry.Init(ctx, otelCfg)
+	if err != nil {
+		slog.Error("failed to init telemetry", "error", err)
+	} else {
+		defer providers.Shutdown(ctx)
+	}
+
 	// ── Configuration ───────────────────────────────────────────────
 	storageAccount := utils.GetEnvValue("STORAGE_ACCOUNT_NAME", "stor6aq2g56sfcosi")
 	storageAccountSuffix := utils.GetEnvValue("STORAGE_ACCOUNT_SUFFIX", "blob.core.windows.net")
@@ -34,14 +52,21 @@ func main() {
 		MemoryLimitMb:        32,
 		JwksURL:              utils.GetEnvValue("JWKS_URL", "https://0cd02bb5-3c24-4f77-8b19-99223d65aa67.ciamlogin.com/0cd02bb5-3c24-4f77-8b19-99223d65aa67/discovery/v2.0/keys?appid=689078c3-c0ad-4c10-a0d3-1c430c2e471d"),
 		RoleName:             utils.GetEnvValue("ROLE_NAME", "photo.upload"),
-		CorsOrigins:          strings.Split(utils.GetEnvValue("CORS_ORIGINS", "http://localhost:5173,https://gallery.bellee.net,https://photos.bellee.net"), ","),
+		CorsOrigins:          strings.Split(utils.GetEnvValue("CORS_ORIGINS", "http://localhost:5173,https://photo-dev.bellee.net,https://photo.bellee.net"), ","),
 	}
 
-	// ── Logging ─────────────────────────────────────────────────────
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-		AddSource: true,
-		Level:     slog.LevelInfo,
-	}))
+	// ── Logging (bridged to OTel) ────────────────────────────────────
+	var logger *slog.Logger
+	if providers != nil {
+		logger = otelslog.NewLogger("photo-api",
+			otelslog.WithLoggerProvider(providers.LoggerProvider),
+		)
+	} else {
+		logger = slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+			AddSource: true,
+			Level:     slog.LevelInfo,
+		}))
+	}
 	slog.SetDefault(logger)
 	slog.Info("cors origins", "origins", cfg.CorsOrigins)
 	slog.Info("current storage account", "name", storageAccount)
@@ -90,7 +115,8 @@ func main() {
 		MaxAge:           300,
 	})
 
-	log.Fatal(http.ListenAndServe(port, c.Handler(api)))
+	otelHandler := otelhttp.NewHandler(c.Handler(api), "photo-api")
+	log.Fatal(http.ListenAndServe(port, otelHandler))
 
 	// Keep models import used (StorageConfig is referenced in config for backwards compat).
 	_ = models.StorageConfig{}

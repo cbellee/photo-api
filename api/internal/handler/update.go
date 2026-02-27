@@ -10,12 +10,14 @@ import (
 
 	"github.com/cbellee/photo-api/internal/models"
 	"github.com/cbellee/photo-api/internal/storage"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 // UpdateHandler handles PUT requests to update blob tags for a photo.
 func UpdateHandler(store storage.BlobStore, cfg *Config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
+		ctx, span := tracer.Start(r.Context(), "handler.Update")
+		defer span.End()
 
 		if r.Body == nil {
 			http.Error(w, "body is empty", http.StatusBadRequest)
@@ -31,6 +33,7 @@ func UpdateHandler(store storage.BlobStore, cfg *Config) http.HandlerFunc {
 		}
 
 		// get current blob tags from storage and compare with updated tags
+		span.SetAttributes(attribute.String("blob.name", newTags["name"]))
 		currTags, err := store.GetBlobTags(ctx, newTags["name"], cfg.ImagesContainerName, cfg.StorageUrl)
 		if err != nil {
 			slog.Error("error getting blob tags", "error", err)

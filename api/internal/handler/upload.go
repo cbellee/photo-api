@@ -14,13 +14,15 @@ import (
 	"github.com/cbellee/photo-api/internal/models"
 	"github.com/cbellee/photo-api/internal/storage"
 	"github.com/cbellee/photo-api/internal/utils"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 // UploadHandler handles multipart file uploads, extracts EXIF data and image
 // dimensions, and saves the blob to the uploads container.
 func UploadHandler(store storage.BlobStore, cfg *Config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
+		ctx, span := tracer.Start(r.Context(), "handler.Upload")
+		defer span.End()
 
 		if r.Body == nil {
 			http.Error(w, "Multipart form not found", http.StatusBadRequest)
@@ -53,6 +55,11 @@ func UploadHandler(store storage.BlobStore, cfg *Config) http.HandlerFunc {
 		}
 
 		fileNameWithPrefix := fmt.Sprintf("%s/%s/%s", it.Collection, it.Album, fh[0].Filename)
+		span.SetAttributes(
+			attribute.String("collection", it.Collection),
+			attribute.String("album", it.Album),
+			attribute.String("filename", fh[0].Filename),
+		)
 
 		tags := make(map[string]string)
 		tags["name"] = fileNameWithPrefix

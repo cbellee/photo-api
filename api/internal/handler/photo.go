@@ -7,11 +7,15 @@ import (
 	"net/http"
 
 	"github.com/cbellee/photo-api/internal/storage"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 // PhotoHandler returns all photos within a specific collection/album.
 func PhotoHandler(store storage.BlobStore, cfg *Config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		_, span := tracer.Start(r.Context(), "handler.Photos")
+		defer span.End()
+
 		collection := r.PathValue("collection")
 		if collection == "" {
 			slog.Error("empty path value", "name", "collection")
@@ -25,6 +29,10 @@ func PhotoHandler(store storage.BlobStore, cfg *Config) http.HandlerFunc {
 			http.Error(w, "album is required", http.StatusBadRequest)
 			return
 		}
+		span.SetAttributes(
+			attribute.String("collection", collection),
+			attribute.String("album", album),
+		)
 
 		// get photos with matching collection & album tags
 		query := fmt.Sprintf("@container='%s' AND collection='%s' AND album='%s' AND isDeleted='false'", cfg.ImagesContainerName, collection, album)

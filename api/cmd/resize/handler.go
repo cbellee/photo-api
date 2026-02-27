@@ -1,0 +1,159 @@
+package main
+
+import (
+	"bytes"
+	"context"
+	"fmt"
+	"image"
+	"log/slog"
+	"net/url"
+	"strconv"
+	"strings"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
+	"github.com/cbellee/photo-api/internal/models"
+	"github.com/cbellee/photo-api/internal/utils"
+	"github.com/dapr/go-sdk/service/common"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+)
+
+var tracer = otel.Tracer("resize-service")
+
+// blobRef holds the decomposed parts of a blob URL.
+type blobRef struct {
+	container  string
+	path       string
+	collection string
+	album      string
+}
+
+// Handler processes resize events from the Dapr binding.
+type Handler struct {
+	client *azblob.Client
+	cfg    *Config
+}
+
+// NewHandler creates a new resize Handler.
+func NewHandler(client *azblob.Client, cfg *Config) *Handler {
+	return &Handler{client: client, cfg: cfg}
+}
+
+// Resize is the Dapr binding invocation handler for image-resize events.
+func (h *Handler) Resize(ctx context.Context, in *common.BindingEvent) ([]byte, error) {
+	ctx, span := tracer.Start(ctx, "resize.Resize")
+	defer span.End()
+
+	if in == nil {
+		return nil, fmt.Errorf("received nil binding event")
+	}
+
+	// Parse the incoming event.
+	evt, err := utils.ConvertToEvent(in)
+	if err != nil {
+		slog.Error("error converting binding event", "error", err)
+		return nil, fmt.Errorf("converting binding event: %w", err)
+	}
+	h.logEvent(evt, in)
+
+	// Decompose the blob URL.
+	ref, err := parseBlobRef(evt.Data.Url)
+	if err != nil {
+		slog.Error("error parsing blob URL", "url", evt.Data.Url, "error", err)
+		return nil, fmt.Errorf("parsing blob URL: %w", err)
+	}
+	span.SetAttributes(
+		attribute.String("blob.container", ref.container),
+		attribute.String("blob.path", ref.path),
+		attribute.String("blob.collection", ref.collection),
+		attribute.String("blob.album", ref.album),
+	)
+	slog.Info("processing blob", "container", ref.container, "path", ref.path, "album", ref.album, "collection", ref.collection)
+
+	// Download the source blob.
+	blobStream, err := utils.GetBlobStream(h.client, ctx, ref.path, ref.container, h.client.URL())
+	if err != nil {
+		slog.Error("error downloading blob", "path", ref.path, "error", err)
+		return nil, fmt.Errorf("downloading blob %s: %w", ref.path, err)
+	}
+
+	// Fetch existing tags and metadata.
+	tags, err := utils.GetBlobTags(h.client, ref.path, ref.container, h.client.URL())
+	if err != nil {
+		slog.Error("error getting blob tags", "path", ref.path, "error", err)
+		return nil, fmt.Errorf("getting blob tags for %s: %w", ref.path, err)
+	}
+	metadata, err := utils.GetBlobMetadata(h.client, ref.path, ref.container, h.client.URL())
+	if err != nil {
+		slog.Error("error getting blob metadata", "path", ref.path, "error", err)
+		return nil, fmt.Errorf("getting blob metadata for %s: %w", ref.path, err)
+	}
+
+	// Resize the image.
+	imgBytes, err := utils.ResizeImage(blobStream.Bytes(), evt.Data.ContentType, ref.path, h.cfg.MaxImageHeight, h.cfg.MaxImageWidth)
+	if err != nil {
+		slog.Error("error resizing image", "path", ref.path, "error", err)
+		return nil, fmt.Errorf("resizing image %s: %w", ref.path, err)
+	}
+
+	// Read the dimensions of the resized image.
+	imgCfg, _, err := image.DecodeConfig(bytes.NewReader(imgBytes))
+	if err != nil {
+		slog.Error("error decoding resized image config", "path", ref.path, "error", err)
+		return nil, fmt.Errorf("decoding resized image config %s: %w", ref.path, err)
+	}
+	slog.Info("resized image", "path", ref.path, "height", imgCfg.Height, "width", imgCfg.Width, "bytes", len(imgBytes))
+
+	// Enrich metadata with the new dimensions.
+	metadata["Size"] = strconv.Itoa(len(imgBytes))
+	metadata["Height"] = fmt.Sprint(imgCfg.Height)
+	metadata["Width"] = fmt.Sprint(imgCfg.Width)
+
+	// Save the resized image to the images container.
+	err = utils.SaveBlobStreamWithTagsAndMetadata(h.client, ctx, imgBytes, ref.path, h.cfg.ImagesContainerName, h.client.URL(), tags, metadata)
+	if err != nil {
+		slog.Error("error saving resized blob", "path", ref.path, "error", err)
+		return nil, fmt.Errorf("saving resized blob %s: %w", ref.path, err)
+	}
+
+	return nil, nil
+}
+
+// parseBlobRef decomposes an Azure Blob Storage URL into its constituent parts.
+// Expected URL format: https://<account>.<suffix>/<container>/<collection>/<album>/<file>
+func parseBlobRef(rawURL string) (blobRef, error) {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return blobRef{}, fmt.Errorf("invalid URL %q: %w", rawURL, err)
+	}
+
+	parts := strings.Split(strings.TrimPrefix(u.Path, "/"), "/")
+	if len(parts) < 4 {
+		return blobRef{}, fmt.Errorf("URL path %q requires at least 4 segments (container/collection/album/file), got %d", u.Path, len(parts))
+	}
+
+	return blobRef{
+		container:  parts[0],
+		collection: parts[1],
+		album:      parts[2],
+		path:       strings.Join(parts[1:], "/"),
+	}, nil
+}
+
+// logEvent writes structured debug information about the incoming event.
+func (h *Handler) logEvent(evt models.Event, in *common.BindingEvent) {
+	slog.Debug("input binding handler",
+		"name", h.cfg.UploadsQueueBinding,
+		"subject", evt.Subject,
+		"topic", evt.Topic,
+		"event_time", evt.EventTime,
+		"id", evt.Id,
+		"api", evt.Data.Api,
+		"type", evt.EventType,
+		"content_length", evt.Data.ContentLength,
+		"content_type", evt.Data.ContentType,
+		"etag", evt.Data.ETag,
+		"metadata", in.Metadata,
+		"url", evt.Data.Url,
+	)
+}

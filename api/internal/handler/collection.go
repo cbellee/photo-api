@@ -7,13 +7,17 @@ import (
 	"net/http"
 
 	"github.com/cbellee/photo-api/internal/storage"
+	"go.opentelemetry.io/otel"
 )
+
+var tracer = otel.Tracer("photo-api")
 
 // CollectionHandler returns the list of collections (each represented by its
 // collectionImage placeholder photo).
 func CollectionHandler(store storage.BlobStore, cfg *Config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
+		ctx, span := tracer.Start(r.Context(), "handler.Collections")
+		defer span.End()
 
 		// get photos with matching collection tags
 		query := fmt.Sprintf("@container='%s' and collectionImage='true'", cfg.ImagesContainerName)
