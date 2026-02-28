@@ -128,8 +128,9 @@ This ensures the chart works regardless of the target namespace.
 | Key | Default | Description |
 |---|---|---|
 | `photoApi.replicaCount` | `2` | Number of replicas |
-| `photoApi.image.repository` | `photo-api` | Container image repository |
+| `photoApi.image.repository` | `ghcr.io/cbellee/photo-api/photo-api` | Container image repository |
 | `photoApi.image.tag` | `latest` | Container image tag |
+| `photoApi.imagePullSecrets` | `[]` | List of image pull secret names (e.g. `[{name: ghcr-pull-secret}]`) |
 | `photoApi.service.type` | `LoadBalancer` | Kubernetes Service type |
 | `photoApi.service.port` | `8080` | Service and container port |
 | `photoApi.env.serviceName` | `photo` | `SERVICE_NAME` env var |
@@ -141,8 +142,9 @@ This ensures the chart works regardless of the target namespace.
 | Key | Default | Description |
 |---|---|---|
 | `resizeApi.replicaCount` | `1` | Number of replicas |
-| `resizeApi.image.repository` | `resize-api` | Container image repository |
+| `resizeApi.image.repository` | `ghcr.io/cbellee/photo-api/resize-api` | Container image repository |
 | `resizeApi.image.tag` | `latest` | Container image tag |
+| `resizeApi.imagePullSecrets` | `[]` | List of image pull secret names (e.g. `[{name: ghcr-pull-secret}]`) |
 | `resizeApi.service.type` | `ClusterIP` | Kubernetes Service type |
 | `resizeApi.service.port` | `8081` | Service and container port |
 | `resizeApi.dapr.enabled` | `true` | Enable Dapr sidecar injection |
@@ -160,8 +162,9 @@ This ensures the chart works regardless of the target namespace.
 
 | Key | Default | Description |
 |---|---|---|
-| `blobemu.image.repository` | `blobemu` | Container image repository |
+| `blobemu.image.repository` | `ghcr.io/cbellee/photo-api/blobemu` | Container image repository |
 | `blobemu.image.tag` | `latest` | Container image tag |
+| `blobemu.imagePullSecrets` | `[]` | List of image pull secret names (e.g. `[{name: ghcr-pull-secret}]`) |
 | `blobemu.service.port` | `10000` | Service and container port |
 | `blobemu.rabbitmq.exchange` | `blob-events` | RabbitMQ exchange name |
 | `blobemu.rabbitmq.routingKey` | `blob.created` | RabbitMQ routing key |
@@ -350,7 +353,7 @@ The three application images (`photo-api`, `resize-api`, `blobemu`) can be hoste
 Create a [Personal Access Token](https://github.com/settings/tokens) with the `write:packages` scope, then log in:
 
 ```bash
-echo $GITHUB_TOKEN | docker login ghcr.io -u cbellee --password-stdin
+echo $GHCR_TOKEN | docker login ghcr.io -u cbellee --password-stdin
 ```
 
 ### 2. Build
@@ -380,7 +383,7 @@ docker push ghcr.io/cbellee/photo-api/blobemu:latest
 
 ```bash
 helm install photo-api helm/photo-api \
-  --namespace photo --create-namespace \
+  --namespace photo-api --create-namespace \
   --set photoApi.image.repository=ghcr.io/cbellee/photo-api/photo-api \
   --set resizeApi.image.repository=ghcr.io/cbellee/photo-api/resize-api \
   --set blobemu.image.repository=ghcr.io/cbellee/photo-api/blobemu
@@ -391,10 +394,32 @@ helm install photo-api helm/photo-api \
 If the GHCR packages are private, create an image pull secret and reference it during install:
 
 ```bash
-kubectl -n photo create secret docker-registry ghcr-pull-secret \
+kubectl -n photo-api create secret docker-registry ghcr-pull-secret \
   --docker-server=ghcr.io \
   --docker-username=cbellee \
-  --docker-password=$GITHUB_TOKEN
+  --docker-password=$GHCR_TOKEN
 ```
 
-Then add `imagePullSecrets` to the pod specs, or pass it as a global value if you extend the chart to support it.
+Then pass `imagePullSecrets` during install:
+
+```bash
+helm install photo-api helm/photo-api \
+  --namespace photo-api --create-namespace \
+  --set photoApi.imagePullSecrets[0].name=ghcr-pull-secret \
+  --set resizeApi.imagePullSecrets[0].name=ghcr-pull-secret \
+  --set blobemu.imagePullSecrets[0].name=ghcr-pull-secret
+```
+
+Or in a values file:
+
+```yaml
+photoApi:
+  imagePullSecrets:
+    - name: ghcr-pull-secret
+resizeApi:
+  imagePullSecrets:
+    - name: ghcr-pull-secret
+blobemu:
+  imagePullSecrets:
+    - name: ghcr-pull-secret
+```
