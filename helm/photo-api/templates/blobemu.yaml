@@ -35,6 +35,10 @@ spec:
         {{- include "photo-api.labels" . | nindent 8 }}
         {{- include "photo-api.selectorLabels" (dict "name" "blobemu" "context" $) | nindent 8 }}
     spec:
+      {{- with .Values.blobemu.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
         - name: blobemu
           image: "{{ .Values.blobemu.image.repository }}:{{ .Values.blobemu.image.tag }}"

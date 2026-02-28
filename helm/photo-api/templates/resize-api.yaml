@@ -48,6 +48,10 @@ spec:
         dapr.io/log-level: {{ .Values.resizeApi.dapr.logLevel | quote }}
       {{- end }}
     spec:
+      {{- with .Values.resizeApi.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
         - name: resize-api
           image: "{{ .Values.resizeApi.image.repository }}:{{ .Values.resizeApi.image.tag }}"

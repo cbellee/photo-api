@@ -13,8 +13,9 @@ global:
 photoApi:
   replicaCount: 2
   image:
-    repository: photo-api
+    repository: ghcr.io/cbellee/photo-api/photo-api
     tag: latest
+  imagePullSecrets: []
   service:
     type: LoadBalancer
     port: 8080
@@ -35,8 +36,9 @@ photoApi:
 resizeApi:
   replicaCount: 1
   image:
-    repository: resize-api
+    repository: ghcr.io/cbellee/photo-api/resize-api
     tag: latest
+  imagePullSecrets: []
   service:
     type: ClusterIP
     port: 8081
@@ -66,8 +68,9 @@ resizeApi:
 # ──────────────────────────────────────────────────────────────────────
 blobemu:
   image:
-    repository: blobemu
+    repository: ghcr.io/cbellee/photo-api/blobemu
     tag: latest
+  imagePullSecrets: []
   service:
     port: 10000
   rabbitmq:

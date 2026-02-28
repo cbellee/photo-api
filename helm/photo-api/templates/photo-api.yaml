@@ -34,6 +34,10 @@ spec:
         {{- include "photo-api.labels" . | nindent 8 }}
         {{- include "photo-api.selectorLabels" (dict "name" "photo-api" "context" $) | nindent 8 }}
     spec:
+      {{- with .Values.photoApi.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
         - name: photo-api
           image: "{{ .Values.photoApi.image.repository }}:{{ .Values.photoApi.image.tag }}"
