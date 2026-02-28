@@ -1,0 +1,76 @@
+{{- $blobFQDN := include "photo-api.serviceFQDN" (dict "svc" "blobemu" "context" $) -}}
+{{- $otelFQDN := include "photo-api.serviceFQDN" (dict "svc" "otel-collector" "context" $) -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: resize-api
+  labels:
+    {{- include "photo-api.labels" . | nindent 4 }}
+    {{- include "photo-api.selectorLabels" (dict "name" "resize-api" "context" $) | nindent 4 }}
+spec:
+  type: {{ .Values.resizeApi.service.type }}
+  selector:
+    {{- include "photo-api.selectorLabels" (dict "name" "resize-api" "context" $) | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.resizeApi.service.port }}
+      targetPort: http
+    - name: dapr-http
+      port: 3500
+      targetPort: 3500
+    - name: dapr-grpc
+      port: 50001
+      targetPort: 50001
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: resize-api
+  labels:
+    {{- include "photo-api.labels" . | nindent 4 }}
+    {{- include "photo-api.selectorLabels" (dict "name" "resize-api" "context" $) | nindent 4 }}
+spec:
+  replicas: {{ .Values.resizeApi.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "photo-api.selectorLabels" (dict "name" "resize-api" "context" $) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "photo-api.labels" . | nindent 8 }}
+        {{- include "photo-api.selectorLabels" (dict "name" "resize-api" "context" $) | nindent 8 }}
+      {{- if .Values.resizeApi.dapr.enabled }}
+      annotations:
+        dapr.io/enabled: "true"
+        dapr.io/app-id: {{ .Values.resizeApi.dapr.appId | quote }}
+        dapr.io/app-port: {{ .Values.resizeApi.dapr.appPort | quote }}
+        dapr.io/app-protocol: {{ .Values.resizeApi.dapr.appProtocol | quote }}
+        dapr.io/log-level: {{ .Values.resizeApi.dapr.logLevel | quote }}
+      {{- end }}
+    spec:
+      containers:
+        - name: resize-api
+          image: "{{ .Values.resizeApi.image.repository }}:{{ .Values.resizeApi.image.tag }}"
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          ports:
+            - containerPort: {{ .Values.resizeApi.service.port }}
+              name: http
+          env:
+            - name: SERVICE_NAME
+              value: {{ .Values.resizeApi.env.serviceName | quote }}
+            - name: SERVICE_PORT
+              value: {{ .Values.resizeApi.env.servicePort | quote }}
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "{{ $otelFQDN }}:{{ .Values.otelCollector.service.otlpGrpcPort }}"
+            - name: EMULATED_STORAGE_URL
+              value: "http://{{ $blobFQDN }}:{{ .Values.blobemu.service.port }}"
+            - name: IMAGES_CONTAINER_NAME
+              value: {{ .Values.resizeApi.env.imagesContainerName | quote }}
+            - name: MAX_IMAGE_HEIGHT
+              value: {{ .Values.resizeApi.env.maxImageHeight | quote }}
+            - name: MAX_IMAGE_WIDTH
+              value: {{ .Values.resizeApi.env.maxImageWidth | quote }}
+            - name: UPLOADS_QUEUE_BINDING
+              value: {{ .Values.resizeApi.env.uploadsQueueBinding | quote }}
+          resources:
+            {{- toYaml .Values.resizeApi.resources | nindent 12 }}

@@ -1,0 +1,23 @@
+{{- if .Values.daprComponent.enabled -}}
+{{- $rabbitmqFQDN := include "photo-api.serviceFQDN" (dict "svc" "rabbitmq" "context" $) -}}
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: {{ .Values.resizeApi.env.uploadsQueueBinding }}
+  labels:
+    {{- include "photo-api.labels" . | nindent 4 }}
+spec:
+  type: bindings.rabbitmq
+  version: v1
+  metadata:
+    - name: host
+      value: "amqp://{{ .Values.rabbitmq.auth.username }}:{{ .Values.rabbitmq.auth.password }}@{{ $rabbitmqFQDN }}:{{ .Values.rabbitmq.service.amqpPort }}/"
+    - name: queueName
+      value: {{ .Values.daprComponent.queueName | quote }}
+    - name: durable
+      value: {{ .Values.daprComponent.durable | quote }}
+    - name: exclusive
+      value: {{ .Values.daprComponent.exclusive | quote }}
+    - name: direction
+      value: {{ .Values.daprComponent.direction | quote }}
+{{- end }}

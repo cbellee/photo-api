@@ -1,0 +1,26 @@
+# Dapr binding component: RabbitMQ queue for upload events.
+#
+# This replaces the Azure Storage Queue binding used in production
+# (bindings.azure.storagequeues) with a RabbitMQ binding for local
+# Docker / Kubernetes development.
+#
+# The component name MUST match the UPLOADS_QUEUE_BINDING env var
+# set on the resize service (e.g. "queue-uploads").
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: queue-uploads
+spec:
+  type: bindings.rabbitmq
+  version: v1
+  metadata:
+    - name: host
+      value: "amqp://guest:guest@rabbitmq:5672/"
+    - name: queueName
+      value: "blob-events"
+    - name: durable
+      value: "true"
+    - name: exclusive
+      value: "false"
+    - name: direction
+      value: "input"

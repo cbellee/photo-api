@@ -1,0 +1,43 @@
+# NOTE: This file is only used if you override the otel-lgtm built-in
+# collector. The grafana/otel-lgtm image ships its own collector config
+# that exports to the bundled Loki, Tempo, and Prometheus instances.
+#
+# Kept here for reference or manual override via:
+#   volumes:
+#     - ./otel-collector-config.yml:/otel-lgtm/otelcol-config.yaml
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+exporters:
+  otlphttp/logs:
+    endpoint: "http://localhost:3100/otlp"
+  otlphttp/traces:
+    endpoint: "http://localhost:4418"
+  prometheusremotewrite:
+    endpoint: "http://localhost:9090/api/v1/write"
+  debug:
+    verbosity: detailed
+
+processors:
+  batch:
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlphttp/traces, debug]
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [prometheusremotewrite, debug]
+    logs:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlphttp/logs, debug]

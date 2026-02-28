@@ -1,0 +1,69 @@
+{{- $blobFQDN := include "photo-api.serviceFQDN" (dict "svc" "blobemu" "context" $) -}}
+{{- $otelFQDN := include "photo-api.serviceFQDN" (dict "svc" "otel-collector" "context" $) -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: photo-api
+  labels:
+    {{- include "photo-api.labels" . | nindent 4 }}
+    {{- include "photo-api.selectorLabels" (dict "name" "photo-api" "context" $) | nindent 4 }}
+spec:
+  type: {{ .Values.photoApi.service.type }}
+  selector:
+    {{- include "photo-api.selectorLabels" (dict "name" "photo-api" "context" $) | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.photoApi.service.port }}
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: photo-api
+  labels:
+    {{- include "photo-api.labels" . | nindent 4 }}
+    {{- include "photo-api.selectorLabels" (dict "name" "photo-api" "context" $) | nindent 4 }}
+spec:
+  replicas: {{ .Values.photoApi.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "photo-api.selectorLabels" (dict "name" "photo-api" "context" $) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "photo-api.labels" . | nindent 8 }}
+        {{- include "photo-api.selectorLabels" (dict "name" "photo-api" "context" $) | nindent 8 }}
+    spec:
+      containers:
+        - name: photo-api
+          image: "{{ .Values.photoApi.image.repository }}:{{ .Values.photoApi.image.tag }}"
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          ports:
+            - containerPort: {{ .Values.photoApi.service.port }}
+              name: http
+          env:
+            - name: SERVICE_NAME
+              value: {{ .Values.photoApi.env.serviceName | quote }}
+            - name: SERVICE_PORT
+              value: {{ .Values.photoApi.env.servicePort | quote }}
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "{{ $otelFQDN }}:{{ .Values.otelCollector.service.otlpGrpcPort }}"
+            - name: EMULATED_STORAGE_URL
+              value: "http://{{ $blobFQDN }}:{{ .Values.blobemu.service.port }}"
+            - name: BLOB_EMULATOR_URL
+              value: "http://{{ $blobFQDN }}:{{ .Values.blobemu.service.port }}"
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 6
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 15
+          resources:
+            {{- toYaml .Values.photoApi.resources | nindent 12 }}

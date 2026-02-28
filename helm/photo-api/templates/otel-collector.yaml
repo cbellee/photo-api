@@ -1,0 +1,81 @@
+{{- if .Values.otelCollector.enabled -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: otel-collector
+  labels:
+    {{- include "photo-api.labels" . | nindent 4 }}
+    {{- include "photo-api.selectorLabels" (dict "name" "otel-collector" "context" $) | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "photo-api.selectorLabels" (dict "name" "otel-collector" "context" $) | nindent 4 }}
+  ports:
+    - name: grafana
+      port: {{ .Values.otelCollector.service.grafanaPort }}
+      targetPort: grafana
+    - name: otlp-grpc
+      port: {{ .Values.otelCollector.service.otlpGrpcPort }}
+      targetPort: otlp-grpc
+    - name: otlp-http
+      port: {{ .Values.otelCollector.service.otlpHttpPort }}
+      targetPort: otlp-http
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: otel-collector
+  labels:
+    {{- include "photo-api.labels" . | nindent 4 }}
+    {{- include "photo-api.selectorLabels" (dict "name" "otel-collector" "context" $) | nindent 4 }}
+spec:
+  serviceName: otel-collector
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "photo-api.selectorLabels" (dict "name" "otel-collector" "context" $) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "photo-api.labels" . | nindent 8 }}
+        {{- include "photo-api.selectorLabels" (dict "name" "otel-collector" "context" $) | nindent 8 }}
+    spec:
+      containers:
+        - name: otel-lgtm
+          image: "{{ .Values.otelCollector.image.repository }}:{{ .Values.otelCollector.image.tag }}"
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          ports:
+            - containerPort: {{ .Values.otelCollector.service.grafanaPort }}
+              name: grafana
+            - containerPort: {{ .Values.otelCollector.service.otlpGrpcPort }}
+              name: otlp-grpc
+            - containerPort: {{ .Values.otelCollector.service.otlpHttpPort }}
+              name: otlp-http
+          env:
+            - name: GF_SECURITY_ADMIN_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "photo-api.fullname" . }}-grafana-credentials
+                  key: username
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "photo-api.fullname" . }}-grafana-credentials
+                  key: password
+          resources:
+            {{- toYaml .Values.otelCollector.resources | nindent 12 }}
+          volumeMounts:
+            - name: grafana-data
+              mountPath: /var/lib/grafana
+  volumeClaimTemplates:
+    - metadata:
+        name: grafana-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        {{- if .Values.otelCollector.persistence.storageClass }}
+        storageClassName: {{ .Values.otelCollector.persistence.storageClass | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.otelCollector.persistence.size }}
+{{- end }}

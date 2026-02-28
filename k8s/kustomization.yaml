@@ -1,0 +1,22 @@
+# ──────────────────────────────────────────────────────────────────────
+# Kustomization file – apply everything in the correct order
+# ──────────────────────────────────────────────────────────────────────
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: photo
+
+resources:
+  - namespace.yaml
+  - secrets.yaml
+  - rabbitmq.yaml
+  - blobemu.yaml
+  - otel-collector.yaml
+  - dapr-component.yaml
+  - resize-api.yaml
+  - photo-api.yaml
+
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: photo-api
+    includeSelectors: false

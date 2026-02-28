@@ -5,19 +5,35 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"net/url"
 	"os"
 	"testing"
 
 	"github.com/cbellee/photo-api/internal/models"
-	"github.com/cbellee/photo-api/internal/utils"
+	"github.com/cbellee/photo-api/internal/storage"
 	"github.com/dapr/go-sdk/service/common"
 	"github.com/stretchr/testify/assert"
 )
 
-// Test helper to create test environment
-func setupTestEnvironment() func() {
-	// Set required environment variables for tests
+// ── Test fixtures ───────────────────────────────────────────────────
+
+func testConfig() *Config {
+	return &Config{
+		ServiceName:         "test-resize-service",
+		ServicePort:         "3000",
+		UploadsQueueBinding: "test-queue",
+		AzureClientID:       "test-client-id",
+		ImagesContainerName: "test-images",
+		MaxImageHeight:      1200,
+		MaxImageWidth:       1600,
+		StorageAccount:      "teststorage",
+		StorageSuffix:       "blob.core.windows.net",
+		StorageContainer:    "test-container",
+	}
+}
+
+// setupTestHandler creates a Handler for testing and returns it along with a
+// cleanup function that unsets environment variables.
+func setupTestHandler() (*Handler, func()) {
 	os.Setenv("SERVICE_NAME", "test-resize-service")
 	os.Setenv("SERVICE_PORT", "3000")
 	os.Setenv("UPLOADS_QUEUE_BINDING", "test-queue")
@@ -29,21 +45,14 @@ func setupTestEnvironment() func() {
 	os.Setenv("MAX_IMAGE_HEIGHT", "1200")
 	os.Setenv("MAX_IMAGE_WIDTH", "1600")
 
-	// Initialize the global client variable to prevent nil pointer dereference
-	// Note: This client won't actually work for real operations, but it prevents crashes
-	storageUrl := fmt.Sprintf("https://%s.%s", "teststorage", "blob.core.windows.net")
-	testClient, err := utils.CreateAzureBlobClient(storageUrl, false, "test-client-id")
-	if err != nil {
-		// If we can't create a real client (e.g., no Azure CLI auth),
-		// we'll create a nil client which our tests will handle gracefully
-		fmt.Printf("Warning: Could not create test Azure client: %v\n", err)
-		client = nil
-	} else {
-		client = testClient
-	}
+	cfg := testConfig()
 
-	// Return cleanup function
-	return func() {
+	storageUrl := fmt.Sprintf("https://%s.%s", cfg.StorageAccount, cfg.StorageSuffix)
+	mockStore := &storage.MockBlobStore{}
+
+	h := NewHandler(mockStore, storageUrl, cfg)
+
+	cleanup := func() {
 		os.Unsetenv("SERVICE_NAME")
 		os.Unsetenv("SERVICE_PORT")
 		os.Unsetenv("UPLOADS_QUEUE_BINDING")
@@ -54,8 +63,8 @@ func setupTestEnvironment() func() {
 		os.Unsetenv("STORAGE_CONTAINER_NAME")
 		os.Unsetenv("MAX_IMAGE_HEIGHT")
 		os.Unsetenv("MAX_IMAGE_WIDTH")
-		client = nil // Reset the global client
 	}
+	return h, cleanup
 }
 
 // createTestBindingEvent creates a test BindingEvent for testing
@@ -119,7 +128,7 @@ func createTestBindingEvent(url string, contentType string, contentLength int32)
 
 // Test ResizeHandler function
 func TestResizeHandler(t *testing.T) {
-	cleanup := setupTestEnvironment()
+	h, cleanup := setupTestHandler()
 	defer cleanup()
 
 	tests := []struct {
@@ -223,14 +232,11 @@ func TestResizeHandler(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Setup
 			ctx := context.Background()
 			event := tt.setupEvent()
 
-			// Execute
-			result, err := ResizeHandler(ctx, event)
+			result, err := h.Resize(ctx, event)
 
-			// Verify
 			if tt.expectError {
 				assert.Error(t, err, "Expected an error for test case: %s", tt.description)
 				assert.Nil(t, result, "Expected nil result when error occurs")
@@ -239,7 +245,6 @@ func TestResizeHandler(t *testing.T) {
 				assert.NotNil(t, result, "Expected non-nil result for successful case")
 			}
 
-			// Additional error message validation if specified
 			if tt.errorContains != "" && err != nil {
 				assert.Contains(t, err.Error(), tt.errorContains,
 					"Error message should contain expected text")
@@ -250,7 +255,7 @@ func TestResizeHandler(t *testing.T) {
 
 // Test URL parsing logic within ResizeHandler
 func TestResizeHandler_URLParsing(t *testing.T) {
-	cleanup := setupTestEnvironment()
+	h, cleanup := setupTestHandler()
 	defer cleanup()
 
 	tests := []struct {
@@ -308,7 +313,7 @@ func TestResizeHandler_URLParsing(t *testing.T) {
 			ctx := context.Background()
 			event := createTestBindingEvent(tt.inputURL, "image/jpeg", 1024)
 
-			_, err := ResizeHandler(ctx, event)
+			_, err := h.Resize(ctx, event)
 
 			if tt.expectError {
 				assert.Error(t, err, "Expected error for %s", tt.description)
@@ -319,99 +324,43 @@ func TestResizeHandler_URLParsing(t *testing.T) {
 	}
 }
 
-// Test environment variable handling
-func TestResizeHandler_EnvironmentVariables(t *testing.T) {
-	// Test with invalid environment variables
+// Test that the Handler respects config values for image dimensions
+func TestResizeHandler_ConfigDimensions(t *testing.T) {
+	h, cleanup := setupTestHandler()
+	defer cleanup()
+
 	tests := []struct {
 		name        string
-		envSetup    func()
-		envCleanup  func()
+		height      int
+		width       int
 		expectError bool
 		description string
 	}{
 		{
-			name: "Invalid MAX_IMAGE_HEIGHT",
-			envSetup: func() {
-				setupTestEnvironment()
-				os.Setenv("MAX_IMAGE_HEIGHT", "not-a-number")
-			},
-			envCleanup: func() {
-				os.Unsetenv("MAX_IMAGE_HEIGHT")
-			},
-			expectError: true,
-			description: "Should handle invalid MAX_IMAGE_HEIGHT gracefully",
+			name:        "Default dimensions",
+			height:      1200,
+			width:       1600,
+			expectError: true, // Will error due to missing external dependencies
+			description: "Should use default dimension values",
 		},
 		{
-			name: "Invalid MAX_IMAGE_WIDTH",
-			envSetup: func() {
-				setupTestEnvironment()
-				os.Setenv("MAX_IMAGE_WIDTH", "invalid")
-			},
-			envCleanup: func() {
-				os.Unsetenv("MAX_IMAGE_WIDTH")
-			},
-			expectError: true,
-			description: "Should handle invalid MAX_IMAGE_WIDTH gracefully",
-		},
-		{
-			name: "Missing MAX_IMAGE_HEIGHT",
-			envSetup: func() {
-				setupTestEnvironment()
-				os.Unsetenv("MAX_IMAGE_HEIGHT")
-			},
-			envCleanup:  func() {},
-			expectError: true,
-			description: "Should use default value when MAX_IMAGE_HEIGHT is missing",
-		},
-		{
-			name: "Missing MAX_IMAGE_WIDTH",
-			envSetup: func() {
-				setupTestEnvironment()
-				os.Unsetenv("MAX_IMAGE_WIDTH")
-			},
-			envCleanup:  func() {},
-			expectError: true,
-			description: "Should use default value when MAX_IMAGE_WIDTH is missing",
-		},
-		{
-			name: "Zero values for dimensions",
-			envSetup: func() {
-				setupTestEnvironment()
-				os.Setenv("MAX_IMAGE_HEIGHT", "0")
-				os.Setenv("MAX_IMAGE_WIDTH", "0")
-			},
-			envCleanup: func() {
-				os.Unsetenv("MAX_IMAGE_HEIGHT")
-				os.Unsetenv("MAX_IMAGE_WIDTH")
-			},
+			name:        "Zero dimensions",
+			height:      0,
+			width:       0,
 			expectError: true,
 			description: "Should handle zero dimension values",
 		},
 		{
-			name: "Negative values for dimensions",
-			envSetup: func() {
-				setupTestEnvironment()
-				os.Setenv("MAX_IMAGE_HEIGHT", "-100")
-				os.Setenv("MAX_IMAGE_WIDTH", "-200")
-			},
-			envCleanup: func() {
-				os.Unsetenv("MAX_IMAGE_HEIGHT")
-				os.Unsetenv("MAX_IMAGE_WIDTH")
-			},
+			name:        "Negative dimensions",
+			height:      -100,
+			width:       -200,
 			expectError: true,
 			description: "Should handle negative dimension values",
 		},
 		{
-			name: "Maximum integer values",
-			envSetup: func() {
-				setupTestEnvironment()
-				os.Setenv("MAX_IMAGE_HEIGHT", "2147483647")
-				os.Setenv("MAX_IMAGE_WIDTH", "2147483647")
-			},
-			envCleanup: func() {
-				os.Unsetenv("MAX_IMAGE_HEIGHT")
-				os.Unsetenv("MAX_IMAGE_WIDTH")
-			},
+			name:        "Maximum integer dimensions",
+			height:      2147483647,
+			width:       2147483647,
 			expectError: true,
 			description: "Should handle maximum integer values",
 		},
@@ -419,19 +368,17 @@ func TestResizeHandler_EnvironmentVariables(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Setup environment
-			tt.envSetup()
-			defer tt.envCleanup()
+			// Override config for this test case
+			h.cfg.MaxImageHeight = tt.height
+			h.cfg.MaxImageWidth = tt.width
 
 			ctx := context.Background()
 			testURL := "https://teststorage.blob.core.windows.net/uploads/collection1/album1/test.jpg"
 			event := createTestBindingEvent(testURL, "image/jpeg", 1024)
 
-			_, err := ResizeHandler(ctx, event)
+			_, err := h.Resize(ctx, event)
 
 			if tt.expectError {
-				// Note: These will all error due to missing external dependencies,
-				// but we're testing that the environment variable parsing doesn't panic
 				assert.Error(t, err, "Expected error for %s", tt.description)
 			} else {
 				assert.NoError(t, err, "Expected no error for %s", tt.description)
@@ -442,7 +389,7 @@ func TestResizeHandler_EnvironmentVariables(t *testing.T) {
 
 // Test input validation
 func TestResizeHandler_InputValidation(t *testing.T) {
-	cleanup := setupTestEnvironment()
+	h, cleanup := setupTestHandler()
 	defer cleanup()
 
 	tests := []struct {
@@ -490,7 +437,7 @@ func TestResizeHandler_InputValidation(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.Background()
 
-			_, err := ResizeHandler(ctx, tt.event)
+			_, err := h.Resize(ctx, tt.event)
 
 			if tt.expectError {
 				assert.Error(t, err, "Expected error for %s", tt.description)
@@ -503,7 +450,7 @@ func TestResizeHandler_InputValidation(t *testing.T) {
 
 // Test context handling
 func TestResizeHandler_ContextHandling(t *testing.T) {
-	cleanup := setupTestEnvironment()
+	h, cleanup := setupTestHandler()
 	defer cleanup()
 
 	tests := []struct {
@@ -547,7 +494,7 @@ func TestResizeHandler_ContextHandling(t *testing.T) {
 			testURL := "https://teststorage.blob.core.windows.net/uploads/collection1/album1/test.jpg"
 			event := createTestBindingEvent(testURL, "image/jpeg", 1024)
 
-			_, err := ResizeHandler(ctx, event)
+			_, err := h.Resize(ctx, event)
 
 			if tt.expectError {
 				assert.Error(t, err, "Expected error for %s", tt.description)
@@ -560,7 +507,7 @@ func TestResizeHandler_ContextHandling(t *testing.T) {
 
 // Test error propagation and logging
 func TestResizeHandler_ErrorHandling(t *testing.T) {
-	cleanup := setupTestEnvironment()
+	h, cleanup := setupTestHandler()
 	defer cleanup()
 
 	t.Run("Error propagation", func(t *testing.T) {
@@ -568,7 +515,7 @@ func TestResizeHandler_ErrorHandling(t *testing.T) {
 		testURL := "https://teststorage.blob.core.windows.net/uploads/collection1/album1/test.jpg"
 		event := createTestBindingEvent(testURL, "image/jpeg", 1024)
 
-		result, err := ResizeHandler(ctx, event)
+		result, err := h.Resize(ctx, event)
 
 		// Should propagate errors from utility functions
 		assert.Error(t, err)
@@ -578,7 +525,7 @@ func TestResizeHandler_ErrorHandling(t *testing.T) {
 
 // Test return value validation
 func TestResizeHandler_ReturnValues(t *testing.T) {
-	cleanup := setupTestEnvironment()
+	h, cleanup := setupTestHandler()
 	defer cleanup()
 
 	t.Run("Return type validation", func(t *testing.T) {
@@ -586,7 +533,7 @@ func TestResizeHandler_ReturnValues(t *testing.T) {
 		testURL := "https://teststorage.blob.core.windows.net/uploads/collection1/album1/test.jpg"
 		event := createTestBindingEvent(testURL, "image/jpeg", 1024)
 
-		result, err := ResizeHandler(ctx, event)
+		result, err := h.Resize(ctx, event)
 
 		// Verify return types
 		if result != nil {
@@ -598,69 +545,72 @@ func TestResizeHandler_ReturnValues(t *testing.T) {
 	})
 }
 
-// Test path extraction logic
-func TestPathExtraction(t *testing.T) {
+// Test path extraction logic via parseBlobRef
+func TestParseBlobRef(t *testing.T) {
 	tests := []struct {
-		name          string
-		inputURL      string
-		expectedPath  string
-		expectedError bool
-		description   string
+		name               string
+		inputURL           string
+		expectedContainer  string
+		expectedCollection string
+		expectedAlbum      string
+		expectedPath       string
+		expectError        bool
+		description        string
 	}{
 		{
-			name:          "Standard blob URL",
-			inputURL:      "https://storage.blob.core.windows.net/uploads/collection1/album1/image.jpg",
-			expectedPath:  "/uploads/collection1/album1/image.jpg",
-			expectedError: false,
-			description:   "Should extract path from standard blob URL",
+			name:               "Standard blob URL",
+			inputURL:           "https://storage.blob.core.windows.net/uploads/collection1/album1/image.jpg",
+			expectedContainer:  "uploads",
+			expectedCollection: "collection1",
+			expectedAlbum:      "album1",
+			expectedPath:       "collection1/album1/image.jpg",
+			expectError:        false,
+			description:        "Should extract path from standard blob URL",
 		},
 		{
-			name:          "URL with query parameters",
-			inputURL:      "https://storage.blob.core.windows.net/uploads/collection1/album1/image.jpg?sv=2021&sig=abc",
-			expectedPath:  "/uploads/collection1/album1/image.jpg",
-			expectedError: false,
-			description:   "Should extract path ignoring query parameters",
+			name:               "URL with query parameters",
+			inputURL:           "https://storage.blob.core.windows.net/uploads/collection1/album1/image.jpg?sv=2021&sig=abc",
+			expectedContainer:  "uploads",
+			expectedCollection: "collection1",
+			expectedAlbum:      "album1",
+			expectedPath:       "collection1/album1/image.jpg",
+			expectError:        false,
+			description:        "Should extract path ignoring query parameters",
 		},
 		{
-			name:          "URL with encoded characters",
-			inputURL:      "https://storage.blob.core.windows.net/uploads/collection%201/album%201/image%20file.jpg",
-			expectedPath:  "/uploads/collection%201/album%201/image%20file.jpg",
-			expectedError: false,
-			description:   "Should handle encoded characters in path",
+			name:        "URL with insufficient segments",
+			inputURL:    "https://storage.blob.core.windows.net/uploads",
+			expectError: true,
+			description: "Should return error for insufficient path segments",
 		},
 		{
-			name:          "Invalid URL",
-			inputURL:      "not-a-valid-url",
-			expectedPath:  "",
-			expectedError: true,
-			description:   "Should return error for invalid URL",
-		},
-		{
-			name:          "Empty URL",
-			inputURL:      "",
-			expectedPath:  "",
-			expectedError: true,
-			description:   "Should return error for empty URL",
+			name:        "Empty URL",
+			inputURL:    "",
+			expectError: true,
+			description: "Should return error for empty URL",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			u, err := url.Parse(tt.inputURL)
+			ref, err := parseBlobRef(tt.inputURL)
 
-			if tt.expectedError {
+			if tt.expectError {
 				assert.Error(t, err, "Expected error for %s", tt.description)
 			} else {
 				assert.NoError(t, err, "Expected no error for %s", tt.description)
-				assert.Equal(t, tt.expectedPath, u.Path, "Path should match expected value")
+				assert.Equal(t, tt.expectedContainer, ref.container)
+				assert.Equal(t, tt.expectedCollection, ref.collection)
+				assert.Equal(t, tt.expectedAlbum, ref.album)
+				assert.Equal(t, tt.expectedPath, ref.path)
 			}
 		})
 	}
 }
 
-// Benchmark test for ResizeHandler
+// Benchmark test for Resize handler
 func BenchmarkResizeHandler(b *testing.B) {
-	cleanup := setupTestEnvironment()
+	h, cleanup := setupTestHandler()
 	defer cleanup()
 
 	ctx := context.Background()
@@ -669,13 +619,13 @@ func BenchmarkResizeHandler(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, _ = ResizeHandler(ctx, event)
+		_, _ = h.Resize(ctx, event)
 	}
 }
 
-// Test concurrent access to ResizeHandler
+// Test concurrent access to Resize handler
 func TestResizeHandler_ConcurrentAccess(t *testing.T) {
-	cleanup := setupTestEnvironment()
+	h, cleanup := setupTestHandler()
 	defer cleanup()
 
 	t.Run("Concurrent handler calls", func(t *testing.T) {
@@ -689,7 +639,7 @@ func TestResizeHandler_ConcurrentAccess(t *testing.T) {
 				defer func() { done <- true }()
 
 				event := createTestBindingEvent(testURL, "image/jpeg", 1024)
-				_, _ = ResizeHandler(ctx, event)
+				_, _ = h.Resize(ctx, event)
 			}(i)
 		}
 
@@ -704,7 +654,7 @@ func TestResizeHandler_ConcurrentAccess(t *testing.T) {
 
 // Test memory usage patterns
 func TestResizeHandler_MemoryManagement(t *testing.T) {
-	cleanup := setupTestEnvironment()
+	h, cleanup := setupTestHandler()
 	defer cleanup()
 
 	t.Run("Memory management test", func(t *testing.T) {
@@ -714,7 +664,7 @@ func TestResizeHandler_MemoryManagement(t *testing.T) {
 		// Test multiple calls to ensure no memory leaks in the wrapper
 		for i := 0; i < 50; i++ {
 			event := createTestBindingEvent(testURL, "image/jpeg", 1024)
-			_, _ = ResizeHandler(ctx, event)
+			_, _ = h.Resize(ctx, event)
 		}
 
 		assert.True(t, true, "Memory management test completed successfully")

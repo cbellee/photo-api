@@ -1,0 +1,75 @@
+# ──────────────────────────────────────────────────────────────────────
+# Photo API – main REST API serving the SPA
+# ──────────────────────────────────────────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: photo-api
+  namespace: photo
+  labels:
+    app.kubernetes.io/name: photo-api
+    app.kubernetes.io/part-of: photo-api
+spec:
+  selector:
+    app.kubernetes.io/name: photo-api
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: photo-api
+  namespace: photo
+  labels:
+    app.kubernetes.io/name: photo-api
+    app.kubernetes.io/part-of: photo-api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: photo-api
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: photo-api
+    spec:
+      containers:
+        - name: photo-api
+          image: photo-api:latest        # replace with your registry image
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+              name: http
+          env:
+            - name: SERVICE_NAME
+              value: "photo"
+            - name: SERVICE_PORT
+              value: "8080"
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "otel-collector.photo.svc.cluster.local:4317"
+            - name: EMULATED_STORAGE_URL
+              value: "http://blobemu.photo.svc.cluster.local:10000"
+            - name: BLOB_EMULATOR_URL
+              value: "http://blobemu.photo.svc.cluster.local:10000"
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 6
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 15
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi

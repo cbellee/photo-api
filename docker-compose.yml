@@ -1,0 +1,123 @@
+services:
+  photo-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      network: host
+      args:
+        SERVICE_NAME: photo
+        SERVICE_PORT: "8080"
+    ports:
+      - "8080:8080"
+    environment:
+      SERVICE_NAME: photo
+      SERVICE_PORT: "8080"
+      OTEL_EXPORTER_OTLP_ENDPOINT: otel-collector:4317
+      EMULATED_STORAGE_URL: http://localhost:10000
+      BLOB_EMULATOR_URL: http://blobemu:10000
+    depends_on:
+      - otel-collector
+      - blobemu
+
+  resize-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      network: host
+      args:
+        SERVICE_NAME: resize
+        SERVICE_PORT: "8081"
+    environment:
+      SERVICE_NAME: resize
+      SERVICE_PORT: "8081"
+      OTEL_EXPORTER_OTLP_ENDPOINT: otel-collector:4317
+      STORAGE_ACCOUNT_NAME: blobemu
+      STORAGE_ACCOUNT_SUFFIX: "localhost:10000"
+      EMULATED_STORAGE_URL: http://blobemu:10000
+      IMAGES_CONTAINER_NAME: images
+      MAX_IMAGE_HEIGHT: "1200"
+      MAX_IMAGE_WIDTH: "1600"
+      UPLOADS_QUEUE_BINDING: queue-uploads
+    network_mode: "service:resize-dapr"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      blobemu:
+        condition: service_started
+      otel-collector:
+        condition: service_started
+
+  resize-dapr:
+    image: "daprio/daprd:latest"
+    command:
+      [
+        "./daprd",
+        "--app-id", "resize-api",
+        "--app-port", "8081",
+        "--app-protocol", "grpc",
+        "--dapr-grpc-port", "50001",
+        "--dapr-http-port", "3500",
+        "--resources-path", "/components",
+        "--log-level", "info",
+      ]
+    volumes:
+      - ./dapr/components:/components
+    ports:
+      - "8081:8081"   # app port (shared network)
+      - "3500:3500"   # Dapr HTTP
+      - "50001:50001" # Dapr gRPC
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  blobemu:
+    build:
+      context: ./blobemu
+      dockerfile: Dockerfile
+      network: host
+    ports:
+      - "10000:10000"
+    environment:
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      RABBITMQ_EXCHANGE: blob-events
+      RABBITMQ_ROUTING_KEY: blob.created
+      RABBITMQ_QUEUE: blob-events
+      BLOB_PUBLIC_URL: http://blobemu:10000
+    volumes:
+      - ./data:/data
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    ports:
+      - "5672:5672"    # AMQP
+      - "15672:15672"  # Management UI
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+
+  otel-collector:
+    image: grafana/otel-lgtm:latest
+    ports:
+      - "3000:3000"   # Grafana UI
+      - "4317:4317"   # OTLP gRPC
+      - "4318:4318"   # OTLP HTTP
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana-data:/var/lib/grafana
+
+volumes:
+  blobemu-data:
+  rabbitmq-data:
+  grafana-data:

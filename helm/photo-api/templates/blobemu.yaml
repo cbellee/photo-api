@@ -1,0 +1,83 @@
+{{- $blobFQDN := include "photo-api.serviceFQDN" (dict "svc" "blobemu" "context" $) -}}
+{{- $rabbitmqFQDN := include "photo-api.serviceFQDN" (dict "svc" "rabbitmq" "context" $) -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: blobemu
+  labels:
+    {{- include "photo-api.labels" . | nindent 4 }}
+    {{- include "photo-api.selectorLabels" (dict "name" "blobemu" "context" $) | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "photo-api.selectorLabels" (dict "name" "blobemu" "context" $) | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.blobemu.service.port }}
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: blobemu
+  labels:
+    {{- include "photo-api.labels" . | nindent 4 }}
+    {{- include "photo-api.selectorLabels" (dict "name" "blobemu" "context" $) | nindent 4 }}
+spec:
+  serviceName: blobemu
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "photo-api.selectorLabels" (dict "name" "blobemu" "context" $) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "photo-api.labels" . | nindent 8 }}
+        {{- include "photo-api.selectorLabels" (dict "name" "blobemu" "context" $) | nindent 8 }}
+    spec:
+      containers:
+        - name: blobemu
+          image: "{{ .Values.blobemu.image.repository }}:{{ .Values.blobemu.image.tag }}"
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          ports:
+            - containerPort: {{ .Values.blobemu.service.port }}
+              name: http
+          env:
+            - name: RABBITMQ_URL
+              value: "amqp://{{ .Values.rabbitmq.auth.username }}:{{ .Values.rabbitmq.auth.password }}@{{ $rabbitmqFQDN }}:{{ .Values.rabbitmq.service.amqpPort }}/"
+            - name: RABBITMQ_EXCHANGE
+              value: {{ .Values.blobemu.rabbitmq.exchange | quote }}
+            - name: RABBITMQ_ROUTING_KEY
+              value: {{ .Values.blobemu.rabbitmq.routingKey | quote }}
+            - name: RABBITMQ_QUEUE
+              value: {{ .Values.blobemu.rabbitmq.queue | quote }}
+            - name: BLOB_PUBLIC_URL
+              value: "http://{{ $blobFQDN }}:{{ .Values.blobemu.service.port }}"
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          resources:
+            {{- toYaml .Values.blobemu.resources | nindent 12 }}
+          volumeMounts:
+            - name: blobemu-data
+              mountPath: /data
+  volumeClaimTemplates:
+    - metadata:
+        name: blobemu-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        {{- if .Values.blobemu.persistence.storageClass }}
+        storageClassName: {{ .Values.blobemu.persistence.storageClass | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.blobemu.persistence.size }}

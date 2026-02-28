@@ -31,6 +31,17 @@ import (
 )
 
 func CreateAzureBlobClient(storageUrl string, isProduction bool, azureClientId string) (client *azblob.Client, err error) {
+	// If a connection string is provided (e.g. for local Docker), use it directly.
+	if connStr := os.Getenv("STORAGE_CONNECTION_STRING"); connStr != "" {
+		slog.Info("STORAGE_CONNECTION_STRING found, using connection string auth")
+		client, err := azblob.NewClientFromConnectionString(connStr, nil)
+		if err != nil {
+			slog.Error("error creating blob client from connection string", "error", err)
+			return nil, err
+		}
+		return client, nil
+	}
+
 	if isProduction {
 		if azureClientId == "" {
 			slog.Error("azureClientId is required in production")
@@ -495,32 +506,32 @@ func VerifyToken(r *http.Request, jwksURL string) (*models.MyClaims, error) {
 }
 
 func ListBlobHierarchy(client *azblob.Client, storageUrl string, containerName string, prefix *string, blobMap map[string]string) (err error) {
-		serviceClient := client.ServiceClient()
-		maxResults := int32(500)
+	serviceClient := client.ServiceClient()
+	maxResults := int32(500)
 
-	    pager := serviceClient.NewContainerClient(containerName).NewListBlobsHierarchyPager("/", &container.ListBlobsHierarchyOptions{
-    	Include:    container.ListBlobsInclude{Metadata: true, Tags: true},
-		Prefix: prefix,
+	pager := serviceClient.NewContainerClient(containerName).NewListBlobsHierarchyPager("/", &container.ListBlobsHierarchyOptions{
+		Include:    container.ListBlobsInclude{Metadata: true, Tags: true},
+		Prefix:     prefix,
 		MaxResults: &maxResults,
-    })
-    
-    for pager.More() {
-    	resp, err := pager.NextPage(context.TODO())
-    	if err != nil {
-    		slog.Error("failed to list blobs", "error", err)
-    	}
-    
-    	/* for _, item := range resp.Segment.BlobItems {
-    		fmt.Printf("Blob: %s\n", *item.Name)
-    	} */
-    
-    	for _, prefix := range resp.Segment.BlobPrefixes {
-    		fmt.Printf("Virtual Directory: %s\n", *prefix.Name)
-			blobMap[*prefix.Name]=""
+	})
+
+	for pager.More() {
+		resp, err := pager.NextPage(context.TODO())
+		if err != nil {
+			slog.Error("failed to list blobs", "error", err)
+		}
+
+		/* for _, item := range resp.Segment.BlobItems {
+			fmt.Printf("Blob: %s\n", *item.Name)
+		} */
+
+		for _, prefix := range resp.Segment.BlobPrefixes {
+			fmt.Printf("Virtual Directory: %s\n", *prefix.Name)
+			blobMap[*prefix.Name] = ""
 			fmt.Printf("my map: %v\n", blobMap)
 			ListBlobHierarchy(client, storageUrl, containerName, prefix.Name, blobMap)
-    	}
-    }
-	
+		}
+	}
+
 	return nil
 }

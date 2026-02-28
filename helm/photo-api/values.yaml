@@ -1,0 +1,146 @@
+# ──────────────────────────────────────────────────────────────────────
+# Global
+# ──────────────────────────────────────────────────────────────────────
+nameOverride: ""
+fullnameOverride: ""
+
+global:
+  imagePullPolicy: IfNotPresent
+
+# ──────────────────────────────────────────────────────────────────────
+# Photo API
+# ──────────────────────────────────────────────────────────────────────
+photoApi:
+  replicaCount: 2
+  image:
+    repository: photo-api
+    tag: latest
+  service:
+    type: LoadBalancer
+    port: 8080
+  env:
+    serviceName: photo
+    servicePort: "8080"
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+# ──────────────────────────────────────────────────────────────────────
+# Resize API
+# ──────────────────────────────────────────────────────────────────────
+resizeApi:
+  replicaCount: 1
+  image:
+    repository: resize-api
+    tag: latest
+  service:
+    type: ClusterIP
+    port: 8081
+  dapr:
+    enabled: true
+    appId: resize-api
+    appPort: "8081"
+    appProtocol: grpc
+    logLevel: info
+  env:
+    serviceName: resize
+    servicePort: "8081"
+    imagesContainerName: images
+    maxImageHeight: "1200"
+    maxImageWidth: "1600"
+    uploadsQueueBinding: queue-uploads
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: "1"
+      memory: 512Mi
+
+# ──────────────────────────────────────────────────────────────────────
+# Blob Emulator
+# ──────────────────────────────────────────────────────────────────────
+blobemu:
+  image:
+    repository: blobemu
+    tag: latest
+  service:
+    port: 10000
+  rabbitmq:
+    exchange: blob-events
+    routingKey: blob.created
+    queue: blob-events
+  persistence:
+    size: 5Gi
+    storageClass: ""
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+
+# ──────────────────────────────────────────────────────────────────────
+# RabbitMQ
+# ──────────────────────────────────────────────────────────────────────
+rabbitmq:
+  image:
+    repository: rabbitmq
+    tag: 3-management-alpine
+  service:
+    amqpPort: 5672
+    managementPort: 15672
+  auth:
+    username: guest
+    password: guest
+  persistence:
+    size: 1Gi
+    storageClass: ""
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+# ──────────────────────────────────────────────────────────────────────
+# OpenTelemetry Collector (Grafana LGTM)
+# ──────────────────────────────────────────────────────────────────────
+otelCollector:
+  enabled: true
+  image:
+    repository: grafana/otel-lgtm
+    tag: latest
+  service:
+    grafanaPort: 3000
+    otlpGrpcPort: 4317
+    otlpHttpPort: 4318
+  auth:
+    username: admin
+    password: admin
+  persistence:
+    size: 2Gi
+    storageClass: ""
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
+
+# ──────────────────────────────────────────────────────────────────────
+# Dapr Component
+# ──────────────────────────────────────────────────────────────────────
+daprComponent:
+  enabled: true
+  queueName: blob-events
+  durable: "true"
+  exclusive: "false"
+  direction: input
