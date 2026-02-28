@@ -340,3 +340,61 @@ kubectl -n photo port-forward svc/rabbitmq 15672:15672
 | Use a specific storage class | `--set rabbitmq.persistence.storageClass=managed-premium` |
 | Scale photo-api | `--set photoApi.replicaCount=5` |
 | Increase blob storage | `--set blobemu.persistence.size=20Gi` |
+
+## Pushing Images to GHCR
+
+The three application images (`photo-api`, `resize-api`, `blobemu`) can be hosted on GitHub Container Registry (GHCR).
+
+### 1. Authenticate
+
+Create a [Personal Access Token](https://github.com/settings/tokens) with the `write:packages` scope, then log in:
+
+```bash
+echo $GITHUB_TOKEN | docker login ghcr.io -u cbellee --password-stdin
+```
+
+### 2. Build
+
+Run from the repository root (`photo-api/`):
+
+```bash
+docker build -t ghcr.io/cbellee/photo-api/photo-api:latest \
+  --build-arg SERVICE_NAME=photo --build-arg SERVICE_PORT=8080 .
+
+docker build -t ghcr.io/cbellee/photo-api/resize-api:latest \
+  --build-arg SERVICE_NAME=resize --build-arg SERVICE_PORT=8081 .
+
+docker build -t ghcr.io/cbellee/photo-api/blobemu:latest \
+  -f blobemu/Dockerfile blobemu/
+```
+
+### 3. Push
+
+```bash
+docker push ghcr.io/cbellee/photo-api/photo-api:latest
+docker push ghcr.io/cbellee/photo-api/resize-api:latest
+docker push ghcr.io/cbellee/photo-api/blobemu:latest
+```
+
+### 4. Deploy with GHCR Images
+
+```bash
+helm install photo-api helm/photo-api \
+  --namespace photo --create-namespace \
+  --set photoApi.image.repository=ghcr.io/cbellee/photo-api/photo-api \
+  --set resizeApi.image.repository=ghcr.io/cbellee/photo-api/resize-api \
+  --set blobemu.image.repository=ghcr.io/cbellee/photo-api/blobemu
+```
+
+### 5. Private Repositories
+
+If the GHCR packages are private, create an image pull secret and reference it during install:
+
+```bash
+kubectl -n photo create secret docker-registry ghcr-pull-secret \
+  --docker-server=ghcr.io \
+  --docker-username=cbellee \
+  --docker-password=$GITHUB_TOKEN
+```
+
+Then add `imagePullSecrets` to the pod specs, or pass it as a global value if you extend the chart to support it.
