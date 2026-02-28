@@ -1,0 +1,25 @@
+# ──────────────────────────────────────────────────────────────────────
+# Dapr Component – RabbitMQ input binding for blob upload events
+#
+# This is deployed as a Kubernetes resource when the Dapr operator is
+# installed. It replaces the file-based component in dapr/components/.
+# ──────────────────────────────────────────────────────────────────────
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: queue-uploads
+  namespace: photo
+spec:
+  type: bindings.rabbitmq
+  version: v1
+  metadata:
+    - name: host
+      value: "amqp://guest:guest@rabbitmq.photo.svc.cluster.local:5672/"
+    - name: queueName
+      value: "blob-events"
+    - name: durable
+      value: "true"
+    - name: exclusive
+      value: "false"
+    - name: direction
+      value: "input"

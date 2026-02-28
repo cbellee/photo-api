@@ -1,0 +1,83 @@
+# ──────────────────────────────────────────────────────────────────────
+# OpenTelemetry Collector (Grafana LGTM all-in-one)
+# ──────────────────────────────────────────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: otel-collector
+  namespace: photo
+  labels:
+    app.kubernetes.io/name: otel-collector
+    app.kubernetes.io/part-of: photo-api
+spec:
+  selector:
+    app.kubernetes.io/name: otel-collector
+  ports:
+    - name: grafana
+      port: 3000
+      targetPort: 3000
+    - name: otlp-grpc
+      port: 4317
+      targetPort: 4317
+    - name: otlp-http
+      port: 4318
+      targetPort: 4318
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: otel-collector
+  namespace: photo
+  labels:
+    app.kubernetes.io/name: otel-collector
+    app.kubernetes.io/part-of: photo-api
+spec:
+  serviceName: otel-collector
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: otel-collector
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: otel-collector
+    spec:
+      containers:
+        - name: otel-lgtm
+          image: grafana/otel-lgtm:latest
+          ports:
+            - containerPort: 3000
+              name: grafana
+            - containerPort: 4317
+              name: otlp-grpc
+            - containerPort: 4318
+              name: otlp-http
+          env:
+            - name: GF_SECURITY_ADMIN_USER
+              valueFrom:
+                secretKeyRef:
+                  name: grafana-credentials
+                  key: username
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: grafana-credentials
+                  key: password
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi
+          volumeMounts:
+            - name: grafana-data
+              mountPath: /var/lib/grafana
+  volumeClaimTemplates:
+    - metadata:
+        name: grafana-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 2Gi

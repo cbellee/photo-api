@@ -1,0 +1,20 @@
+1. Get the photo-api external URL by running:
+{{- if eq .Values.photoApi.service.type "LoadBalancer" }}
+  NOTE: It may take a few minutes for the LoadBalancer IP to be available.
+  Watch with:
+    kubectl -n {{ .Release.Namespace }} get svc photo-api -w
+
+  export PHOTO_API_IP=$(kubectl -n {{ .Release.Namespace }} get svc photo-api -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+  echo "Photo API: http://$PHOTO_API_IP:{{ .Values.photoApi.service.port }}"
+{{- else }}
+  kubectl -n {{ .Release.Namespace }} port-forward svc/photo-api {{ .Values.photoApi.service.port }}:{{ .Values.photoApi.service.port }}
+  echo "Photo API: http://localhost:{{ .Values.photoApi.service.port }}"
+{{- end }}
+
+2. Access Grafana:
+  kubectl -n {{ .Release.Namespace }} port-forward svc/otel-collector {{ .Values.otelCollector.service.grafanaPort }}:{{ .Values.otelCollector.service.grafanaPort }}
+  echo "Grafana: http://localhost:{{ .Values.otelCollector.service.grafanaPort }}"
+
+3. Access RabbitMQ Management UI:
+  kubectl -n {{ .Release.Namespace }} port-forward svc/rabbitmq {{ .Values.rabbitmq.service.managementPort }}:{{ .Values.rabbitmq.service.managementPort }}
+  echo "RabbitMQ: http://localhost:{{ .Values.rabbitmq.service.managementPort }}"

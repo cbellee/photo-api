@@ -1,0 +1,87 @@
+{{- $rabbitmqFQDN := include "photo-api.serviceFQDN" (dict "svc" "rabbitmq" "context" $) -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: rabbitmq
+  labels:
+    {{- include "photo-api.labels" . | nindent 4 }}
+    {{- include "photo-api.selectorLabels" (dict "name" "rabbitmq" "context" $) | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "photo-api.selectorLabels" (dict "name" "rabbitmq" "context" $) | nindent 4 }}
+  ports:
+    - name: amqp
+      port: {{ .Values.rabbitmq.service.amqpPort }}
+      targetPort: amqp
+    - name: management
+      port: {{ .Values.rabbitmq.service.managementPort }}
+      targetPort: management
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: rabbitmq
+  labels:
+    {{- include "photo-api.labels" . | nindent 4 }}
+    {{- include "photo-api.selectorLabels" (dict "name" "rabbitmq" "context" $) | nindent 4 }}
+spec:
+  serviceName: rabbitmq
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "photo-api.selectorLabels" (dict "name" "rabbitmq" "context" $) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "photo-api.labels" . | nindent 8 }}
+        {{- include "photo-api.selectorLabels" (dict "name" "rabbitmq" "context" $) | nindent 8 }}
+    spec:
+      containers:
+        - name: rabbitmq
+          image: "{{ .Values.rabbitmq.image.repository }}:{{ .Values.rabbitmq.image.tag }}"
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          ports:
+            - containerPort: {{ .Values.rabbitmq.service.amqpPort }}
+              name: amqp
+            - containerPort: {{ .Values.rabbitmq.service.managementPort }}
+              name: management
+          env:
+            - name: RABBITMQ_DEFAULT_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "photo-api.fullname" . }}-rabbitmq-credentials
+                  key: username
+            - name: RABBITMQ_DEFAULT_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "photo-api.fullname" . }}-rabbitmq-credentials
+                  key: password
+          readinessProbe:
+            exec:
+              command: ["rabbitmq-diagnostics", "-q", "ping"]
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            exec:
+              command: ["rabbitmq-diagnostics", "-q", "ping"]
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
+          resources:
+            {{- toYaml .Values.rabbitmq.resources | nindent 12 }}
+          volumeMounts:
+            - name: rabbitmq-data
+              mountPath: /var/lib/rabbitmq
+  volumeClaimTemplates:
+    - metadata:
+        name: rabbitmq-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        {{- if .Values.rabbitmq.persistence.storageClass }}
+        storageClassName: {{ .Values.rabbitmq.persistence.storageClass | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.rabbitmq.persistence.size }}
