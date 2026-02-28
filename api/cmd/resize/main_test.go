@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/cbellee/photo-api/internal/models"
-	"github.com/cbellee/photo-api/internal/utils"
+	"github.com/cbellee/photo-api/internal/storage"
 	"github.com/dapr/go-sdk/service/common"
 	"github.com/stretchr/testify/assert"
 )
@@ -48,12 +48,9 @@ func setupTestHandler() (*Handler, func()) {
 	cfg := testConfig()
 
 	storageUrl := fmt.Sprintf("https://%s.%s", cfg.StorageAccount, cfg.StorageSuffix)
-	testClient, err := utils.CreateAzureBlobClient(storageUrl, false, cfg.AzureClientID)
-	if err != nil {
-		fmt.Printf("Warning: Could not create test Azure client: %v\n", err)
-	}
+	mockStore := &storage.MockBlobStore{}
 
-	h := NewHandler(testClient, cfg) // testClient may be nil; tests handle that gracefully
+	h := NewHandler(mockStore, storageUrl, cfg)
 
 	cleanup := func() {
 		os.Unsetenv("SERVICE_NAME")

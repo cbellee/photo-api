@@ -6,9 +6,16 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 
 	_ "modernc.org/sqlite"
 )
+
+// joinStrings joins a string slice with a separator (avoids importing strings
+// in hot path for a tiny helper).
+func joinStrings(elems []string, sep string) string {
+	return strings.Join(elems, sep)
+}
 
 // BlobInfo is the JSON-serialisable representation of a stored blob.
 type BlobInfo struct {
@@ -37,9 +44,17 @@ func NewStore(dataDir string) (*Store, error) {
 		return nil, fmt.Errorf("opening database: %w", err)
 	}
 
+	// Serialise all access through a single connection to avoid
+	// SQLITE_BUSY when concurrent HTTP handlers write.
+	db.SetMaxOpenConns(1)
+
 	// WAL mode gives better concurrent-read performance.
 	if _, err := db.Exec("PRAGMA journal_mode=WAL"); err != nil {
 		return nil, fmt.Errorf("setting WAL mode: %w", err)
+	}
+	// Wait up to 5 s for the write lock instead of failing immediately.
+	if _, err := db.Exec("PRAGMA busy_timeout=5000"); err != nil {
+		return nil, fmt.Errorf("setting busy timeout: %w", err)
 	}
 	if _, err := db.Exec("PRAGMA foreign_keys=ON"); err != nil {
 		return nil, fmt.Errorf("enabling foreign keys: %w", err)
@@ -149,18 +164,20 @@ func (s *Store) SaveBlob(container, name string, data []byte, tags, metadata map
 
 // SetTags replaces all tags on a blob.
 func (s *Store) SetTags(container, name string, tags map[string]string) error {
-	var blobID int64
-	if err := s.db.QueryRow("SELECT id FROM blobs WHERE container = ? AND name = ?", container, name).Scan(&blobID); err != nil {
-		return fmt.Errorf("blob not found: %s/%s", container, name)
-	}
-
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 
-	tx.Exec("DELETE FROM tags WHERE blob_id = ?", blobID)
+	var blobID int64
+	if err := tx.QueryRow("SELECT id FROM blobs WHERE container = ? AND name = ?", container, name).Scan(&blobID); err != nil {
+		return fmt.Errorf("blob not found: %s/%s", container, name)
+	}
+
+	if _, err := tx.Exec("DELETE FROM tags WHERE blob_id = ?", blobID); err != nil {
+		return fmt.Errorf("deleting old tags: %w", err)
+	}
 	for k, v := range tags {
 		if _, err := tx.Exec("INSERT INTO tags (blob_id, key, value) VALUES (?, ?, ?)", blobID, k, v); err != nil {
 			return err
@@ -207,22 +224,44 @@ func (s *Store) GetMetadata(container, name string) (map[string]string, error) {
 }
 
 // ListBlobs returns every blob in a container with its tags.
+// Uses a single JOIN to avoid per-blob round-trips.
 func (s *Store) ListBlobs(container string) ([]BlobInfo, error) {
-	rows, err := s.db.Query("SELECT id, name FROM blobs WHERE container = ?", container)
+	const q = `
+		SELECT b.id, b.name, COALESCE(t.key, ''), COALESCE(t.value, '')
+		FROM blobs b
+		LEFT JOIN tags t ON t.blob_id = b.id
+		WHERE b.container = ?
+		ORDER BY b.id`
+
+	rows, err := s.db.Query(q, container)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
+	// Coalesce rows into BlobInfo structs keyed by blob id.
+	type entry struct {
+		index int
+	}
+	index := make(map[int64]entry)
 	var out []BlobInfo
+
 	for rows.Next() {
 		var id int64
-		var name string
-		if err := rows.Scan(&id, &name); err != nil {
+		var name, tagKey, tagVal string
+		if err := rows.Scan(&id, &name, &tagKey, &tagVal); err != nil {
 			return nil, err
 		}
-		tags, _ := s.tagsByID(id)
-		out = append(out, BlobInfo{Name: name, Container: container, Tags: tags})
+
+		e, ok := index[id]
+		if !ok {
+			e = entry{index: len(out)}
+			index[id] = e
+			out = append(out, BlobInfo{Name: name, Container: container, Tags: map[string]string{}})
+		}
+		if tagKey != "" {
+			out[e.index].Tags[tagKey] = tagVal
+		}
 	}
 	if out == nil {
 		out = []BlobInfo{}
@@ -232,32 +271,95 @@ func (s *Store) ListBlobs(container string) ([]BlobInfo, error) {
 
 // FilterByTags parses an Azure-style tag query and returns matching blobs
 // with tags and metadata fully populated.
+// Uses JOINs to fetch tags and metadata in bulk instead of per-blob queries.
 func (s *Store) FilterByTags(query string) ([]BlobInfo, error) {
 	conditions, err := ParseTagQuery(query)
 	if err != nil {
 		return nil, fmt.Errorf("parsing query: %w", err)
 	}
 
+	// Step 1: find matching blob IDs.
 	sqlText, args := BuildFilterSQL(conditions)
 	rows, err := s.db.Query(sqlText, args...)
 	if err != nil {
 		return nil, fmt.Errorf("executing filter: %w", err)
 	}
-	defer rows.Close()
 
-	var out []BlobInfo
+	type blobRow struct {
+		id        int64
+		container string
+		name      string
+	}
+	var matched []blobRow
 	for rows.Next() {
-		var id int64
-		var container, name string
-		if err := rows.Scan(&id, &container, &name); err != nil {
+		var br blobRow
+		if err := rows.Scan(&br.id, &br.container, &br.name); err != nil {
+			rows.Close()
 			return nil, err
 		}
-		tags, _ := s.tagsByID(id)
-		md, _ := s.metadataByID(id)
-		out = append(out, BlobInfo{Name: name, Container: container, Tags: tags, Metadata: md})
+		matched = append(matched, br)
 	}
-	if out == nil {
-		out = []BlobInfo{}
+	rows.Close()
+
+	if len(matched) == 0 {
+		return []BlobInfo{}, nil
+	}
+
+	// Build id list for bulk fetch.
+	ids := make([]interface{}, len(matched))
+	placeholders := make([]string, len(matched))
+	for i, br := range matched {
+		ids[i] = br.id
+		placeholders[i] = "?"
+	}
+	inClause := "(" + joinStrings(placeholders, ",") + ")"
+
+	// Step 2: bulk-fetch tags.
+	tagMap := make(map[int64]map[string]string)
+	tagRows, err := s.db.Query("SELECT blob_id, key, value FROM tags WHERE blob_id IN "+inClause, ids...)
+	if err == nil {
+		defer tagRows.Close()
+		for tagRows.Next() {
+			var bid int64
+			var k, v string
+			if err := tagRows.Scan(&bid, &k, &v); err == nil {
+				if tagMap[bid] == nil {
+					tagMap[bid] = make(map[string]string)
+				}
+				tagMap[bid][k] = v
+			}
+		}
+	}
+
+	// Step 3: bulk-fetch metadata.
+	mdMap := make(map[int64]map[string]string)
+	mdRows, err := s.db.Query("SELECT blob_id, key, value FROM metadata WHERE blob_id IN "+inClause, ids...)
+	if err == nil {
+		defer mdRows.Close()
+		for mdRows.Next() {
+			var bid int64
+			var k, v string
+			if err := mdRows.Scan(&bid, &k, &v); err == nil {
+				if mdMap[bid] == nil {
+					mdMap[bid] = make(map[string]string)
+				}
+				mdMap[bid][k] = v
+			}
+		}
+	}
+
+	// Step 4: assemble results.
+	out := make([]BlobInfo, 0, len(matched))
+	for _, br := range matched {
+		tags := tagMap[br.id]
+		if tags == nil {
+			tags = map[string]string{}
+		}
+		md := mdMap[br.id]
+		if md == nil {
+			md = map[string]string{}
+		}
+		out = append(out, BlobInfo{Name: br.name, Container: br.container, Tags: tags, Metadata: md})
 	}
 	return out, nil
 }

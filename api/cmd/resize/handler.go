@@ -10,8 +10,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
 	"github.com/cbellee/photo-api/internal/models"
+	"github.com/cbellee/photo-api/internal/storage"
 	"github.com/cbellee/photo-api/internal/utils"
 	"github.com/dapr/go-sdk/service/common"
 	"go.opentelemetry.io/otel"
@@ -30,13 +30,14 @@ type blobRef struct {
 
 // Handler processes resize events from the Dapr binding.
 type Handler struct {
-	client *azblob.Client
-	cfg    *Config
+	store      storage.BlobStore
+	storageUrl string
+	cfg        *Config
 }
 
 // NewHandler creates a new resize Handler.
-func NewHandler(client *azblob.Client, cfg *Config) *Handler {
-	return &Handler{client: client, cfg: cfg}
+func NewHandler(store storage.BlobStore, storageUrl string, cfg *Config) *Handler {
+	return &Handler{store: store, storageUrl: storageUrl, cfg: cfg}
 }
 
 // Resize is the Dapr binding invocation handler for image-resize events.
@@ -71,26 +72,26 @@ func (h *Handler) Resize(ctx context.Context, in *common.BindingEvent) ([]byte, 
 	slog.Info("processing blob", "container", ref.container, "path", ref.path, "album", ref.album, "collection", ref.collection)
 
 	// Download the source blob.
-	blobStream, err := utils.GetBlobStream(h.client, ctx, ref.path, ref.container, h.client.URL())
+	blobBytes, err := h.store.GetBlob(ctx, ref.path, ref.container, h.storageUrl)
 	if err != nil {
 		slog.Error("error downloading blob", "path", ref.path, "error", err)
 		return nil, fmt.Errorf("downloading blob %s: %w", ref.path, err)
 	}
 
 	// Fetch existing tags and metadata.
-	tags, err := utils.GetBlobTags(h.client, ref.path, ref.container, h.client.URL())
+	tags, err := h.store.GetBlobTags(ctx, ref.path, ref.container, h.storageUrl)
 	if err != nil {
 		slog.Error("error getting blob tags", "path", ref.path, "error", err)
 		return nil, fmt.Errorf("getting blob tags for %s: %w", ref.path, err)
 	}
-	metadata, err := utils.GetBlobMetadata(h.client, ref.path, ref.container, h.client.URL())
+	metadata, err := h.store.GetBlobMetadata(ctx, ref.path, ref.container, h.storageUrl)
 	if err != nil {
 		slog.Error("error getting blob metadata", "path", ref.path, "error", err)
 		return nil, fmt.Errorf("getting blob metadata for %s: %w", ref.path, err)
 	}
 
 	// Resize the image.
-	imgBytes, err := utils.ResizeImage(blobStream.Bytes(), evt.Data.ContentType, ref.path, h.cfg.MaxImageHeight, h.cfg.MaxImageWidth)
+	imgBytes, err := utils.ResizeImage(blobBytes, evt.Data.ContentType, ref.path, h.cfg.MaxImageHeight, h.cfg.MaxImageWidth)
 	if err != nil {
 		slog.Error("error resizing image", "path", ref.path, "error", err)
 		return nil, fmt.Errorf("resizing image %s: %w", ref.path, err)
@@ -110,7 +111,7 @@ func (h *Handler) Resize(ctx context.Context, in *common.BindingEvent) ([]byte, 
 	metadata["Width"] = fmt.Sprint(imgCfg.Width)
 
 	// Save the resized image to the images container.
-	err = utils.SaveBlobStreamWithTagsAndMetadata(h.client, ctx, imgBytes, ref.path, h.cfg.ImagesContainerName, h.client.URL(), tags, metadata)
+	err = h.store.SaveBlob(ctx, imgBytes, ref.path, h.cfg.ImagesContainerName, h.storageUrl, tags, metadata, evt.Data.ContentType)
 	if err != nil {
 		slog.Error("error saving resized blob", "path", ref.path, "error", err)
 		return nil, fmt.Errorf("saving resized blob %s: %w", ref.path, err)

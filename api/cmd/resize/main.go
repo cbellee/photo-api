@@ -7,6 +7,7 @@ import (
 	"os"
 	"strconv"
 
+	"github.com/cbellee/photo-api/internal/storage"
 	"github.com/cbellee/photo-api/internal/telemetry"
 	"github.com/cbellee/photo-api/internal/utils"
 	daprd "github.com/dapr/go-sdk/service/grpc"
@@ -70,26 +71,36 @@ func main() {
 		StorageContainer:    utils.GetEnvValue("STORAGE_CONTAINER_NAME", ""),
 	}
 
-	// ── Detect environment ──────────────────────────────────────────
-	isProduction := false
-	if _, exists := os.LookupEnv("CONTAINER_APP_NAME"); exists {
-		isProduction = true
+	// ── Create blob store ────────────────────────────────────────────
+	var store storage.BlobStore
+	var storageUrl string
+
+	if emuURL := utils.GetEnvValue("EMULATED_STORAGE_URL", ""); emuURL != "" {
+		// Local / emulator mode: use plain HTTP client to talk to blobemu.
+		slog.Info("using local blob emulator", "url", emuURL)
+		store = storage.NewLocalBlobStore(emuURL)
+		storageUrl = emuURL
 	} else {
-		slog.Info("'CONTAINER_APP_NAME' env var not found, running in local environment")
-	}
+		storageUrl = fmt.Sprintf("https://%s.%s", cfg.StorageAccount, cfg.StorageSuffix)
+		slog.Info("storage url", "url", storageUrl)
 
-	// ── Create blob client ──────────────────────────────────────────
-	storageUrl := fmt.Sprintf("https://%s.%s", cfg.StorageAccount, cfg.StorageSuffix)
-	slog.Info("storage url", "url", storageUrl)
+		isProduction := false
+		if _, exists := os.LookupEnv("CONTAINER_APP_NAME"); exists {
+			isProduction = true
+		} else {
+			slog.Info("'CONTAINER_APP_NAME' env var not found, running in local environment")
+		}
 
-	blobClient, err := utils.CreateAzureBlobClient(storageUrl, isProduction, cfg.AzureClientID)
-	if err != nil {
-		slog.Error("error creating blob client", "error", err)
-		return
+		blobClient, blobErr := utils.CreateAzureBlobClient(storageUrl, isProduction, cfg.AzureClientID)
+		if blobErr != nil {
+			slog.Error("error creating blob client", "error", blobErr)
+			return
+		}
+		store = storage.NewAzureBlobStore(blobClient)
 	}
 
 	// ── Create handler ──────────────────────────────────────────────
-	h := NewHandler(blobClient, cfg)
+	h := NewHandler(store, storageUrl, cfg)
 
 	// ── Dapr service ────────────────────────────────────────────────
 	port := fmt.Sprintf(":%s", cfg.ServicePort)

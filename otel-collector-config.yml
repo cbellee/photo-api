@@ -1,3 +1,11 @@
+# NOTE: This file is only used if you override the otel-lgtm built-in
+# collector. The grafana/otel-lgtm image ships its own collector config
+# that exports to the bundled Loki, Tempo, and Prometheus instances.
+#
+# Kept here for reference or manual override via:
+#   volumes:
+#     - ./otel-collector-config.yml:/otel-lgtm/otelcol-config.yaml
+
 receivers:
   otlp:
     protocols:
@@ -7,8 +15,12 @@ receivers:
         endpoint: 0.0.0.0:4318
 
 exporters:
-  zipkin:
-    endpoint: "http://zipkin:9411/api/v2/spans"
+  otlphttp/logs:
+    endpoint: "http://localhost:3100/otlp"
+  otlphttp/traces:
+    endpoint: "http://localhost:4418"
+  prometheusremotewrite:
+    endpoint: "http://localhost:9090/api/v1/write"
   debug:
     verbosity: detailed
 
@@ -20,12 +32,12 @@ service:
     traces:
       receivers: [otlp]
       processors: [batch]
-      exporters: [zipkin, debug]
+      exporters: [otlphttp/traces, debug]
     metrics:
       receivers: [otlp]
       processors: [batch]
-      exporters: [debug]
+      exporters: [prometheusremotewrite, debug]
     logs:
       receivers: [otlp]
       processors: [batch]
-      exporters: [debug]
+      exporters: [otlphttp/logs, debug]

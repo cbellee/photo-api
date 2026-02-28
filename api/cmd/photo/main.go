@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/cbellee/photo-api/internal/handler"
 	"github.com/cbellee/photo-api/internal/models"
@@ -38,8 +39,8 @@ func main() {
 	}
 
 	// ── Configuration ───────────────────────────────────────────────
-	// STORAGE_URL overrides the computed Azure storage URL (used with the blob emulator).
-	storageUrl := utils.GetEnvValue("STORAGE_URL", "")
+	// EMULATED_STORAGE_URL overrides the computed Azure storage URL (used with the blob emulator).
+	storageUrl := utils.GetEnvValue("EMULATED_STORAGE_URL", "")
 	if storageUrl == "" {
 		storageAccount := utils.GetEnvValue("STORAGE_ACCOUNT_NAME", "stor6aq2g56sfcosi")
 		storageAccountSuffix := utils.GetEnvValue("STORAGE_ACCOUNT_SUFFIX", "blob.core.windows.net")
@@ -114,9 +115,16 @@ func main() {
 	})
 
 	// Readiness probe – returns 200 when the service can handle traffic.
+	// Uses a short-lived context and a lightweight single-blob check rather
+	// than listing every blob in the container.
 	api.HandleFunc("GET /readyz", func(w http.ResponseWriter, _ *http.Request) {
-		// Verify blob store connectivity by attempting a lightweight query.
-		_, err := store.GetBlobTagList(context.Background(), cfg.ImagesContainerName, cfg.StorageUrl)
+		readyCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		// Attempt a cheap tag-filter query that returns at most one row.
+		_, err := store.FilterBlobsByTags(readyCtx,
+			fmt.Sprintf("@container='%s'", cfg.ImagesContainerName),
+			cfg.ImagesContainerName, cfg.StorageUrl)
 		if err != nil {
 			slog.Warn("readiness check failed", "error", err)
 			w.Header().Set("Content-Type", "application/json")

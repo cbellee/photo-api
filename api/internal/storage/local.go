@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/cbellee/photo-api/internal/models"
 )
@@ -26,8 +27,10 @@ type LocalBlobStore struct {
 // blob emulator at baseURL (e.g. "http://blobemu:10000").
 func NewLocalBlobStore(baseURL string) *LocalBlobStore {
 	return &LocalBlobStore{
-		baseURL:    strings.TrimRight(baseURL, "/"),
-		httpClient: &http.Client{},
+		baseURL: strings.TrimRight(baseURL, "/"),
+		httpClient: &http.Client{
+			Timeout: 30 * time.Second,
+		},
 	}
 }
 
@@ -188,6 +191,34 @@ func (s *LocalBlobStore) GetBlobTagList(ctx context.Context, containerName strin
 		}
 	}
 	return tagMap, nil
+}
+
+func (s *LocalBlobStore) GetBlob(ctx context.Context, blobName string, containerName string, storageUrl string) ([]byte, error) {
+	u := s.blobURL(containerName, blobName)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("get blob failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("get blob status %d: %s", resp.StatusCode, string(b))
+	}
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("reading blob body: %w", err)
+	}
+
+	slog.Debug("downloaded blob via emulator", "container", containerName, "name", blobName, "bytes", len(data))
+	return data, nil
 }
 
 func (s *LocalBlobStore) SaveBlob(ctx context.Context, data []byte, blobName string, containerName string, storageUrl string, tags map[string]string, metadata map[string]string, contentType string) error {

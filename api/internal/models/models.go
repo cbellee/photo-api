@@ -26,7 +26,7 @@ type ImageTags struct {
 	Album           string `json:"album"`
 	Type            string `json:"type"`
 	IsDeleted       bool   `json:"isDeleted"`
-	Orientation     int    `json:"orientation"`
+	Orientation     int    `json:"orientation,string"`
 }
 
 type Blob struct {

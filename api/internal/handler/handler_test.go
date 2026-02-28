@@ -269,9 +269,13 @@ func TestAlbumHandler_ReturnsAlbums(t *testing.T) {
 	cfg := testConfig()
 	blobs := sampleBlobs()[:1] // just one album image
 	mock := &storage.MockBlobStore{
+		GetBlobTagListFunc: func(ctx context.Context, containerName string, storageUrl string) (map[string][]string, error) {
+			return map[string][]string{"nature": {"sunset"}}, nil
+		},
 		FilterBlobsByTagsFunc: func(ctx context.Context, query string, containerName string, storageUrl string) ([]models.Blob, error) {
-			assert.Contains(t, query, "collection='nature'")
-			assert.Contains(t, query, "albumImage='true'")
+			if strings.Contains(query, "albumImage='true'") {
+				return blobs, nil
+			}
 			return blobs, nil
 		},
 		GetBlobTagsFunc: func(ctx context.Context, blobName string, containerName string, storageUrl string) (map[string]string, error) {
@@ -312,8 +316,8 @@ func TestAlbumHandler_MissingCollection_Returns400(t *testing.T) {
 func TestAlbumHandler_NoBlobsFound_Returns404(t *testing.T) {
 	cfg := testConfig()
 	mock := &storage.MockBlobStore{
-		FilterBlobsByTagsFunc: func(ctx context.Context, query string, containerName string, storageUrl string) ([]models.Blob, error) {
-			return nil, fmt.Errorf("no blobs found")
+		GetBlobTagListFunc: func(ctx context.Context, containerName string, storageUrl string) (map[string][]string, error) {
+			return nil, fmt.Errorf("no tags")
 		},
 	}
 
@@ -333,8 +337,13 @@ func TestCollectionHandler_ReturnsCollections(t *testing.T) {
 	cfg := testConfig()
 	blobs := sampleBlobs()[:1]
 	mock := &storage.MockBlobStore{
+		GetBlobTagListFunc: func(ctx context.Context, containerName string, storageUrl string) (map[string][]string, error) {
+			return map[string][]string{"nature": {"sunset"}}, nil
+		},
 		FilterBlobsByTagsFunc: func(ctx context.Context, query string, containerName string, storageUrl string) ([]models.Blob, error) {
-			assert.Contains(t, query, "collectionImage='true'")
+			if strings.Contains(query, "collectionImage='true'") {
+				return blobs, nil // nature already marked
+			}
 			return blobs, nil
 		},
 		GetBlobTagsFunc: func(ctx context.Context, blobName string, containerName string, storageUrl string) (map[string]string, error) {
@@ -360,23 +369,37 @@ func TestCollectionHandler_ReturnsCollections(t *testing.T) {
 func TestCollectionHandler_FallbackQuery(t *testing.T) {
 	cfg := testConfig()
 	blobs := sampleBlobs()[:1]
+	// Blob has collectionImage='true' but there's a second collection 'sport'
+	// that has no marker yet — so the handler should auto-assign one.
+	sportBlob := models.Blob{
+		Name: "sport/ravens/photo1.jpg",
+		Path: "https://teststorage.blob.core.windows.net/images/sport/ravens/photo1.jpg",
+		Tags: map[string]string{"collection": "sport", "album": "ravens", "collectionImage": "false"},
+	}
 	callCount := 0
 	mock := &storage.MockBlobStore{
+		GetBlobTagListFunc: func(ctx context.Context, containerName string, storageUrl string) (map[string][]string, error) {
+			return map[string][]string{"nature": {"sunset"}, "sport": {"ravens"}}, nil
+		},
 		FilterBlobsByTagsFunc: func(ctx context.Context, query string, containerName string, storageUrl string) ([]models.Blob, error) {
 			callCount++
-			if callCount == 1 {
-				// First call (collectionImage='true') fails
-				return nil, fmt.Errorf("no blobs found")
+			if strings.Contains(query, "collectionImage='true'") {
+				// nature already marked
+				return blobs, nil
 			}
-			// Second call (fallback) succeeds
-			return blobs, nil
+			if strings.Contains(query, "collection='sport'") {
+				return []models.Blob{sportBlob}, nil
+			}
+			return nil, fmt.Errorf("no blobs found")
 		},
 		SetBlobTagsFunc: func(ctx context.Context, blobName string, containerName string, storageUrl string, tags map[string]string) error {
 			assert.Equal(t, "true", tags["collectionImage"])
-			// Should set collectionImage to 'true' on first blob
 			return nil
 		},
 		GetBlobTagsFunc: func(ctx context.Context, blobName string, containerName string, storageUrl string) (map[string]string, error) {
+			if blobName == "sport/ravens/photo1.jpg" {
+				return sportBlob.Tags, nil
+			}
 			return blobs[0].Tags, nil
 		},
 	}
@@ -388,15 +411,19 @@ func TestCollectionHandler_FallbackQuery(t *testing.T) {
 	handler.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
-	assert.Equal(t, 2, callCount) // two FilterBlobsByTags calls
-	assert.Len(t, mock.SetBlobTagsCalls, 1)
+	assert.Len(t, mock.SetBlobTagsCalls, 1) // should auto-assign collectionImage for 'sport'
+
+	var photos []models.Photo
+	err := json.Unmarshal(w.Body.Bytes(), &photos)
+	require.NoError(t, err)
+	assert.Len(t, photos, 2) // nature + sport
 }
 
 func TestCollectionHandler_NoBlobs_Returns404(t *testing.T) {
 	cfg := testConfig()
 	mock := &storage.MockBlobStore{
-		FilterBlobsByTagsFunc: func(ctx context.Context, query string, containerName string, storageUrl string) ([]models.Blob, error) {
-			return nil, fmt.Errorf("no blobs found")
+		GetBlobTagListFunc: func(ctx context.Context, containerName string, storageUrl string) (map[string][]string, error) {
+			return nil, fmt.Errorf("no tags")
 		},
 	}
 

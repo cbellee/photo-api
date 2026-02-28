@@ -30,6 +30,26 @@ func main() {
 	}
 	defer store.Close()
 
+	// ── RabbitMQ publisher (optional) ────────────────────────────────
+	var pub *Publisher
+	if amqpURL := env("RABBITMQ_URL", ""); amqpURL != "" {
+		pubCfg := &PublisherConfig{
+			URL:        amqpURL,
+			Exchange:   env("RABBITMQ_EXCHANGE", "blob-events"),
+			RoutingKey: env("RABBITMQ_ROUTING_KEY", "blob.created"),
+			QueueName:  env("RABBITMQ_QUEUE", "blob-events"),
+			BaseURL:    env("BLOB_PUBLIC_URL", "http://blobemu:10000"),
+		}
+		pub, err = NewPublisher(pubCfg)
+		if err != nil {
+			slog.Error("failed to connect to RabbitMQ", "error", err)
+			os.Exit(1)
+		}
+		defer pub.Close()
+	} else {
+		slog.Info("RABBITMQ_URL not set – event publishing disabled")
+	}
+
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
@@ -38,7 +58,8 @@ func main() {
 	mux.HandleFunc("POST /_query", queryHandler(store))
 	mux.HandleFunc("GET /{container}", listHandler(store))
 	mux.HandleFunc("GET /{container}/{blob...}", blobGetHandler(store))
-	mux.HandleFunc("PUT /{container}/{blob...}", blobPutHandler(store))
+	publishContainer := env("PUBLISH_CONTAINER", "uploads")
+	mux.HandleFunc("PUT /{container}/{blob...}", blobPutHandler(store, pub, publishContainer))
 
 	srv := &http.Server{
 		Addr:           ":" + port,
@@ -131,7 +152,7 @@ func blobGetHandler(store *Store) http.HandlerFunc {
 	}
 }
 
-func blobPutHandler(store *Store) http.HandlerFunc {
+func blobPutHandler(store *Store, pub *Publisher, publishContainer string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		container := r.PathValue("container")
 		blob := r.PathValue("blob")
@@ -178,6 +199,16 @@ func blobPutHandler(store *Store) http.HandlerFunc {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
+
+			// Publish a BlobCreated event to RabbitMQ only for the watched
+			// container to avoid an infinite loop (resize writes to images).
+			if pub != nil && container == publishContainer {
+				if err := pub.PublishBlobCreated(container, blob, ct, len(data)); err != nil {
+					slog.Error("failed to publish blob event", "container", container, "blob", blob, "error", err)
+					// Non-fatal: the blob is saved, just the event failed.
+				}
+			}
+
 			w.WriteHeader(http.StatusCreated)
 		}
 	}

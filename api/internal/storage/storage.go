@@ -24,6 +24,9 @@ type BlobStore interface {
 	// GetBlobTagList returns a map of collection to album list built from all blobs in a container.
 	GetBlobTagList(ctx context.Context, containerName string, storageUrl string) (map[string][]string, error)
 
+	// GetBlob downloads blob content and returns the raw bytes.
+	GetBlob(ctx context.Context, blobName string, containerName string, storageUrl string) ([]byte, error)
+
 	// SaveBlob uploads bytes as a blob with tags, metadata, and content type.
 	SaveBlob(ctx context.Context, data []byte, blobName string, containerName string, storageUrl string, tags map[string]string, metadata map[string]string, contentType string) error
 }

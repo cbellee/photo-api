@@ -36,6 +36,10 @@ type MockBlobStore struct {
 	// SaveBlob configuration
 	SaveBlobFunc  func(ctx context.Context, data []byte, blobName string, containerName string, storageUrl string, tags map[string]string, metadata map[string]string, contentType string) error
 	SaveBlobCalls []SaveBlobCall
+
+	// GetBlob configuration
+	GetBlobFunc  func(ctx context.Context, blobName string, containerName string, storageUrl string) ([]byte, error)
+	GetBlobCalls []GetBlobCall
 }
 
 // Call tracking structs
@@ -78,6 +82,12 @@ type SaveBlobCall struct {
 	Tags          map[string]string
 	Metadata      map[string]string
 	ContentType   string
+}
+
+type GetBlobCall struct {
+	BlobName      string
+	ContainerName string
+	StorageUrl    string
 }
 
 func (m *MockBlobStore) FilterBlobsByTags(ctx context.Context, query string, containerName string, storageUrl string) ([]models.Blob, error) {
@@ -156,6 +166,19 @@ func (m *MockBlobStore) SaveBlob(ctx context.Context, data []byte, blobName stri
 		return m.SaveBlobFunc(ctx, data, blobName, containerName, storageUrl, tags, metadata, contentType)
 	}
 	return nil
+}
+
+func (m *MockBlobStore) GetBlob(ctx context.Context, blobName string, containerName string, storageUrl string) ([]byte, error) {
+	m.mu.Lock()
+	m.GetBlobCalls = append(m.GetBlobCalls, GetBlobCall{
+		BlobName: blobName, ContainerName: containerName, StorageUrl: storageUrl,
+	})
+	m.mu.Unlock()
+
+	if m.GetBlobFunc != nil {
+		return m.GetBlobFunc(ctx, blobName, containerName, storageUrl)
+	}
+	return nil, fmt.Errorf("GetBlob not configured")
 }
 
 // Compile-time check that MockBlobStore implements BlobStore.

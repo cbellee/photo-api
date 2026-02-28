@@ -81,6 +81,14 @@ func (s *AzureBlobStore) GetBlobTagList(ctx context.Context, containerName strin
 	return utils.GetBlobTagList(s.client, containerName, storageUrl, ctx)
 }
 
+func (s *AzureBlobStore) GetBlob(ctx context.Context, blobName string, containerName string, storageUrl string) ([]byte, error) {
+	buf, err := utils.GetBlobStream(s.client, ctx, blobName, containerName, storageUrl)
+	if err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
 func (s *AzureBlobStore) SaveBlob(ctx context.Context, data []byte, blobName string, containerName string, storageUrl string, tags map[string]string, metadata map[string]string, contentType string) error {
 	blobUrl := fmt.Sprintf("%s/%s/%s", storageUrl, containerName, blobName)
 	blockBlob := s.client.ServiceClient().NewContainerClient(containerName).NewBlockBlobClient(blobName)

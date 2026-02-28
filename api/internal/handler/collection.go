@@ -19,49 +19,69 @@ func CollectionHandler(store storage.BlobStore, cfg *Config) http.HandlerFunc {
 		ctx, span := tracer.Start(r.Context(), "handler.Collections")
 		defer span.End()
 
-		// get photos with matching collection tags
+		// 1. Get the tag-list (collection → albums) to know every collection.
+		tagList, err := store.GetBlobTagList(ctx, cfg.ImagesContainerName, cfg.StorageUrl)
+		if err != nil {
+			slog.Error("error getting blob tag list", "error", err)
+			http.Error(w, "No collections found", http.StatusNotFound)
+			return
+		}
+
+		// 2. Fetch blobs already marked as collectionImage.
 		query := fmt.Sprintf("@container='%s' and collectionImage='true'", cfg.ImagesContainerName)
 		slog.Debug("query", "query", query)
 
-		filteredBlobs, err := store.FilterBlobsByTags(ctx, query, cfg.ImagesContainerName, cfg.StorageUrl)
-		if err != nil {
-			slog.Error("error getting blobs by tags", "error", err)
+		markedBlobs, _ := store.FilterBlobsByTags(ctx, query, cfg.ImagesContainerName, cfg.StorageUrl)
 
-			// try a query without the collectionImage tag as fallback
-			slog.Error("no collection images found, trying query without 'collectionImage' & will set a default placeholder collectionImage", "query", query)
-
-			fallbackQuery := fmt.Sprintf("@container='%s'", cfg.ImagesContainerName)
-			filteredBlobs, err = store.FilterBlobsByTags(ctx, fallbackQuery, cfg.ImagesContainerName, cfg.StorageUrl)
-			if err != nil {
-				slog.Error("error getting blobs by tags (fallback)", "error", err)
-				http.Error(w, "No collection images found", http.StatusNotFound)
-				return
-			}
-
-			// set the first image as the collection image & write the tag back to the blob
-			filteredBlobs[0].Tags["collectionImage"] = "true"
-			err = store.SetBlobTags(ctx, filteredBlobs[0].Name, cfg.ImagesContainerName, cfg.StorageUrl, filteredBlobs[0].Tags)
-			if err != nil {
-				slog.Error("error setting collectionImage tag", "error", err)
+		// Build a set of collections that already have a collectionImage.
+		markedCollections := make(map[string]bool)
+		for _, b := range markedBlobs {
+			if c, ok := b.Tags["collection"]; ok {
+				markedCollections[c] = true
 			}
 		}
 
-		if len(filteredBlobs) == 0 {
+		// 3. For every collection that is NOT yet marked, find one image and
+		//    tag it as collectionImage so the UI can display it.
+		for collection := range tagList {
+			if markedCollections[collection] {
+				continue
+			}
+
+			pickQuery := fmt.Sprintf("@container='%s' and collection='%s'", cfg.ImagesContainerName, collection)
+			candidates, err := store.FilterBlobsByTags(ctx, pickQuery, cfg.ImagesContainerName, cfg.StorageUrl)
+			if err != nil || len(candidates) == 0 {
+				slog.Warn("no blobs found for collection, skipping", "collection", collection)
+				continue
+			}
+
+			pick := candidates[0]
+			pick.Tags["collectionImage"] = "true"
+			if err := store.SetBlobTags(ctx, pick.Name, cfg.ImagesContainerName, cfg.StorageUrl, pick.Tags); err != nil {
+				slog.Error("error setting collectionImage tag", "blob", pick.Name, "error", err)
+			} else {
+				slog.Info("auto-assigned collectionImage", "collection", collection, "blob", pick.Name)
+			}
+			markedBlobs = append(markedBlobs, pick)
+			markedCollections[collection] = true
+		}
+
+		if len(markedBlobs) == 0 {
 			http.Error(w, "No collection images found", http.StatusNotFound)
 			return
 		}
 
-		// For collection view we also fetch individual blob tags to get album/collection names
-		for i, b := range filteredBlobs {
+		// Refresh tags for all blobs (may have just been updated).
+		for i, b := range markedBlobs {
 			tags, err := store.GetBlobTags(ctx, b.Name, cfg.ImagesContainerName, cfg.StorageUrl)
 			if err != nil {
 				slog.Error("error getting blob tags", "error", err, "blobpath", b.Path)
 				continue
 			}
-			filteredBlobs[i].Tags = tags
+			markedBlobs[i].Tags = tags
 		}
 
-		photos := BlobsToPhotos(filteredBlobs)
+		photos := BlobsToPhotos(markedBlobs)
 
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(photos)
