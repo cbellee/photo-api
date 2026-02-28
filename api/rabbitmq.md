@@ -126,13 +126,13 @@ New volumes:
 Build command changed from:
 
 ```dockerfile
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o server ./${SERVICE_NAME}/main.go
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o server ./${SERVICE_NAME}/main.go
 ```
 
 to:
 
 ```dockerfile
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o server ./${SERVICE_NAME}/
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o server ./${SERVICE_NAME}/
 ```
 
 This builds the full Go package (all `.go` files in the directory) instead of just `main.go`, which is required because the resize service has multiple source files (`main.go`, `handler.go`, `config.go`).
