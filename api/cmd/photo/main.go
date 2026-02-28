@@ -38,9 +38,13 @@ func main() {
 	}
 
 	// ── Configuration ───────────────────────────────────────────────
-	storageAccount := utils.GetEnvValue("STORAGE_ACCOUNT_NAME", "stor6aq2g56sfcosi")
-	storageAccountSuffix := utils.GetEnvValue("STORAGE_ACCOUNT_SUFFIX", "blob.core.windows.net")
-	storageUrl := fmt.Sprintf("https://%s.%s", storageAccount, storageAccountSuffix)
+	// STORAGE_URL overrides the computed Azure storage URL (used with the blob emulator).
+	storageUrl := utils.GetEnvValue("STORAGE_URL", "")
+	if storageUrl == "" {
+		storageAccount := utils.GetEnvValue("STORAGE_ACCOUNT_NAME", "stor6aq2g56sfcosi")
+		storageAccountSuffix := utils.GetEnvValue("STORAGE_ACCOUNT_SUFFIX", "blob.core.windows.net")
+		storageUrl = fmt.Sprintf("https://%s.%s", storageAccount, storageAccountSuffix)
+	}
 	azureClientId := utils.GetEnvValue("AZURE_CLIENT_ID", "")
 
 	cfg := &handler.Config{
@@ -69,7 +73,6 @@ func main() {
 	}
 	slog.SetDefault(logger)
 	slog.Info("cors origins", "origins", cfg.CorsOrigins)
-	slog.Info("current storage account", "name", storageAccount)
 	slog.Info("storage url", "url", storageUrl)
 
 	// Enable Azure SDK logging (identity events only).
@@ -78,25 +81,53 @@ func main() {
 	})
 	azlog.SetEvents(azidentity.EventAuthentication)
 
-	// ── Detect environment ──────────────────────────────────────────
-	isProduction := false
-	if _, exists := os.LookupEnv("CONTAINER_APP_NAME"); exists {
-		isProduction = true
+	// ── Create blob store ───────────────────────────────────────────
+	var store storage.BlobStore
+	if blobEmuURL := utils.GetEnvValue("BLOB_EMULATOR_URL", ""); blobEmuURL != "" {
+		slog.Info("using local blob emulator", "url", blobEmuURL)
+		store = storage.NewLocalBlobStore(blobEmuURL)
 	} else {
-		slog.Info("'CONTAINER_APP_NAME' env var not found, running in local environment")
-	}
+		isProduction := false
+		if _, exists := os.LookupEnv("CONTAINER_APP_NAME"); exists {
+			isProduction = true
+		} else {
+			slog.Info("'CONTAINER_APP_NAME' env var not found, running in local environment")
+		}
 
-	// ── Create blob client & store ──────────────────────────────────
-	blobClient, err := utils.CreateAzureBlobClient(storageUrl, isProduction, azureClientId)
-	if err != nil {
-		slog.Error("error creating blob client", "error", err)
-		return
+		blobClient, err := utils.CreateAzureBlobClient(storageUrl, isProduction, azureClientId)
+		if err != nil {
+			slog.Error("error creating blob client", "error", err)
+			return
+		}
+		store = storage.NewAzureBlobStore(blobClient)
 	}
-	store := storage.NewAzureBlobStore(blobClient)
 
 	// ── Routes ──────────────────────────────────────────────────────
 	port := fmt.Sprintf(":%s", cfg.ServicePort)
 	api := http.NewServeMux()
+
+	// Liveness probe – returns 200 if the process is running.
+	api.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintln(w, `{"status":"ok"}`)
+	})
+
+	// Readiness probe – returns 200 when the service can handle traffic.
+	api.HandleFunc("GET /readyz", func(w http.ResponseWriter, _ *http.Request) {
+		// Verify blob store connectivity by attempting a lightweight query.
+		_, err := store.GetBlobTagList(context.Background(), cfg.ImagesContainerName, cfg.StorageUrl)
+		if err != nil {
+			slog.Warn("readiness check failed", "error", err)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusServiceUnavailable)
+			fmt.Fprintf(w, `{"status":"unavailable","error":%q}`+"\n", err.Error())
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintln(w, `{"status":"ok"}`)
+	})
 
 	api.HandleFunc("GET /api", handler.CollectionHandler(store, cfg))
 	api.HandleFunc("GET /api/{collection}", handler.AlbumHandler(store, cfg))

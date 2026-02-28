@@ -52,17 +52,14 @@ func (p *Providers) Shutdown(ctx context.Context) {
 // The caller must defer Providers.Shutdown().
 func Init(ctx context.Context, cfg Config) (*Providers, error) {
 	// ── Resource (shared service identity) ──────────────────────────
-	res, err := resource.Merge(
-		resource.Default(),
-		resource.NewWithAttributes(
-			semconv.SchemaURL,
-			semconv.ServiceName(cfg.ServiceName),
-			semconv.ServiceVersion(cfg.ServiceVersion),
-		),
+	// Avoid resource.Default() and the With*() detectors – they embed the
+	// SDK's built-in semconv schema URL (v1.39.0) which conflicts with our
+	// explicitly imported semconv/v1.26.0.  Supply only plain attributes so
+	// there is a single, consistent schema URL on the resource.
+	res := resource.NewSchemaless(
+		semconv.ServiceName(cfg.ServiceName),
+		semconv.ServiceVersion(cfg.ServiceVersion),
 	)
-	if err != nil {
-		return nil, fmt.Errorf("creating OTel resource: %w", err)
-	}
 
 	// ── Trace exporter → provider ───────────────────────────────────
 	traceExp, err := otlptracegrpc.New(ctx,

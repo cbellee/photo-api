@@ -1,0 +1,48 @@
+services:
+  photo-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      network: host
+      args:
+        SERVICE_NAME: photo
+        SERVICE_PORT: "8080"
+    ports:
+      - "8080:8080"
+    environment:
+      SERVICE_NAME: photoService
+      SERVICE_PORT: "8080"
+      OTEL_EXPORTER_OTLP_ENDPOINT: otel-collector:4317
+      BLOB_EMULATOR_URL: http://blobemu:10000
+      STORAGE_URL: http://localhost:10000
+    depends_on:
+      - otel-collector
+      - blobemu
+
+  blobemu:
+    build:
+      context: ./blobemu
+      dockerfile: Dockerfile
+      network: host
+    ports:
+      - "10000:10000"
+    volumes:
+      - blobemu-data:/data
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    ports:
+      - "4317:4317"   # OTLP gRPC
+      - "4318:4318"   # OTLP HTTP
+    volumes:
+      - ./otel-collector-config.yml:/etc/otelcol-contrib/config.yaml
+    depends_on:
+      - zipkin
+
+  zipkin:
+    image: openzipkin/zipkin:latest
+    ports:
+      - "9411:9411"
+
+volumes:
+  blobemu-data:

@@ -1,6 +1,6 @@
 module github.com/cbellee/photo-api
 
-go 1.24.0
+go 1.26.0
 
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.11.1
