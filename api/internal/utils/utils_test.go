@@ -94,6 +94,45 @@ func TestResizeImage(t *testing.T) {
 		assert.Equal(t, 50, resizedImg.Bounds().Dx())
 		assert.Equal(t, 100, resizedImg.Bounds().Dy())
 	})
+
+	t.Run("unsupported format returns error", func(t *testing.T) {
+		// Use a valid JPEG as input, but declare an unsupported content type
+		buf := new(bytes.Buffer)
+		err := jpeg.Encode(buf, img, nil)
+		assert.NoError(t, err)
+
+		_, err = ResizeImage(buf.Bytes(), "image/webp", "test.webp", 100, 100)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "unsupported image format")
+	})
+
+	t.Run("invalid image bytes returns error", func(t *testing.T) {
+		_, err := ResizeImage([]byte("not-an-image"), "image/jpeg", "bad.jpg", 100, 100)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "decode image config")
+	})
+
+	t.Run("empty image bytes returns error", func(t *testing.T) {
+		_, err := ResizeImage([]byte{}, "image/jpeg", "empty.jpg", 100, 100)
+		assert.Error(t, err)
+	})
+
+	t.Run("square image", func(t *testing.T) {
+		sqImg := image.NewRGBA(image.Rect(0, 0, 200, 200))
+		buf := new(bytes.Buffer)
+		err := jpeg.Encode(buf, sqImg, nil)
+		assert.NoError(t, err)
+
+		resizedImgBytes, err := ResizeImage(buf.Bytes(), "image/jpeg", "square.jpg", 100, 100)
+		assert.NoError(t, err)
+		assert.NotEmpty(t, resizedImgBytes)
+
+		resizedImg, _, err := image.Decode(bytes.NewReader(resizedImgBytes))
+		assert.NoError(t, err)
+		// Square image with maxWidth=100 → 100x100
+		assert.Equal(t, 100, resizedImg.Bounds().Dx())
+		assert.Equal(t, 100, resizedImg.Bounds().Dy())
+	})
 }
 
 // TestGetEnvValue tests the GetEnvValue function from the utils package
@@ -134,10 +173,11 @@ func TestStripInvalidTagValue(t *testing.T) {
 		{"This is /[] an invalid Str%$g.%$#gif", "This is / an invalid Strg.gif"},
 		{"this is a valid string", "this is a valid string"},
 		{"this is also a valid string.", "this is also a valid string."},
+		{"", ""},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.value, func(t *testing.T) {
+		t.Run(fmt.Sprintf("value=%q", tt.value), func(t *testing.T) {
 			actualValue := StripInvalidTagCharacters(tt.value)
 			if actualValue != tt.expectedValue {
 				t.Errorf("expected %s, got %s", tt.expectedValue, actualValue)

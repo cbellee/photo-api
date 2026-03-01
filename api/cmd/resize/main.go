@@ -73,15 +73,13 @@ func main() {
 
 	// ── Create blob store ────────────────────────────────────────────
 	var store storage.BlobStore
-	var storageUrl string
 
 	if emuURL := utils.GetEnvValue("EMULATED_STORAGE_URL", ""); emuURL != "" {
 		// Local / emulator mode: use plain HTTP client to talk to blobemu.
 		slog.Info("using local blob emulator", "url", emuURL)
-		store = storage.NewLocalBlobStore(emuURL)
-		storageUrl = emuURL
+		store = storage.NewLocalBlobStore(emuURL, emuURL)
 	} else {
-		storageUrl = fmt.Sprintf("https://%s.%s", cfg.StorageAccount, cfg.StorageSuffix)
+		storageUrl := fmt.Sprintf("https://%s.%s", cfg.StorageAccount, cfg.StorageSuffix)
 		slog.Info("storage url", "url", storageUrl)
 
 		isProduction := false
@@ -96,11 +94,11 @@ func main() {
 			slog.Error("error creating blob client", "error", blobErr)
 			return
 		}
-		store = storage.NewAzureBlobStore(blobClient)
+		store = storage.NewAzureBlobStore(blobClient, storageUrl)
 	}
 
 	// ── Create handler ──────────────────────────────────────────────
-	h := NewHandler(store, storageUrl, cfg)
+	h := NewHandler(store, cfg)
 
 	// ── Dapr service ────────────────────────────────────────────────
 	port := fmt.Sprintf(":%s", cfg.ServicePort)

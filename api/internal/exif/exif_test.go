@@ -11,90 +11,61 @@ import (
 func TestGetExifJSON(t *testing.T) {
 	tests := []struct {
 		name          string
-		setupBuffer   func() bytes.Buffer
+		data          []byte
 		expectError   bool
 		expectEmpty   bool
 		errorContains string
 		description   string
 	}{
 		{
-			name: "Error case - empty buffer",
-			setupBuffer: func() bytes.Buffer {
-				return bytes.Buffer{}
-			},
+			name:        "Error case - empty data",
+			data:        []byte{},
 			expectError: true,
-			description: "Should return error for empty image buffer",
+			description: "Should return error for empty image data",
 		},
 		{
-			name: "Error case - invalid image data",
-			setupBuffer: func() bytes.Buffer {
-				var buf bytes.Buffer
-				buf.Write([]byte{0x00, 0x01, 0x02, 0x03, 0x04}) // Invalid data
-				return buf
-			},
+			name:        "Error case - invalid image data",
+			data:        []byte{0x00, 0x01, 0x02, 0x03, 0x04},
 			expectError: true,
 			description: "Should return error for invalid image data",
 		},
 		{
-			name: "Boundary case - single byte buffer",
-			setupBuffer: func() bytes.Buffer {
-				var buf bytes.Buffer
-				buf.WriteByte(0xFF)
-				return buf
-			},
+			name:        "Boundary case - single byte",
+			data:        []byte{0xFF},
 			expectError: true,
 			description: "Should return error for insufficient data",
 		},
 		{
-			name: "Edge case - buffer with only JPEG SOI",
-			setupBuffer: func() bytes.Buffer {
-				var buf bytes.Buffer
-				buf.Write([]byte{0xFF, 0xD8}) // Only JPEG start marker
-				return buf
-			},
+			name:        "Edge case - buffer with only JPEG SOI",
+			data:        []byte{0xFF, 0xD8},
 			expectError: true,
 			description: "Should return error for incomplete JPEG data",
 		},
 		{
 			name: "Edge case - JPEG without EXIF data",
-			setupBuffer: func() bytes.Buffer {
-				var buf bytes.Buffer
-				// Minimal JPEG without EXIF
-				buf.Write([]byte{
-					0xFF, 0xD8, // JPEG SOI
-					0xFF, 0xDA, // Start of scan (no EXIF)
-					0x00, 0x08, // Length
-					0x01, 0x01, 0x00, 0x00, 0x3F, 0x00, // Minimal scan data
-					0xFF, 0xD9, // JPEG EOI
-				})
-				return buf
+			data: []byte{
+				0xFF, 0xD8, // JPEG SOI
+				0xFF, 0xDA, // Start of scan (no EXIF)
+				0x00, 0x08, // Length
+				0x01, 0x01, 0x00, 0x00, 0x3F, 0x00, // Minimal scan data
+				0xFF, 0xD9, // JPEG EOI
 			},
 			expectError: true,
 			description: "Should return error for JPEG without EXIF data",
 		},
 		{
-			name: "Boundary case - large buffer with zeros",
-			setupBuffer: func() bytes.Buffer {
-				var buf bytes.Buffer
-				// Large buffer with zeros
-				largeData := make([]byte, 1024)
-				buf.Write(largeData)
-				return buf
-			},
+			name:        "Boundary case - large buffer with zeros",
+			data:        make([]byte, 1024),
 			expectError: true,
 			description: "Should return error for large buffer with invalid data",
 		},
 		{
 			name: "Edge case - buffer with JPEG SOI but corrupted header",
-			setupBuffer: func() bytes.Buffer {
-				var buf bytes.Buffer
-				buf.Write([]byte{
-					0xFF, 0xD8, // JPEG SOI
-					0xFF, 0xE1, // APP1 marker
-					0x00, 0x04, // Length too short
-					0x45, 0x78, // Incomplete "Exif"
-				})
-				return buf
+			data: []byte{
+				0xFF, 0xD8, // JPEG SOI
+				0xFF, 0xE1, // APP1 marker
+				0x00, 0x04, // Length too short
+				0x45, 0x78, // Incomplete "Exif"
 			},
 			expectError: true,
 			description: "Should return error for corrupted EXIF header",
@@ -103,13 +74,8 @@ func TestGetExifJSON(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Setup
-			buffer := tt.setupBuffer()
+			result, err := GetExifJSON(tt.data)
 
-			// Execute
-			result, err := GetExifJSON(buffer)
-
-			// Verify error expectations
 			if tt.expectError {
 				assert.Error(t, err, "Expected an error for test case: %s", tt.description)
 				assert.Empty(t, result, "Expected empty result when error occurs")
@@ -120,13 +86,11 @@ func TestGetExifJSON(t *testing.T) {
 					assert.Empty(t, result, "Expected empty result")
 				} else {
 					assert.NotEmpty(t, result, "Expected non-empty result")
-					// Verify it's valid JSON-like structure
 					assert.True(t, strings.Contains(result, "{") || strings.Contains(result, "["),
 						"Expected JSON-like structure in result")
 				}
 			}
 
-			// Additional error message validation if specified
 			if tt.errorContains != "" && err != nil {
 				assert.Contains(t, err.Error(), tt.errorContains,
 					"Error message should contain expected text")
@@ -137,12 +101,8 @@ func TestGetExifJSON(t *testing.T) {
 
 func TestGetExifJSON_ReturnTypes(t *testing.T) {
 	t.Run("Return type validation", func(t *testing.T) {
-		// Test with empty buffer (will return error)
-		var buf bytes.Buffer
+		result, err := GetExifJSON([]byte{})
 
-		result, err := GetExifJSON(buf)
-
-		// Verify return types
 		assert.IsType(t, "", result, "Result should be string type")
 		if err != nil {
 			assert.IsType(t, (*error)(nil), &err, "Error should be error type")
@@ -151,34 +111,24 @@ func TestGetExifJSON_ReturnTypes(t *testing.T) {
 }
 
 func TestGetExifJSON_BufferState(t *testing.T) {
-	t.Run("Buffer state after function call", func(t *testing.T) {
-		// Setup buffer with test data
+	t.Run("Input data not modified after function call", func(t *testing.T) {
 		originalData := []byte{0x00, 0x01, 0x02, 0x03}
-		var buf bytes.Buffer
-		buf.Write(originalData)
-		originalLen := buf.Len()
+		input := make([]byte, len(originalData))
+		copy(input, originalData)
 
-		// Call function
-		_, _ = GetExifJSON(buf)
+		_, _ = GetExifJSON(input)
 
-		// Verify buffer state (function should not modify the original buffer)
-		assert.Equal(t, originalLen, buf.Len(),
-			"Buffer length should remain unchanged after function call")
-		assert.Equal(t, originalData, buf.Bytes(),
-			"Buffer contents should remain unchanged after function call")
+		assert.Equal(t, originalData, input,
+			"Input data should remain unchanged after function call")
 	})
 }
 
 func TestGetExifJSON_LargeData(t *testing.T) {
 	t.Run("Boundary case - large invalid data", func(t *testing.T) {
-		// Create a large buffer with invalid data
-		var buf bytes.Buffer
 		largeInvalidData := make([]byte, 1024*1024) // 1MB of zeros
-		buf.Write(largeInvalidData)
 
-		result, err := GetExifJSON(buf)
+		result, err := GetExifJSON(largeInvalidData)
 
-		// Should handle large data gracefully
 		assert.Error(t, err, "Should return error for large invalid data")
 		assert.Empty(t, result, "Should return empty result for invalid data")
 	})
@@ -186,7 +136,6 @@ func TestGetExifJSON_LargeData(t *testing.T) {
 
 func TestGetExifJSON_ErrorHandling(t *testing.T) {
 	t.Run("Error handling consistency", func(t *testing.T) {
-		// Test different error scenarios
 		testCases := []struct {
 			name string
 			data []byte
@@ -200,16 +149,10 @@ func TestGetExifJSON_ErrorHandling(t *testing.T) {
 
 		for _, tc := range testCases {
 			t.Run(tc.name, func(t *testing.T) {
-				var buf bytes.Buffer
-				buf.Write(tc.data)
+				result, err := GetExifJSON(tc.data)
 
-				result, err := GetExifJSON(buf)
-
-				// All these cases should return errors
 				assert.Error(t, err, "Should return error for %s", tc.name)
 				assert.Empty(t, result, "Should return empty result for %s", tc.name)
-
-				// Verify error is not nil and has a message
 				assert.NotNil(t, err, "Error should not be nil")
 				assert.NotEmpty(t, err.Error(), "Error message should not be empty")
 			})
@@ -219,37 +162,24 @@ func TestGetExifJSON_ErrorHandling(t *testing.T) {
 
 func TestGetExifJSON_MemoryManagement(t *testing.T) {
 	t.Run("Memory management test", func(t *testing.T) {
-		// Test multiple calls to ensure no memory leaks in the wrapper
 		for i := 0; i < 100; i++ {
-			var buf bytes.Buffer
-			buf.Write([]byte{0x01, 0x02, 0x03}) // Invalid data
-
-			_, _ = GetExifJSON(buf)
-			// If there were memory leaks, this would eventually cause issues
+			_, _ = GetExifJSON([]byte{0x01, 0x02, 0x03})
 		}
-		// Test passes if we reach here without panic or excessive memory usage
 		assert.True(t, true, "Memory management test completed successfully")
 	})
 }
 
-// TestGetExifJSON_ConcurrentAccess tests thread safety (if applicable)
 func TestGetExifJSON_ConcurrentAccess(t *testing.T) {
 	t.Run("Concurrent access test", func(t *testing.T) {
-		// Test concurrent calls to the function
 		done := make(chan bool, 10)
 
 		for i := 0; i < 10; i++ {
 			go func() {
 				defer func() { done <- true }()
-
-				var buf bytes.Buffer
-				buf.Write([]byte{0x01, 0x02, 0x03}) // Invalid data
-
-				_, _ = GetExifJSON(buf)
+				_, _ = GetExifJSON([]byte{0x01, 0x02, 0x03})
 			}()
 		}
 
-		// Wait for all goroutines to complete
 		for i := 0; i < 10; i++ {
 			<-done
 		}
@@ -260,7 +190,6 @@ func TestGetExifJSON_ConcurrentAccess(t *testing.T) {
 
 func TestGetExifJSON_InputValidation(t *testing.T) {
 	t.Run("Input validation comprehensive", func(t *testing.T) {
-		// Test various input patterns that should all fail gracefully
 		inputs := []struct {
 			name string
 			data []byte
@@ -279,12 +208,8 @@ func TestGetExifJSON_InputValidation(t *testing.T) {
 
 		for _, input := range inputs {
 			t.Run(input.name, func(t *testing.T) {
-				var buf bytes.Buffer
-				buf.Write(input.data)
+				result, err := GetExifJSON(input.data)
 
-				result, err := GetExifJSON(buf)
-
-				// All should fail since they're not valid EXIF data
 				assert.Error(t, err)
 				assert.Empty(t, result)
 			})
@@ -292,18 +217,11 @@ func TestGetExifJSON_InputValidation(t *testing.T) {
 	})
 }
 
-// Benchmark test to measure performance
 func BenchmarkGetExifJSON(b *testing.B) {
-	// Setup test data once (invalid data for consistent error path)
-	var buf bytes.Buffer
-	buf.Write([]byte{0x01, 0x02, 0x03, 0x04})
+	testData := []byte{0x01, 0x02, 0x03, 0x04}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		// Create a fresh buffer for each iteration
-		var testBuf bytes.Buffer
-		testBuf.Write(buf.Bytes())
-
-		_, _ = GetExifJSON(testBuf)
+		_, _ = GetExifJSON(testData)
 	}
 }

@@ -11,12 +11,16 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"log/slog"
 	"net/http"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
+	"time"
 )
 
 func main() {
@@ -62,16 +66,35 @@ func main() {
 	mux.HandleFunc("PUT /{container}/{blob...}", blobPutHandler(store, pub, publishContainer))
 
 	srv := &http.Server{
-		Addr:           ":" + port,
-		Handler:        cors(mux),
-		MaxHeaderBytes: 1 << 20, // 1 MB (metadata can be large)
+		Addr:              ":" + port,
+		Handler:           cors(mux),
+		MaxHeaderBytes:    1 << 20, // 1 MB (metadata can be large)
+		ReadHeaderTimeout: 10 * time.Second,
+		WriteTimeout:      60 * time.Second,
+		IdleTimeout:       120 * time.Second,
 	}
 
-	slog.Info("blobemu listening", "port", port, "dataDir", dataDir)
-	if err := srv.ListenAndServe(); err != nil {
-		slog.Error("server error", "error", err)
-		os.Exit(1)
+	// Graceful shutdown: listen for SIGINT/SIGTERM, then drain connections.
+	shutdownCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	go func() {
+		slog.Info("blobemu listening", "port", port, "dataDir", dataDir)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			slog.Error("server error", "error", err)
+			os.Exit(1)
+		}
+	}()
+
+	<-shutdownCtx.Done()
+	slog.Info("shutting down blobemu")
+
+	drainCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(drainCtx); err != nil {
+		slog.Error("server shutdown error", "error", err)
 	}
+	slog.Info("blobemu stopped")
 }
 
 // ---------- handlers ----------

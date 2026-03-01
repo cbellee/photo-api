@@ -34,7 +34,7 @@ func UpdateHandler(store storage.BlobStore, cfg *Config) http.HandlerFunc {
 
 		// get current blob tags from storage and compare with updated tags
 		span.SetAttributes(attribute.String("blob.name", newTags["name"]))
-		currTags, err := store.GetBlobTags(ctx, newTags["name"], cfg.ImagesContainerName, cfg.StorageUrl)
+		currTags, err := store.GetBlobTags(ctx, newTags["name"], cfg.ImagesContainerName)
 		if err != nil {
 			slog.Error("error getting blob tags", "error", err)
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
@@ -64,7 +64,7 @@ func UpdateHandler(store storage.BlobStore, cfg *Config) http.HandlerFunc {
 
 			currentCollectionImage[0].Tags["collectionImage"] = "false"
 
-			err = store.SetBlobTags(ctx, currentCollectionImage[0].Name, cfg.ImagesContainerName, cfg.StorageUrl, currentCollectionImage[0].Tags)
+			err = store.SetBlobTags(ctx, currentCollectionImage[0].Name, cfg.ImagesContainerName, currentCollectionImage[0].Tags)
 			if err != nil {
 				slog.Error("error setting collectionImage tag", "error", err)
 				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
@@ -73,7 +73,7 @@ func UpdateHandler(store storage.BlobStore, cfg *Config) http.HandlerFunc {
 		}
 
 		// update blob tags
-		err = store.SetBlobTags(ctx, newTags["name"], cfg.ImagesContainerName, cfg.StorageUrl, newTags)
+		err = store.SetBlobTags(ctx, newTags["name"], cfg.ImagesContainerName, newTags)
 		if err != nil {
 			slog.Error("error updating blob tags", "error", err)
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
@@ -88,7 +88,7 @@ func UpdateHandler(store storage.BlobStore, cfg *Config) http.HandlerFunc {
 // given collection. Exported so tests can call it directly.
 func GetCollectionImage(store storage.BlobStore, ctx context.Context, cfg *Config, collection string) ([]models.Blob, error) {
 	query := fmt.Sprintf("@container='%s' and collection='%s' and collectionImage='true'", cfg.ImagesContainerName, collection)
-	filteredBlobs, err := store.FilterBlobsByTags(ctx, query, cfg.ImagesContainerName, cfg.StorageUrl)
+	filteredBlobs, err := store.FilterBlobsByTags(ctx, query, cfg.ImagesContainerName)
 	if err != nil {
 		slog.Error("error getting blobs by tags", "error", err)
 		return nil, err
