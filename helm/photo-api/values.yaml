@@ -71,7 +71,9 @@ blobemu:
     repository: ghcr.io/cbellee/photo-api/blobemu
     tag: latest
   imagePullSecrets: []
+  externalUrl: ""          # External URL for browser access (e.g. http://172.16.0.5:10000). When empty, falls back to cluster-internal FQDN.
   service:
+    type: LoadBalancer
     port: 10000
   rabbitmq:
     exchange: blob-events

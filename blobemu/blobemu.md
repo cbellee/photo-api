@@ -149,7 +149,7 @@ Returns `ok` (200). Used by Docker health checks and readiness probes.
 ### Query Blobs by Tags
 
 ```
-POST /_query
+POST /query
 Content-Type: application/json
 
 {
@@ -316,7 +316,7 @@ type BlobStore interface {
 
 | BlobStore Method | HTTP Request |
 |---|---|
-| `FilterBlobsByTags` | `POST /_query` with `{"query": "..."}` body |
+| `FilterBlobsByTags` | `POST /query` with `{"query": "..."}` body |
 | `GetBlobTags` | `GET /{container}/{blob}?comp=tags` |
 | `SetBlobTags` | `PUT /{container}/{blob}?comp=tags` with JSON body |
 | `GetBlobMetadata` | `GET /{container}/{blob}?comp=metadata` |
@@ -481,7 +481,7 @@ curl -X PUT http://localhost:10000/images/trips/hong%20kong/test.txt \
 
 **3. Query by tags:**
 ```bash
-curl -X POST http://localhost:10000/_query \
+curl -X POST http://localhost:10000/query \
   -H 'Content-Type: application/json' \
   -d '{"query":"@container='\''images'\'' AND collection='\''trips'\'' AND isDeleted='\''false'\''"}'
 # [{"name":"trips/hong kong/test.txt","container":"images","tags":{...},"metadata":{...}}]

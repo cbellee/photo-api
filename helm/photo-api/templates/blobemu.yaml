@@ -8,7 +8,7 @@ metadata:
     {{- include "photo-api.labels" . | nindent 4 }}
     {{- include "photo-api.selectorLabels" (dict "name" "blobemu" "context" $) | nindent 4 }}
 spec:
-  type: ClusterIP
+  type: {{ .Values.blobemu.service.type }}
   selector:
     {{- include "photo-api.selectorLabels" (dict "name" "blobemu" "context" $) | nindent 4 }}
   ports:

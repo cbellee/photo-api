@@ -4,7 +4,7 @@
 //
 // REST API
 //
-//	POST  /_query                         Filter blobs by tag query
+//	POST  /query                         Filter blobs by tag query
 //	GET   /{container}                    List blobs in a container
 //	GET   /{container}/{blob...}          Download blob (or ?comp=tags / ?comp=metadata)
 //	PUT   /{container}/{blob...}          Upload blob  (or ?comp=tags to set tags)
@@ -47,7 +47,7 @@ func main() {
 		}
 		defer pub.Close()
 	} else {
-		slog.Info("RABBITMQ_URL not set – event publishing disabled")
+		slog.Info("RABBITMQ_URL not set - event publishing disabled")
 	}
 
 	mux := http.NewServeMux()
@@ -55,7 +55,7 @@ func main() {
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.Write([]byte("ok"))
 	})
-	mux.HandleFunc("POST /_query", queryHandler(store))
+	mux.HandleFunc("POST /query", queryHandler(store))
 	mux.HandleFunc("GET /{container}", listHandler(store))
 	mux.HandleFunc("GET /{container}/{blob...}", blobGetHandler(store))
 	publishContainer := env("PUBLISH_CONTAINER", "uploads")
