@@ -53,7 +53,11 @@ spec:
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
               value: "{{ $otelFQDN }}:{{ .Values.otelCollector.service.otlpGrpcPort }}"
             - name: EMULATED_STORAGE_URL
+              {{- if .Values.blobemu.externalUrl }}
+              value: {{ .Values.blobemu.externalUrl | quote }}
+              {{- else }}
               value: "http://{{ $blobFQDN }}:{{ .Values.blobemu.service.port }}"
+              {{- end }}
             - name: BLOB_EMULATOR_URL
               value: "http://{{ $blobFQDN }}:{{ .Values.blobemu.service.port }}"
           readinessProbe:

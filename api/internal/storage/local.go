@@ -47,7 +47,7 @@ type blobResponse struct {
 func (s *LocalBlobStore) FilterBlobsByTags(ctx context.Context, query string, containerName string, storageUrl string) ([]models.Blob, error) {
 	body, _ := json.Marshal(map[string]string{"query": query})
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.baseURL+"/_query", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.baseURL+"/query", bytes.NewReader(body))
 	if err != nil {
 		return nil, err
 	}
