@@ -14,7 +14,7 @@ func TagListHandler(store storage.BlobStore, cfg *Config) http.HandlerFunc {
 		ctx, span := tracer.Start(r.Context(), "handler.TagList")
 		defer span.End()
 
-		blobTagList, err := store.GetBlobTagList(ctx, cfg.ImagesContainerName, cfg.StorageUrl)
+		blobTagList, err := store.GetBlobTagList(ctx, cfg.ImagesContainerName)
 		if err != nil {
 			slog.Error("error getting blob tag list", "error", err)
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)

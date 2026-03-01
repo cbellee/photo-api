@@ -26,7 +26,7 @@ func AlbumHandler(store storage.BlobStore, cfg *Config) http.HandlerFunc {
 		span.SetAttributes(attribute.String("collection", collection))
 
 		// 1. Get the tag-list to know every album in this collection.
-		tagList, err := store.GetBlobTagList(ctx, cfg.ImagesContainerName, cfg.StorageUrl)
+		tagList, err := store.GetBlobTagList(ctx, cfg.ImagesContainerName)
 		if err != nil {
 			slog.Error("error getting blob tag list", "error", err)
 			http.Error(w, "No albums found", http.StatusNotFound)
@@ -36,7 +36,7 @@ func AlbumHandler(store storage.BlobStore, cfg *Config) http.HandlerFunc {
 
 		// 2. Fetch blobs already marked as albumImage for this collection.
 		query := fmt.Sprintf("@container='%s' and collection='%s' and albumImage='true'", cfg.ImagesContainerName, collection)
-		markedBlobs, _ := store.FilterBlobsByTags(ctx, query, cfg.ImagesContainerName, cfg.StorageUrl)
+		markedBlobs, _ := store.FilterBlobsByTags(ctx, query, cfg.ImagesContainerName)
 
 		markedAlbums := make(map[string]bool)
 		for _, b := range markedBlobs {
@@ -52,7 +52,7 @@ func AlbumHandler(store storage.BlobStore, cfg *Config) http.HandlerFunc {
 			}
 
 			pickQuery := fmt.Sprintf("@container='%s' and collection='%s' and album='%s'", cfg.ImagesContainerName, collection, album)
-			candidates, err := store.FilterBlobsByTags(ctx, pickQuery, cfg.ImagesContainerName, cfg.StorageUrl)
+			candidates, err := store.FilterBlobsByTags(ctx, pickQuery, cfg.ImagesContainerName)
 			if err != nil || len(candidates) == 0 {
 				slog.Warn("no blobs for album, skipping", "collection", collection, "album", album)
 				continue
@@ -60,7 +60,7 @@ func AlbumHandler(store storage.BlobStore, cfg *Config) http.HandlerFunc {
 
 			pick := candidates[0]
 			pick.Tags["albumImage"] = "true"
-			if err := store.SetBlobTags(ctx, pick.Name, cfg.ImagesContainerName, cfg.StorageUrl, pick.Tags); err != nil {
+			if err := store.SetBlobTags(ctx, pick.Name, cfg.ImagesContainerName, pick.Tags); err != nil {
 				slog.Error("error setting albumImage tag", "blob", pick.Name, "error", err)
 			} else {
 				slog.Info("auto-assigned albumImage", "collection", collection, "album", album, "blob", pick.Name)
@@ -76,7 +76,7 @@ func AlbumHandler(store storage.BlobStore, cfg *Config) http.HandlerFunc {
 
 		// Refresh tags for all blobs.
 		for i, b := range markedBlobs {
-			tags, err := store.GetBlobTags(ctx, b.Name, cfg.ImagesContainerName, cfg.StorageUrl)
+			tags, err := store.GetBlobTags(ctx, b.Name, cfg.ImagesContainerName)
 			if err != nil {
 				slog.Error("error getting blob tags", "error", err, "blobpath", b.Path)
 				continue

@@ -7,7 +7,7 @@ import (
 )
 
 type StorageConfig struct {
-	StorgeURL            string
+	StorageURL           string
 	StorageAccount       string
 	StorageAccountSuffix string
 	StorageKey           string

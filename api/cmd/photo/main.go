@@ -3,11 +3,12 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"log/slog"
 	"net/http"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/cbellee/photo-api/internal/handler"
@@ -19,6 +20,7 @@ import (
 
 	azlog "github.com/Azure/azure-sdk-for-go/sdk/azcore/log"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/MicahParks/keyfunc/v3"
 	"go.opentelemetry.io/contrib/bridges/otelslog"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
@@ -34,8 +36,6 @@ func main() {
 	providers, err := telemetry.Init(ctx, otelCfg)
 	if err != nil {
 		slog.Error("failed to init telemetry", "error", err)
-	} else {
-		defer providers.Shutdown(ctx)
 	}
 
 	// ── Configuration ───────────────────────────────────────────────
@@ -58,6 +58,15 @@ func main() {
 		JwksURL:              utils.GetEnvValue("JWKS_URL", "https://0cd02bb5-3c24-4f77-8b19-99223d65aa67.ciamlogin.com/0cd02bb5-3c24-4f77-8b19-99223d65aa67/discovery/v2.0/keys?appid=689078c3-c0ad-4c10-a0d3-1c430c2e471d"),
 		RoleName:             utils.GetEnvValue("ROLE_NAME", "photo.upload"),
 		CorsOrigins:          strings.Split(utils.GetEnvValue("CORS_ORIGINS", "http://localhost:5173,https://photo-dev.bellee.net,https://photo.bellee.net"), ","),
+	}
+
+	// ── JWKS keyfunc (cached, refreshed in background) ─────────────
+	jwksCtx, jwksCancel := context.WithCancel(context.Background())
+	k, err := keyfunc.NewDefaultCtx(jwksCtx, []string{cfg.JwksURL})
+	if err != nil {
+		slog.Warn("failed to create JWKS keyfunc, JWT verification will fall back to per-request fetch", "error", err)
+	} else {
+		cfg.JWTKeyfunc = k.Keyfunc
 	}
 
 	// ── Logging (bridged to OTel) ────────────────────────────────────
@@ -86,7 +95,7 @@ func main() {
 	var store storage.BlobStore
 	if blobEmuURL := utils.GetEnvValue("BLOB_EMULATOR_URL", ""); blobEmuURL != "" {
 		slog.Info("using local blob emulator", "url", blobEmuURL)
-		store = storage.NewLocalBlobStore(blobEmuURL)
+		store = storage.NewLocalBlobStore(blobEmuURL, storageUrl)
 	} else {
 		isProduction := false
 		if _, exists := os.LookupEnv("CONTAINER_APP_NAME"); exists {
@@ -100,7 +109,7 @@ func main() {
 			slog.Error("error creating blob client", "error", err)
 			return
 		}
-		store = storage.NewAzureBlobStore(blobClient)
+		store = storage.NewAzureBlobStore(blobClient, storageUrl)
 	}
 
 	// ── Routes ──────────────────────────────────────────────────────
@@ -124,7 +133,7 @@ func main() {
 		// Attempt a cheap tag-filter query that returns at most one row.
 		_, err := store.FilterBlobsByTags(readyCtx,
 			fmt.Sprintf("@container='%s'", cfg.ImagesContainerName),
-			cfg.ImagesContainerName, cfg.StorageUrl)
+			cfg.ImagesContainerName)
 		if err != nil {
 			slog.Warn("readiness check failed", "error", err)
 			w.Header().Set("Content-Type", "application/json")
@@ -140,8 +149,8 @@ func main() {
 	api.HandleFunc("GET /api", handler.CollectionHandler(store, cfg))
 	api.HandleFunc("GET /api/{collection}", handler.AlbumHandler(store, cfg))
 	api.HandleFunc("GET /api/{collection}/{album}", handler.PhotoHandler(store, cfg))
-	api.HandleFunc("POST /api/upload", handler.RequireRole(cfg.RoleName, cfg.JwksURL, handler.UploadHandler(store, cfg)))
-	api.HandleFunc("PUT /api/update/{collection}/{album}/{id}", handler.RequireRole(cfg.RoleName, cfg.JwksURL, handler.UpdateHandler(store, cfg)))
+	api.HandleFunc("POST /api/upload", handler.RequireRole(cfg, handler.UploadHandler(store, cfg)))
+	api.HandleFunc("PUT /api/update/{collection}/{album}/{id}", handler.RequireRole(cfg, handler.UpdateHandler(store, cfg)))
 	api.HandleFunc("GET /api/tags", handler.TagListHandler(store, cfg))
 
 	slog.Info("server listening", "name", cfg.ServiceName, "port", port)
@@ -155,7 +164,46 @@ func main() {
 	})
 
 	otelHandler := otelhttp.NewHandler(c.Handler(api), "photo-api")
-	log.Fatal(http.ListenAndServe(port, otelHandler))
+
+	srv := &http.Server{
+		Addr:              port,
+		Handler:           otelHandler,
+		ReadHeaderTimeout: 10 * time.Second,
+		WriteTimeout:      60 * time.Second,
+		IdleTimeout:       120 * time.Second,
+	}
+
+	// Graceful shutdown: listen for SIGINT/SIGTERM, then drain connections.
+	shutdownCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	go func() {
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			slog.Error("server error", "error", err)
+			os.Exit(1)
+		}
+	}()
+
+	<-shutdownCtx.Done()
+	slog.Info("shutting down server")
+
+	drainCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(drainCtx); err != nil {
+		slog.Error("server shutdown error", "error", err)
+	}
+
+	// Flush telemetry before exit.
+	if providers != nil {
+		flushCtx, flushCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer flushCancel()
+		providers.Shutdown(flushCtx)
+	}
+
+	// Stop JWKS background refresh.
+	jwksCancel()
+
+	slog.Info("server stopped")
 
 	// Keep models import used (StorageConfig is referenced in config for backwards compat).
 	_ = models.StorageConfig{}

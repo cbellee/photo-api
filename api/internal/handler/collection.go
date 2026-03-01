@@ -20,7 +20,7 @@ func CollectionHandler(store storage.BlobStore, cfg *Config) http.HandlerFunc {
 		defer span.End()
 
 		// 1. Get the tag-list (collection → albums) to know every collection.
-		tagList, err := store.GetBlobTagList(ctx, cfg.ImagesContainerName, cfg.StorageUrl)
+		tagList, err := store.GetBlobTagList(ctx, cfg.ImagesContainerName)
 		if err != nil {
 			slog.Error("error getting blob tag list", "error", err)
 			http.Error(w, "No collections found", http.StatusNotFound)
@@ -31,7 +31,7 @@ func CollectionHandler(store storage.BlobStore, cfg *Config) http.HandlerFunc {
 		query := fmt.Sprintf("@container='%s' and collectionImage='true'", cfg.ImagesContainerName)
 		slog.Debug("query", "query", query)
 
-		markedBlobs, _ := store.FilterBlobsByTags(ctx, query, cfg.ImagesContainerName, cfg.StorageUrl)
+		markedBlobs, _ := store.FilterBlobsByTags(ctx, query, cfg.ImagesContainerName)
 
 		// Build a set of collections that already have a collectionImage.
 		markedCollections := make(map[string]bool)
@@ -49,7 +49,7 @@ func CollectionHandler(store storage.BlobStore, cfg *Config) http.HandlerFunc {
 			}
 
 			pickQuery := fmt.Sprintf("@container='%s' and collection='%s'", cfg.ImagesContainerName, collection)
-			candidates, err := store.FilterBlobsByTags(ctx, pickQuery, cfg.ImagesContainerName, cfg.StorageUrl)
+			candidates, err := store.FilterBlobsByTags(ctx, pickQuery, cfg.ImagesContainerName)
 			if err != nil || len(candidates) == 0 {
 				slog.Warn("no blobs found for collection, skipping", "collection", collection)
 				continue
@@ -57,7 +57,7 @@ func CollectionHandler(store storage.BlobStore, cfg *Config) http.HandlerFunc {
 
 			pick := candidates[0]
 			pick.Tags["collectionImage"] = "true"
-			if err := store.SetBlobTags(ctx, pick.Name, cfg.ImagesContainerName, cfg.StorageUrl, pick.Tags); err != nil {
+			if err := store.SetBlobTags(ctx, pick.Name, cfg.ImagesContainerName, pick.Tags); err != nil {
 				slog.Error("error setting collectionImage tag", "blob", pick.Name, "error", err)
 			} else {
 				slog.Info("auto-assigned collectionImage", "collection", collection, "blob", pick.Name)
@@ -73,7 +73,7 @@ func CollectionHandler(store storage.BlobStore, cfg *Config) http.HandlerFunc {
 
 		// Refresh tags for all blobs (may have just been updated).
 		for i, b := range markedBlobs {
-			tags, err := store.GetBlobTags(ctx, b.Name, cfg.ImagesContainerName, cfg.StorageUrl)
+			tags, err := store.GetBlobTags(ctx, b.Name, cfg.ImagesContainerName)
 			if err != nil {
 				slog.Error("error getting blob tags", "error", err, "blobpath", b.Path)
 				continue

@@ -36,9 +36,13 @@ func PhotoHandler(store storage.BlobStore, cfg *Config) http.HandlerFunc {
 
 		// get photos with matching collection & album tags
 		query := fmt.Sprintf("@container='%s' AND collection='%s' AND album='%s' AND isDeleted='false'", cfg.ImagesContainerName, collection, album)
-		filteredBlobs, err := store.FilterBlobsByTags(r.Context(), query, cfg.ImagesContainerName, cfg.StorageUrl)
+		filteredBlobs, err := store.FilterBlobsByTags(r.Context(), query, cfg.ImagesContainerName)
 		if err != nil {
 			slog.Error("error getting blobs by tags", "error", err)
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
+		if len(filteredBlobs) == 0 {
 			http.Error(w, "No photos found", http.StatusNotFound)
 			return
 		}

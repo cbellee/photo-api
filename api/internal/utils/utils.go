@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"os"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/cbellee/photo-api/internal/models"
@@ -24,9 +25,9 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blockblob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
-	"github.com/MicahParks/keyfunc/v3"
+	jwksKeyfunc "github.com/MicahParks/keyfunc/v3"
 	"github.com/dapr/go-sdk/service/common"
-	"github.com/golang-jwt/jwt/v5"
+	jwtLib "github.com/golang-jwt/jwt/v5"
 	"golang.org/x/image/draw"
 )
 
@@ -87,59 +88,65 @@ func CreateAzureBlobClient(storageUrl string, isProduction bool, azureClientId s
 	return client, nil
 }
 
-func ResizeImage(imgBytes []byte, imageFormat string, blobName string, maxHeight int, maxWidth int) (img []byte, err error) {
-	var dst *image.RGBA
-	var buf = new(bytes.Buffer)
-
-	src, _, err := image.Decode(bytes.NewReader(imgBytes))
+// ResizeImage scales imgBytes so the longer dimension fits within
+// maxWidth/maxHeight while preserving the aspect ratio.
+// It decodes the image only once (using image.DecodeConfig for cheap
+// dimension lookup) and returns the re-encoded result.
+func ResizeImage(imgBytes []byte, imageFormat string, blobName string, maxHeight int, maxWidth int) ([]byte, error) {
+	// Get dimensions from the image header without a full decode.
+	cfg, _, err := image.DecodeConfig(bytes.NewReader(imgBytes))
 	if err != nil {
-		return buf.Bytes(), err
+		return nil, fmt.Errorf("decode image config: %w", err)
 	}
 
-	height := src.Bounds().Dy()
-	width := src.Bounds().Dx()
+	height := cfg.Height
+	width := cfg.Width
 
-	if height > width { // if height > width, then the image is portrait so resize height to maxHeight
+	var dst *image.RGBA
+	if height > width { // portrait — fit to maxHeight
 		newWidth := maxHeight * width / height
-		dst = image.NewRGBA((image.Rect(0, 0, newWidth, maxHeight)))
+		dst = image.NewRGBA(image.Rect(0, 0, newWidth, maxHeight))
 		slog.Info("resizing image", "name", blobName, "original_height", height, "original_width", width, "new_height", maxHeight, "new_width", newWidth)
-	} else { // if height <= width, then the image is landscape or square so resize width to maxWidth
+	} else { // landscape or square — fit to maxWidth
 		newHeight := maxWidth * height / width
-		dst = image.NewRGBA((image.Rect(0, 0, maxWidth, newHeight)))
+		dst = image.NewRGBA(image.Rect(0, 0, maxWidth, newHeight))
 		slog.Info("resizing image", "name", blobName, "original_height", height, "original_width", width, "new_height", newHeight, "new_width", maxWidth)
 	}
 
-	// detect image type from 'imageFormat' value
+	// Decode once with the format-specific decoder.
+	var src image.Image
 	switch imageFormat {
 	case "image/jpeg":
-		slog.Info("encoding jpeg", "name", blobName, "format", imageFormat)
-		src, _ = jpeg.Decode(bytes.NewReader(imgBytes))
-		draw.NearestNeighbor.Scale(dst, dst.Rect, src, src.Bounds(), draw.Over, nil)
-		err := jpeg.Encode(buf, dst, nil)
-		if err != nil {
-			slog.Error("error encoding jpeg", "name", blobName, "error", err)
-			return nil, err
-		}
+		src, err = jpeg.Decode(bytes.NewReader(imgBytes))
 	case "image/png":
-		slog.Info("encoding jpeg", "name", blobName, "format", imageFormat)
-		src, _ = png.Decode(bytes.NewReader(imgBytes))
-		draw.NearestNeighbor.Scale(dst, dst.Rect, src, src.Bounds(), draw.Over, nil)
-		err := png.Encode(buf, dst)
-		if err != nil {
-			slog.Error("error encoding png", "name", blobName, "error", err)
-			return nil, err
-		}
+		src, err = png.Decode(bytes.NewReader(imgBytes))
 	case "image/gif":
-		slog.Info("encoding jpeg", "name", blobName, "format", imageFormat)
-		src, _ = gif.Decode(bytes.NewReader(imgBytes))
-		draw.NearestNeighbor.Scale(dst, dst.Rect, src, src.Bounds(), draw.Over, nil)
-		err := gif.Encode(buf, dst, nil)
-		if err != nil {
-			slog.Error("error encoding gif", "name", blobName, "error", err)
-			return nil, err
-		}
+		src, err = gif.Decode(bytes.NewReader(imgBytes))
+	default:
+		return nil, fmt.Errorf("unsupported image format: %s", imageFormat)
 	}
-	return buf.Bytes(), err
+	if err != nil {
+		return nil, fmt.Errorf("decode %s: %w", imageFormat, err)
+	}
+
+	slog.Info("scaling image", "name", blobName, "format", imageFormat)
+	draw.NearestNeighbor.Scale(dst, dst.Rect, src, src.Bounds(), draw.Over, nil)
+
+	// Encode the scaled image.
+	buf := new(bytes.Buffer)
+	switch imageFormat {
+	case "image/jpeg":
+		err = jpeg.Encode(buf, dst, nil)
+	case "image/png":
+		err = png.Encode(buf, dst)
+	case "image/gif":
+		err = gif.Encode(buf, dst, nil)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("encode %s: %w", imageFormat, err)
+	}
+
+	return buf.Bytes(), nil
 }
 
 func ConvertToEvent(b *common.BindingEvent) (models.Event, error) {
@@ -240,11 +247,6 @@ func GetBlobMetadata(client *azblob.Client, blobPath string, container string, s
 	blobUrl := fmt.Sprintf("%s/%s/%s", storageUrl, container, blobPath)
 	blobClient := client.ServiceClient().NewContainerClient(container).NewBlockBlobClient(blobPath)
 
-	if err != nil {
-		slog.Error("error creating block blob client", "blob_url", blobUrl, "error", err)
-		return nil, err
-	}
-
 	// get blob tags
 	mdResponse, err := blobClient.GetProperties(ctx, nil)
 	if err != nil {
@@ -296,7 +298,7 @@ func GetBlobTagList(client *azblob.Client, containerName string, storageUrl stri
 				}
 			}
 
-			if !Contains(blobTagMap[collection], album) {
+			if !slices.Contains(blobTagMap[collection], album) {
 				blobTagMap[collection] = append(blobTagMap[collection], album)
 			}
 		}
@@ -369,27 +371,21 @@ func SaveBlobStreamWithTagsAndMetadata(
 	return nil
 }
 
-func StripInvalidTagCharacters(value string) (sanitisedValue string) {
-	// Remove invalid tag characters from tags values
-	// Lowercase and uppercase letters (a-z, A-Z)
-	// Digits (0-9)
-	// A space ( )
-	// Plus (+), minus (-), period (.), slash (/), colon (:), equals (=), and underscore (_)
+// invalidTagCharsRe matches characters not allowed in Azure blob tags.
+var invalidTagCharsRe = regexp.MustCompile(`[^a-zA-Z0-9\s\./+-:+_]`)
 
-	// if value is empty, return an empty string
-	if len(value) <= 0 {
+// StripInvalidTagCharacters removes characters that are not valid in Azure
+// blob tag values.  Valid characters are: a-z A-Z 0-9 space + - . / : = _
+func StripInvalidTagCharacters(value string) string {
+	if value == "" {
 		slog.Warn("tag value is empty")
 		return ""
 	}
 
-	// Test regex for characters not in the regex
-	var re = regexp.MustCompile(`[^a-zA-Z0-9\s\./+-:+_]`)
-	if re.MatchString(value) {
-		sanitisedValue = re.ReplaceAllString(value, "")
-		return sanitisedValue
+	if invalidTagCharsRe.MatchString(value) {
+		return invalidTagCharsRe.ReplaceAllString(value, "")
 	}
 
-	// no invalid characters found, return original string
 	return value
 }
 
@@ -442,13 +438,10 @@ func GetBlobNameAndPrefix(blobPath string) (string, string) {
 	return blobName, blobPrefix
 }
 
+// Deprecated: Contains is replaced by slices.Contains from the standard library.
+// Kept temporarily for backward compatibility.
 func Contains(s []string, str string) bool {
-	for _, v := range s {
-		if v == str {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(s, str)
 }
 
 func RoundFloat(val float64, precision uint) float64 {
@@ -456,9 +449,11 @@ func RoundFloat(val float64, precision uint) float64 {
 	return math.Round(val*ratio) / ratio
 }
 
+// DumpEnv logs all environment variables at debug level.
+// WARNING: may expose secrets — use only during local development.
 func DumpEnv() {
 	for _, e := range os.Environ() {
-		fmt.Print(e)
+		slog.Debug("env", "entry", e)
 	}
 }
 
@@ -472,36 +467,41 @@ func extractToken(r *http.Request) (string, error) {
 	return bearerToken, nil
 }
 
-func VerifyToken(r *http.Request, jwksURL string) (*models.MyClaims, error) {
+func VerifyToken(r *http.Request, jwksURL string, kf jwtLib.Keyfunc) (*models.MyClaims, error) {
 	tokenString, err := extractToken(r)
 	if err != nil {
 		return nil, err
 	}
 
-	// Create a context that, when cancelled, ends the JWKS background refresh goroutine.
-	ctx, cancel := context.WithCancel(context.Background())
-
-	// Create the keyfunc.Keyfunc.
-	k, err := keyfunc.NewDefaultCtx(ctx, []string{jwksURL}) // Context is used to end the refresh goroutine.
-	if err != nil {
-		slog.Error("Failed to create a keyfunc.Keyfunc from the server's URL.", "error", err)
+	// Use the provided keyfunc if available; otherwise fall back to a one-shot fetch.
+	var cancel context.CancelFunc
+	if kf == nil {
+		ctx, c := context.WithCancel(context.Background())
+		cancel = c
+		k, err := jwksKeyfunc.NewDefaultCtx(ctx, []string{jwksURL})
+		if err != nil {
+			cancel()
+			slog.Error("failed to create keyfunc from JWKS URL", "error", err)
+			return nil, fmt.Errorf("creating JWKS keyfunc: %w", err)
+		}
+		kf = k.Keyfunc
+	}
+	if cancel != nil {
+		defer cancel()
 	}
 
-	claims := &models.MyClaims{}
-	ok := false
-
-	parsedToken, err := jwt.ParseWithClaims(tokenString, &models.MyClaims{}, k.Keyfunc)
-	slog.Debug("parsed token", "token", parsedToken)
+	parsedToken, err := jwtLib.ParseWithClaims(tokenString, &models.MyClaims{}, kf)
 	if err != nil {
-		slog.Error("Error Parsing JWT", "error", err)
-	} else if claims, ok = parsedToken.Claims.(*models.MyClaims); ok {
-		slog.Debug("parsed token claims", "claims", claims)
-	} else {
-		slog.Error("Error Parsing Claims", "error", err)
+		slog.Error("error parsing JWT", "error", err)
+		return nil, fmt.Errorf("parsing JWT: %w", err)
 	}
 
-	// End the background refresh goroutine when it's no longer needed.
-	cancel()
+	claims, ok := parsedToken.Claims.(*models.MyClaims)
+	if !ok {
+		return nil, fmt.Errorf("unexpected claims type in JWT")
+	}
+
+	slog.Debug("parsed token claims", "claims", claims)
 	return claims, nil
 }
 
@@ -526,9 +526,9 @@ func ListBlobHierarchy(client *azblob.Client, storageUrl string, containerName s
 		} */
 
 		for _, prefix := range resp.Segment.BlobPrefixes {
-			fmt.Printf("Virtual Directory: %s\n", *prefix.Name)
+			slog.Debug("virtual directory", "name", *prefix.Name)
 			blobMap[*prefix.Name] = ""
-			fmt.Printf("my map: %v\n", blobMap)
+			slog.Debug("blob map", "map", blobMap)
 			ListBlobHierarchy(client, storageUrl, containerName, prefix.Name, blobMap)
 		}
 	}

@@ -1,10 +1,13 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
-	"fmt"
+	"image"
+	"image/color"
+	"image/jpeg"
 	"os"
 	"testing"
 
@@ -12,6 +15,7 @@ import (
 	"github.com/cbellee/photo-api/internal/storage"
 	"github.com/dapr/go-sdk/service/common"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // ── Test fixtures ───────────────────────────────────────────────────
@@ -47,10 +51,9 @@ func setupTestHandler() (*Handler, func()) {
 
 	cfg := testConfig()
 
-	storageUrl := fmt.Sprintf("https://%s.%s", cfg.StorageAccount, cfg.StorageSuffix)
 	mockStore := &storage.MockBlobStore{}
 
-	h := NewHandler(mockStore, storageUrl, cfg)
+	h := NewHandler(mockStore, cfg)
 
 	cleanup := func() {
 		os.Unsetenv("SERVICE_NAME")
@@ -669,4 +672,192 @@ func TestResizeHandler_MemoryManagement(t *testing.T) {
 
 		assert.True(t, true, "Memory management test completed successfully")
 	})
+}
+
+// ── Happy-path tests with fully-configured mock store ───────────────
+
+// makeTestJPEG returns a valid JPEG byte slice of the given dimensions.
+func makeTestJPEG(t *testing.T, width, height int) []byte {
+	t.Helper()
+	img := image.NewRGBA(image.Rect(0, 0, width, height))
+	for x := 0; x < width; x++ {
+		for y := 0; y < height; y++ {
+			img.Set(x, y, color.RGBA{0, 128, 255, 255})
+		}
+	}
+	var buf bytes.Buffer
+	err := jpeg.Encode(&buf, img, &jpeg.Options{Quality: 75})
+	require.NoError(t, err)
+	return buf.Bytes()
+}
+
+func TestResizeHandler_HappyPath(t *testing.T) {
+	cfg := testConfig()
+	cfg.MaxImageHeight = 600
+	cfg.MaxImageWidth = 800
+
+	srcJPEG := makeTestJPEG(t, 2000, 1500)
+
+	var savedBlob []byte
+	var savedContainer string
+	var savedTags map[string]string
+	var savedMeta map[string]string
+
+	mock := &storage.MockBlobStore{
+		GetBlobFunc: func(ctx context.Context, blobName string, containerName string) ([]byte, error) {
+			assert.Equal(t, "collection1/album1/test-image.jpg", blobName)
+			assert.Equal(t, "uploads", containerName)
+			return srcJPEG, nil
+		},
+		GetBlobTagsFunc: func(ctx context.Context, blobName string, containerName string) (map[string]string, error) {
+			return map[string]string{
+				"collection": "collection1",
+				"album":      "album1",
+				"name":       "collection1/album1/test-image.jpg",
+			}, nil
+		},
+		GetBlobMetadataFunc: func(ctx context.Context, blobName string, containerName string) (map[string]string, error) {
+			return map[string]string{
+				"Width":  "2000",
+				"Height": "1500",
+			}, nil
+		},
+		SaveBlobFunc: func(ctx context.Context, data []byte, blobName string, containerName string, tags map[string]string, metadata map[string]string, contentType string) error {
+			savedBlob = data
+			savedContainer = containerName
+			savedTags = tags
+			savedMeta = metadata
+			return nil
+		},
+	}
+
+	h := NewHandler(mock, cfg)
+	ctx := context.Background()
+	testURL := "https://teststorage.blob.core.windows.net/uploads/collection1/album1/test-image.jpg"
+	event := createTestBindingEvent(testURL, "image/jpeg", int32(len(srcJPEG)))
+
+	result, err := h.Resize(ctx, event)
+
+	require.NoError(t, err)
+	assert.Nil(t, result)
+	assert.NotNil(t, savedBlob, "blob should have been saved")
+	assert.Equal(t, cfg.ImagesContainerName, savedContainer)
+	assert.Equal(t, "collection1", savedTags["collection"])
+	// The resized image should be smaller than max dimensions.
+	assert.NotEmpty(t, savedMeta["Width"])
+	assert.NotEmpty(t, savedMeta["Height"])
+	assert.NotEmpty(t, savedMeta["Size"])
+}
+
+func TestResizeHandler_HappyPath_SmallImage(t *testing.T) {
+	// If the source image is already within bounds, it should still be processed.
+	cfg := testConfig()
+	cfg.MaxImageHeight = 600
+	cfg.MaxImageWidth = 800
+
+	srcJPEG := makeTestJPEG(t, 200, 150) // already within limits
+
+	var savedBlob []byte
+
+	mock := &storage.MockBlobStore{
+		GetBlobFunc: func(ctx context.Context, blobName string, containerName string) ([]byte, error) {
+			return srcJPEG, nil
+		},
+		GetBlobTagsFunc: func(ctx context.Context, blobName string, containerName string) (map[string]string, error) {
+			return map[string]string{"collection": "c", "album": "a"}, nil
+		},
+		GetBlobMetadataFunc: func(ctx context.Context, blobName string, containerName string) (map[string]string, error) {
+			return map[string]string{}, nil
+		},
+		SaveBlobFunc: func(ctx context.Context, data []byte, blobName string, containerName string, tags map[string]string, metadata map[string]string, contentType string) error {
+			savedBlob = data
+			return nil
+		},
+	}
+
+	h := NewHandler(mock, cfg)
+	ctx := context.Background()
+	testURL := "https://teststorage.blob.core.windows.net/uploads/c/a/small.jpg"
+	event := createTestBindingEvent(testURL, "image/jpeg", int32(len(srcJPEG)))
+
+	result, err := h.Resize(ctx, event)
+
+	require.NoError(t, err)
+	assert.Nil(t, result)
+	assert.NotNil(t, savedBlob)
+}
+
+func TestResizeHandler_GetBlobError(t *testing.T) {
+	cfg := testConfig()
+	mock := &storage.MockBlobStore{
+		GetBlobFunc: func(ctx context.Context, blobName string, containerName string) ([]byte, error) {
+			return nil, assert.AnError
+		},
+	}
+
+	h := NewHandler(mock, cfg)
+	ctx := context.Background()
+	testURL := "https://teststorage.blob.core.windows.net/uploads/c/a/f.jpg"
+	event := createTestBindingEvent(testURL, "image/jpeg", 1024)
+
+	_, err := h.Resize(ctx, event)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "downloading blob")
+}
+
+func TestResizeHandler_GetBlobTagsError(t *testing.T) {
+	cfg := testConfig()
+	srcJPEG := makeTestJPEG(t, 100, 100)
+
+	mock := &storage.MockBlobStore{
+		GetBlobFunc: func(ctx context.Context, blobName string, containerName string) ([]byte, error) {
+			return srcJPEG, nil
+		},
+		GetBlobTagsFunc: func(ctx context.Context, blobName string, containerName string) (map[string]string, error) {
+			return nil, assert.AnError
+		},
+	}
+
+	h := NewHandler(mock, cfg)
+	ctx := context.Background()
+	testURL := "https://teststorage.blob.core.windows.net/uploads/c/a/f.jpg"
+	event := createTestBindingEvent(testURL, "image/jpeg", 1024)
+
+	_, err := h.Resize(ctx, event)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "getting blob tags")
+}
+
+func TestResizeHandler_SaveBlobError(t *testing.T) {
+	cfg := testConfig()
+	cfg.MaxImageHeight = 600
+	cfg.MaxImageWidth = 800
+	srcJPEG := makeTestJPEG(t, 100, 100)
+
+	mock := &storage.MockBlobStore{
+		GetBlobFunc: func(ctx context.Context, blobName string, containerName string) ([]byte, error) {
+			return srcJPEG, nil
+		},
+		GetBlobTagsFunc: func(ctx context.Context, blobName string, containerName string) (map[string]string, error) {
+			return map[string]string{}, nil
+		},
+		GetBlobMetadataFunc: func(ctx context.Context, blobName string, containerName string) (map[string]string, error) {
+			return map[string]string{}, nil
+		},
+		SaveBlobFunc: func(ctx context.Context, data []byte, blobName string, containerName string, tags map[string]string, metadata map[string]string, contentType string) error {
+			return assert.AnError
+		},
+	}
+
+	h := NewHandler(mock, cfg)
+	ctx := context.Background()
+	testURL := "https://teststorage.blob.core.windows.net/uploads/c/a/f.jpg"
+	event := createTestBindingEvent(testURL, "image/jpeg", int32(len(srcJPEG)))
+
+	_, err := h.Resize(ctx, event)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "saving resized blob")
 }

@@ -98,7 +98,7 @@ func UploadHandler(store storage.BlobStore, cfg *Config) http.HandlerFunc {
 		}
 
 		exifData := ""
-		exifData, err = exif.GetExifJSON(*buf)
+		exifData, err = exif.GetExifJSON(buf.Bytes())
 		if err != nil {
 			slog.Error("error getting exif data", "error", err)
 			// EXIF errors are non-fatal — continue without EXIF data
@@ -115,7 +115,6 @@ func UploadHandler(store storage.BlobStore, cfg *Config) http.HandlerFunc {
 			buf.Bytes(),
 			fileNameWithPrefix,
 			cfg.UploadsContainerName,
-			cfg.StorageUrl,
 			tags,
 			md,
 			it.Type,

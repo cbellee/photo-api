@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -19,15 +20,18 @@ import (
 // It is intended for local Docker / Kubernetes development where Azure Blob Storage
 // is not available.
 type LocalBlobStore struct {
-	baseURL    string
+	baseURL    string // internal URL for API calls to blobemu
+	publicURL  string // browser-reachable URL used in Blob.Path
 	httpClient *http.Client
 }
 
 // NewLocalBlobStore creates a store that proxies all operations to the
-// blob emulator at baseURL (e.g. "http://blobemu:10000").
-func NewLocalBlobStore(baseURL string) *LocalBlobStore {
+// blob emulator at baseURL (e.g. "http://blobemu:10000"). The publicURL
+// is the browser-reachable URL used when building Blob.Path values.
+func NewLocalBlobStore(baseURL string, publicURL string) *LocalBlobStore {
 	return &LocalBlobStore{
-		baseURL: strings.TrimRight(baseURL, "/"),
+		baseURL:   strings.TrimRight(baseURL, "/"),
+		publicURL: strings.TrimRight(publicURL, "/"),
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
@@ -44,7 +48,7 @@ type blobResponse struct {
 
 // ---------- BlobStore implementation ----------
 
-func (s *LocalBlobStore) FilterBlobsByTags(ctx context.Context, query string, containerName string, storageUrl string) ([]models.Blob, error) {
+func (s *LocalBlobStore) FilterBlobsByTags(ctx context.Context, query string, containerName string) ([]models.Blob, error) {
 	body, _ := json.Marshal(map[string]string{"query": query})
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.baseURL+"/query", bytes.NewReader(body))
@@ -77,7 +81,7 @@ func (s *LocalBlobStore) FilterBlobsByTags(ctx context.Context, query string, co
 	for _, item := range items {
 		blobs = append(blobs, models.Blob{
 			Name:     item.Name,
-			Path:     fmt.Sprintf("%s/%s/%s", storageUrl, containerName, item.Name),
+			Path:     fmt.Sprintf("%s/%s/%s", s.publicURL, containerName, item.Name),
 			Tags:     item.Tags,
 			MetaData: item.Metadata,
 		})
@@ -85,7 +89,7 @@ func (s *LocalBlobStore) FilterBlobsByTags(ctx context.Context, query string, co
 	return blobs, nil
 }
 
-func (s *LocalBlobStore) GetBlobTags(ctx context.Context, blobName string, containerName string, storageUrl string) (map[string]string, error) {
+func (s *LocalBlobStore) GetBlobTags(ctx context.Context, blobName string, containerName string) (map[string]string, error) {
 	u := s.blobURL(containerName, blobName) + "?comp=tags"
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
@@ -110,7 +114,7 @@ func (s *LocalBlobStore) GetBlobTags(ctx context.Context, blobName string, conta
 	return tags, nil
 }
 
-func (s *LocalBlobStore) SetBlobTags(ctx context.Context, blobName string, containerName string, storageUrl string, tags map[string]string) error {
+func (s *LocalBlobStore) SetBlobTags(ctx context.Context, blobName string, containerName string, tags map[string]string) error {
 	body, _ := json.Marshal(tags)
 	u := s.blobURL(containerName, blobName) + "?comp=tags"
 
@@ -133,7 +137,7 @@ func (s *LocalBlobStore) SetBlobTags(ctx context.Context, blobName string, conta
 	return nil
 }
 
-func (s *LocalBlobStore) GetBlobMetadata(ctx context.Context, blobName string, containerName string, storageUrl string) (map[string]string, error) {
+func (s *LocalBlobStore) GetBlobMetadata(ctx context.Context, blobName string, containerName string) (map[string]string, error) {
 	u := s.blobURL(containerName, blobName) + "?comp=metadata"
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
@@ -158,7 +162,7 @@ func (s *LocalBlobStore) GetBlobMetadata(ctx context.Context, blobName string, c
 	return md, nil
 }
 
-func (s *LocalBlobStore) GetBlobTagList(ctx context.Context, containerName string, storageUrl string) (map[string][]string, error) {
+func (s *LocalBlobStore) GetBlobTagList(ctx context.Context, containerName string) (map[string][]string, error) {
 	u := fmt.Sprintf("%s/%s", s.baseURL, url.PathEscape(containerName))
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
@@ -186,14 +190,14 @@ func (s *LocalBlobStore) GetBlobTagList(ctx context.Context, containerName strin
 	for _, item := range items {
 		collection := item.Tags["collection"]
 		album := item.Tags["album"]
-		if !contains(tagMap[collection], album) {
+		if !slices.Contains(tagMap[collection], album) {
 			tagMap[collection] = append(tagMap[collection], album)
 		}
 	}
 	return tagMap, nil
 }
 
-func (s *LocalBlobStore) GetBlob(ctx context.Context, blobName string, containerName string, storageUrl string) ([]byte, error) {
+func (s *LocalBlobStore) GetBlob(ctx context.Context, blobName string, containerName string) ([]byte, error) {
 	u := s.blobURL(containerName, blobName)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
@@ -221,7 +225,7 @@ func (s *LocalBlobStore) GetBlob(ctx context.Context, blobName string, container
 	return data, nil
 }
 
-func (s *LocalBlobStore) SaveBlob(ctx context.Context, data []byte, blobName string, containerName string, storageUrl string, tags map[string]string, metadata map[string]string, contentType string) error {
+func (s *LocalBlobStore) SaveBlob(ctx context.Context, data []byte, blobName string, containerName string, tags map[string]string, metadata map[string]string, contentType string) error {
 	u := s.blobURL(containerName, blobName)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPut, u, bytes.NewReader(data))
@@ -266,15 +270,6 @@ func (s *LocalBlobStore) blobURL(container, blobName string) string {
 		segments[i] = url.PathEscape(seg)
 	}
 	return fmt.Sprintf("%s/%s/%s", s.baseURL, url.PathEscape(container), strings.Join(segments, "/"))
-}
-
-func contains(s []string, str string) bool {
-	for _, v := range s {
-		if v == str {
-			return true
-		}
-	}
-	return false
 }
 
 // Compile-time check.
