@@ -46,6 +46,8 @@ spec:
         dapr.io/app-port: {{ .Values.resizeApi.dapr.appPort | quote }}
         dapr.io/app-protocol: {{ .Values.resizeApi.dapr.appProtocol | quote }}
         dapr.io/log-level: {{ .Values.resizeApi.dapr.logLevel | quote }}
+        dapr.io/sidecar-liveness-probe-delay-seconds: "15"
+        dapr.io/sidecar-readiness-probe-delay-seconds: "15"
       {{- end }}
     spec:
       {{- with .Values.resizeApi.imagePullSecrets }}

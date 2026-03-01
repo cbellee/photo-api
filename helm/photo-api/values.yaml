@@ -5,7 +5,7 @@ nameOverride: ""
 fullnameOverride: ""
 
 global:
-  imagePullPolicy: IfNotPresent
+  imagePullPolicy: Always
 
 # ──────────────────────────────────────────────────────────────────────
 # Photo API
