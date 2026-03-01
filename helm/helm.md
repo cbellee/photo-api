@@ -225,21 +225,32 @@ This ensures the chart works regardless of the target namespace.
 4. **Container images** — build and push `photo-api`, `resize-api`, and `blobemu` to a registry, then set the `image.repository` values accordingly.
 5. **StorageClass** — a default StorageClass must exist for dynamic PVC provisioning (included in most managed Kubernetes providers).
 
+```bash
+kubectl apply -f https://raw.githubusercontent.com/rancher/local-path-provisioner/v0.0.30/deploy/local-path-storage.yaml
+
+# Make it the default
+kubectl patch storageclass local-path -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
+```
+
 ## Usage
 
 ### Install
 
+### Create namespace
+```bash
+k create namespace photo-api
+```
+
 ```bash
 helm install photo-api helm/photo-api \
-  --namespace photo \
-  --create-namespace
+  --namespace photo-api
 ```
 
 ### Install with Custom Images
 
 ```bash
 helm install photo-api helm/photo-api \
-  --namespace photo \
+  --namespace photo-api \
   --create-namespace \
   --set photoApi.image.repository=myregistry.io/photo-api \
   --set photoApi.image.tag=v1.2.0 \

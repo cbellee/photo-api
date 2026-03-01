@@ -60,9 +60,10 @@ spec:
             httpGet:
               path: /readyz
               port: http
-            initialDelaySeconds: 5
+            initialDelaySeconds: 15
             periodSeconds: 10
             timeoutSeconds: 6
+            failureThreshold: 30
           livenessProbe:
             httpGet:
               path: /healthz
