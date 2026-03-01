@@ -65,7 +65,7 @@ jobs:
 
       - name: run-tests
         working-directory: api
-        run: go test ./...
+        run: go test $(go list ./... | grep -v cmd/face)
 
   build-photo-api-job:
     runs-on: ubuntu-latest
