@@ -70,7 +70,7 @@ func (s *LocalBlobStore) FilterBlobsByTags(ctx context.Context, query string, co
 	}
 
 	if len(items) == 0 {
-		return nil, fmt.Errorf("no blobs found for query: %s", query)
+		return nil, nil
 	}
 
 	blobs := make([]models.Blob, 0, len(items))
