@@ -125,3 +125,115 @@ Added edge-case subtests to existing test functions:
 | `ResizeImage/empty image bytes` | Empty slice → error |
 | `ResizeImage/square image` | 200×200 → 100×100 (landscape branch) |
 | `StripInvalidTagValue/empty string` | `""` → `""` |
+
+---
+
+## Phase 3 — Targeted Gap Coverage
+
+### Summary
+
+Overall test coverage increased from **55.9% → 59.5%** (+3.6pp). Targeted Tier 1 (high-impact, easy) and Tier 2 (medium-impact) gaps identified by per-function coverage profiling.
+
+### Per-Package Coverage
+
+| Package | Before | After | Delta |
+|---|---|---|---|
+| `internal/exif` | 40.0% | 80.0% | **+40.0** |
+| `internal/handler` | 92.9% | 93.9% | **+1.0** |
+| `internal/storage` | 71.3% | 73.2% | **+1.9** |
+| `internal/telemetry` | 0.0% | 13.0% | **+13.0** |
+| `internal/utils` | 32.3% | 39.8% | **+7.5** |
+| `cmd/resize` | 44.2% | 46.2% | **+2.0** |
+
+### Per-Function Highlights
+
+| Function | Before | After | Change |
+|---|---|---|---|
+| `GetExifJSON` | 40.0% | **80.0%** | +40pp |
+| `extractToken` | 0.0% | **100.0%** | +100pp |
+| `VerifyToken` | 0.0% | **58.3%** | +58.3pp |
+| `GetCollectionImage` | 87.5% | **100.0%** | +12.5pp |
+| `Resize` | 86.4% | **90.9%** | +4.5pp |
+| `Shutdown` (telemetry) | 0.0% | **50.0%** | +50pp |
+| `FilterBlobsByTags` (local) | 85.7% | **90.5%** | +4.8pp |
+| `GetBlobTags` (local) | 78.6% | **85.7%** | +7.1pp |
+| `GetBlobMetadata` (local) | 78.6% | **85.7%** | +7.1pp |
+| `GetBlobTagList` (local) | 85.0% | **90.0%** | +5pp |
+| `UploadHandler` | 88.1% | **91.0%** | +2.9pp |
+
+### New Test Files
+
+#### `api/internal/utils/token_test.go` (~110 lines)
+
+8 tests for `extractToken` and `VerifyToken`:
+
+| Test | Description |
+|---|---|
+| `TestExtractToken_NoAuthHeader` | Missing `Authorization` header → error |
+| `TestExtractToken_ValidBearerToken` | `"Bearer my-token-value"` → returns `"my-token-value"` |
+| `TestExtractToken_EmptyAuthHeader` | Empty header string → error |
+| `TestVerifyToken_NoAuthHeader` | No header → error contains "no access token" |
+| `TestVerifyToken_InvalidToken` | Malformed JWT string → error contains "parsing JWT" |
+| `TestVerifyToken_ExpiredToken` | Expired HMAC JWT → error contains "parsing JWT" |
+| `TestVerifyToken_ValidToken` | Valid HMAC JWT with `["photo.upload", "admin"]` → returns `MyClaims` |
+| `TestVerifyToken_ValidTokenSingleRole` | Valid HMAC JWT with `["reader"]` → returns `MyClaims` |
+
+Uses HMAC-signed JWTs with a test `Keyfunc` — no external JWKS fetch needed.
+
+#### `api/internal/telemetry/telemetry_test.go` (~30 lines)
+
+2 tests for nil-safe `Shutdown`:
+
+| Test | Description |
+|---|---|
+| `TestProviders_Shutdown_NilProviders` | All three providers nil — `Shutdown` must not panic |
+| `TestProviders_Shutdown_PartialNilProviders` | Explicit nil fields — `Shutdown` must not panic |
+
+### Tests Added to Existing Files
+
+#### `api/internal/exif/exif_test.go`
+
+| Test | Description |
+|---|---|
+| `TestGetExifJSON_SuccessPath` | Hand-crafted minimal JPEG with EXIF APP1 segment (Make="Test") → valid JSON containing `"Make"` |
+
+Includes `buildJPEGWithExif` helper that constructs a valid JPEG+EXIF byte sequence programmatically (SOI + APP1 with TIFF IFD0 entry + EOI).
+
+#### `api/internal/handler/handler_test.go`
+
+| Test | Description |
+|---|---|
+| `TestGetCollectionImage_EmptyResults` | `FilterBlobsByTags` returns empty `[]models.Blob{}` (not error) → error "no collection image found" |
+
+#### `api/internal/handler/upload_test.go`
+
+| Test | Description |
+|---|---|
+| `TestUploadHandler_ParseMultipartFormError_Returns400` | Body with wrong `Content-Type` (`text/plain`) triggers `ParseMultipartForm` error → 400 |
+
+#### `api/cmd/resize/main_test.go`
+
+| Test | Description |
+|---|---|
+| `TestResizeHandler_GetBlobMetadataError` | `GetBlobMetadata` returns error → error contains "getting blob metadata" |
+
+#### `api/internal/storage/local_test.go`
+
+4 malformed JSON response tests using `httptest.Server`:
+
+| Test | Description |
+|---|---|
+| `TestLocalBlobStore_FilterBlobsByTags_MalformedJSON` | Invalid JSON body → error contains "decoding response" |
+| `TestLocalBlobStore_GetBlobTags_MalformedJSON` | Invalid JSON → JSON decode error |
+| `TestLocalBlobStore_GetBlobMetadata_MalformedJSON` | Invalid JSON → JSON decode error |
+| `TestLocalBlobStore_GetBlobTagList_MalformedJSON` | Invalid JSON → JSON decode error |
+
+### Remaining Gaps (Tier 3 — Low ROI)
+
+These functions remain at 0% and require infrastructure that cannot be mocked easily:
+
+- **Azure SDK wrappers** in `utils.go`: `GetBlobDirectories`, `GetBlobTags`, `SetBlobTags`, `GetBlobMetadata`, `GetBlobTagList`, `GetBlobStream`, `SaveBlobStreamWithTagsAndMetadata`, `SaveBlobStreamWithTagsMetadataAndContentType`, `ListBlobHierarchy` — all require a real Azure Blob Storage client
+- **`telemetry.Init`** — requires a gRPC OTLP endpoint
+- **`cmd/photo/main.go`** — application entry point
+
+Realistic ceiling without an Azure emulator or gRPC test server: **~65-70%**

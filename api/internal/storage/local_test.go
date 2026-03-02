@@ -327,3 +327,55 @@ func TestLocalBlobStore_CancelledContext(t *testing.T) {
 func TestLocalBlobStore_ImplementsBlobStore(t *testing.T) {
 	var _ BlobStore = (*LocalBlobStore)(nil)
 }
+
+// ── Malformed JSON response tests ────────────────────────────────────
+
+func TestLocalBlobStore_FilterBlobsByTags_MalformedJSON(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte("{not valid json"))
+	}))
+	defer srv.Close()
+
+	store := NewLocalBlobStore(srv.URL, srv.URL)
+	blobs, err := store.FilterBlobsByTags(context.Background(), "q", "c")
+	assert.Error(t, err)
+	assert.Nil(t, blobs)
+	assert.Contains(t, err.Error(), "decoding response")
+}
+
+func TestLocalBlobStore_GetBlobTags_MalformedJSON(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte("not json"))
+	}))
+	defer srv.Close()
+
+	store := NewLocalBlobStore(srv.URL, srv.URL)
+	_, err := store.GetBlobTags(context.Background(), "p.jpg", "images")
+	assert.Error(t, err)
+}
+
+func TestLocalBlobStore_GetBlobMetadata_MalformedJSON(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte("[broken"))
+	}))
+	defer srv.Close()
+
+	store := NewLocalBlobStore(srv.URL, srv.URL)
+	_, err := store.GetBlobMetadata(context.Background(), "p.jpg", "images")
+	assert.Error(t, err)
+}
+
+func TestLocalBlobStore_GetBlobTagList_MalformedJSON(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte("{bad"))
+	}))
+	defer srv.Close()
+
+	store := NewLocalBlobStore(srv.URL, srv.URL)
+	_, err := store.GetBlobTagList(context.Background(), "images")
+	assert.Error(t, err)
+}

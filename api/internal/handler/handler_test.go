@@ -642,6 +642,21 @@ func TestGetCollectionImage_NotFound(t *testing.T) {
 	assert.Nil(t, result)
 }
 
+func TestGetCollectionImage_EmptyResults(t *testing.T) {
+	cfg := testConfig()
+	mock := &storage.MockBlobStore{
+		FilterBlobsByTagsFunc: func(ctx context.Context, query string, containerName string) ([]models.Blob, error) {
+			return []models.Blob{}, nil // empty slice, no error
+		},
+	}
+
+	result, err := GetCollectionImage(mock, context.Background(), cfg, "empty-collection")
+
+	assert.Error(t, err)
+	assert.Nil(t, result)
+	assert.Contains(t, err.Error(), "no collection image found")
+}
+
 // ── Config tests ────────────────────────────────────────────────────
 
 func TestConfig_Defaults(t *testing.T) {

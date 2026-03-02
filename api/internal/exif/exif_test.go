@@ -2,11 +2,70 @@ package exif
 
 import (
 	"bytes"
+	"encoding/binary"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+// buildJPEGWithExif constructs a minimal valid JPEG containing an EXIF APP1
+// segment with a single IFD0 entry (Make = "Test"). This is enough for
+// goexif to decode successfully and return JSON.
+func buildJPEGWithExif(t *testing.T) []byte {
+	t.Helper()
+
+	var tiff bytes.Buffer
+
+	// TIFF header — little-endian
+	tiff.Write([]byte{'I', 'I'})                                    // byte order
+	binary.Write(&tiff, binary.LittleEndian, uint16(0x002A))        // TIFF magic
+	binary.Write(&tiff, binary.LittleEndian, uint32(0x00000008))    // offset to IFD0
+
+	// IFD0 at offset 8
+	binary.Write(&tiff, binary.LittleEndian, uint16(1)) // 1 entry
+
+	// IFD entry: Make (tag 0x010F), ASCII (type 2), count 5 ("Test\0")
+	// Value offset = 8 (header) + 2 (count) + 12 (entry) + 4 (next IFD) = 26
+	binary.Write(&tiff, binary.LittleEndian, uint16(0x010F)) // tag
+	binary.Write(&tiff, binary.LittleEndian, uint16(2))      // type = ASCII
+	binary.Write(&tiff, binary.LittleEndian, uint32(5))      // count
+	binary.Write(&tiff, binary.LittleEndian, uint32(26))     // value offset
+
+	// Next IFD offset (none)
+	binary.Write(&tiff, binary.LittleEndian, uint32(0))
+
+	// String data at TIFF-relative offset 26
+	tiff.WriteString("Test\x00")
+
+	// APP1 payload = "Exif\0\0" + TIFF data
+	var app1Payload bytes.Buffer
+	app1Payload.WriteString("Exif\x00\x00")
+	app1Payload.Write(tiff.Bytes())
+
+	// Full JPEG
+	payloadLen := uint16(app1Payload.Len() + 2) // +2 for the length field itself
+	var jpeg bytes.Buffer
+	jpeg.Write([]byte{0xFF, 0xD8})                                   // SOI
+	jpeg.Write([]byte{0xFF, 0xE1})                                   // APP1 marker
+	binary.Write(&jpeg, binary.BigEndian, payloadLen)                // APP1 length
+	jpeg.Write(app1Payload.Bytes())
+	jpeg.Write([]byte{0xFF, 0xD9})                                   // EOI
+
+	return jpeg.Bytes()
+}
+
+func TestGetExifJSON_SuccessPath(t *testing.T) {
+	data := buildJPEGWithExif(t)
+
+	result, err := GetExifJSON(data)
+
+	require.NoError(t, err, "valid EXIF JPEG should not produce an error")
+	assert.NotEmpty(t, result, "result should contain EXIF JSON")
+	assert.Contains(t, result, "{", "result should be a JSON object")
+	assert.Contains(t, result, "Make", "result should contain the Make tag")
+}
 
 func TestGetExifJSON(t *testing.T) {
 	tests := []struct {
