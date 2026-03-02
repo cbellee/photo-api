@@ -861,3 +861,32 @@ func TestResizeHandler_SaveBlobError(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "saving resized blob")
 }
+
+func TestResizeHandler_GetBlobMetadataError(t *testing.T) {
+	cfg := testConfig()
+	cfg.MaxImageHeight = 600
+	cfg.MaxImageWidth = 800
+	srcJPEG := makeTestJPEG(t, 100, 100)
+
+	mock := &storage.MockBlobStore{
+		GetBlobFunc: func(ctx context.Context, blobName string, containerName string) ([]byte, error) {
+			return srcJPEG, nil
+		},
+		GetBlobTagsFunc: func(ctx context.Context, blobName string, containerName string) (map[string]string, error) {
+			return map[string]string{}, nil
+		},
+		GetBlobMetadataFunc: func(ctx context.Context, blobName string, containerName string) (map[string]string, error) {
+			return nil, assert.AnError
+		},
+	}
+
+	h := NewHandler(mock, cfg)
+	ctx := context.Background()
+	testURL := "https://teststorage.blob.core.windows.net/uploads/c/a/f.jpg"
+	event := createTestBindingEvent(testURL, "image/jpeg", 1024)
+
+	_, err := h.Resize(ctx, event)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "getting blob metadata")
+}

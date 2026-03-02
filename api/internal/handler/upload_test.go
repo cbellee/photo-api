@@ -220,6 +220,22 @@ func TestUploadHandler_SaveBlobError_Returns500(t *testing.T) {
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
+func TestUploadHandler_ParseMultipartFormError_Returns400(t *testing.T) {
+	cfg := testConfig()
+	mock := &storage.MockBlobStore{}
+
+	// Send a body with Content-Type that claims multipart but is not valid multipart
+	body := bytes.NewBufferString("not valid multipart data")
+	req := httptest.NewRequest("POST", "/api/upload", body)
+	req.Header.Set("Content-Type", "text/plain") // wrong content type triggers ParseMultipartForm error
+	w := httptest.NewRecorder()
+
+	handler := UploadHandler(mock, cfg)
+	handler.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
 func TestUploadHandler_TagStripping(t *testing.T) {
 	cfg := testConfig()
 	var savedTags map[string]string
