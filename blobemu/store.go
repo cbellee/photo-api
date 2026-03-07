@@ -7,9 +7,21 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	_ "modernc.org/sqlite"
 )
+
+// capitaliseKey uppercases the first letter of a metadata key to match
+// Azure Blob Storage behaviour (the SDK always capitalises metadata keys).
+func capitaliseKey(key string) string {
+	if key == "" {
+		return key
+	}
+	r, size := utf8.DecodeRuneInString(key)
+	return string(unicode.ToUpper(r)) + key[size:]
+}
 
 // joinStrings joins a string slice with a separator (avoids importing strings
 // in hot path for a tiny helper).
@@ -153,8 +165,9 @@ func (s *Store) SaveBlob(container, name string, data []byte, tags, metadata map
 		}
 	}
 	for k, v := range metadata {
-		if _, err := tx.Exec("INSERT INTO metadata (blob_id, key, value) VALUES (?, ?, ?)", blobID, k, v); err != nil {
-			return fmt.Errorf("inserting metadata %s: %w", k, err)
+		normKey := capitaliseKey(k)
+		if _, err := tx.Exec("INSERT INTO metadata (blob_id, key, value) VALUES (?, ?, ?)", blobID, normKey, v); err != nil {
+			return fmt.Errorf("inserting metadata %s: %w", normKey, err)
 		}
 	}
 

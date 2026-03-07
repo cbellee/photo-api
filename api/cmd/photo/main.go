@@ -138,7 +138,7 @@ func main() {
 			slog.Warn("readiness check failed", "error", err)
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusServiceUnavailable)
-			fmt.Fprintf(w, `{"status":"unavailable","error":%q}`+"\n", err.Error())
+			fmt.Fprintln(w, `{"status":"unavailable"}`)
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")

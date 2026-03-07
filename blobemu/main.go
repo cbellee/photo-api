@@ -18,6 +18,8 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -56,6 +58,25 @@ func main() {
 
 	mux := http.NewServeMux()
 
+	// Maximum upload size in MB (default 100).
+	maxBodyMB, err := strconv.ParseInt(env("MAX_BODY_SIZE_MB", "100"), 10, 64)
+	if err != nil || maxBodyMB <= 0 {
+		maxBodyMB = 100
+	}
+	maxBodySize := maxBodyMB << 20
+
+	// Allowed blob content types.
+	allowedContentTypes := map[string]bool{
+		"image/jpeg":               true,
+		"image/png":                true,
+		"image/gif":                true,
+		"image/webp":               true,
+		"application/octet-stream": true,
+	}
+
+	// CORS origins from env (default: restrictive for local dev).
+	corsOrigins := env("CORS_ORIGINS", "http://localhost:5173,http://localhost:8080")
+
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.Write([]byte("ok"))
 	})
@@ -63,11 +84,11 @@ func main() {
 	mux.HandleFunc("GET /{container}", listHandler(store))
 	mux.HandleFunc("GET /{container}/{blob...}", blobGetHandler(store))
 	publishContainer := env("PUBLISH_CONTAINER", "uploads")
-	mux.HandleFunc("PUT /{container}/{blob...}", blobPutHandler(store, pub, publishContainer))
+	mux.HandleFunc("PUT /{container}/{blob...}", blobPutHandler(store, pub, publishContainer, maxBodySize, allowedContentTypes))
 
 	srv := &http.Server{
 		Addr:              ":" + port,
-		Handler:           cors(mux),
+		Handler:           corsHandler(mux, corsOrigins),
 		MaxHeaderBytes:    1 << 20, // 1 MB (metadata can be large)
 		ReadHeaderTimeout: 10 * time.Second,
 		WriteTimeout:      60 * time.Second,
@@ -99,8 +120,30 @@ func main() {
 
 // ---------- handlers ----------
 
+// validateBlobPath checks that a blob path is safe (no directory traversal).
+func validateBlobPath(blob string) bool {
+	// Reject empty paths and paths containing traversal sequences.
+	if blob == "" {
+		return false
+	}
+	cleaned := filepath.Clean(blob)
+	// Reject if Clean produced a path starting with .. or an absolute path.
+	if strings.HasPrefix(cleaned, "..") || filepath.IsAbs(cleaned) {
+		return false
+	}
+	// Also reject if any segment is literally "..".
+	for _, seg := range strings.Split(cleaned, string(filepath.Separator)) {
+		if seg == ".." {
+			return false
+		}
+	}
+	return true
+}
+
 func queryHandler(store *Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// Limit query body to 64 KB.
+		r.Body = http.MaxBytesReader(w, r.Body, 64<<10)
 		var req struct {
 			Query string `json:"query"`
 		}
@@ -112,7 +155,7 @@ func queryHandler(store *Store) http.HandlerFunc {
 		blobs, err := store.FilterByTags(req.Query)
 		if err != nil {
 			slog.Error("filter error", "query", req.Query, "error", err)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			http.Error(w, "query failed", http.StatusInternalServerError)
 			return
 		}
 
@@ -125,6 +168,10 @@ func queryHandler(store *Store) http.HandlerFunc {
 func listHandler(store *Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		container := r.PathValue("container")
+		if !validateBlobPath(container) {
+			http.Error(w, "invalid container name", http.StatusBadRequest)
+			return
+		}
 
 		blobs, err := store.ListBlobs(container)
 		if err != nil {
@@ -142,6 +189,10 @@ func blobGetHandler(store *Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		container := r.PathValue("container")
 		blob := r.PathValue("blob")
+		if !validateBlobPath(container) || !validateBlobPath(blob) {
+			http.Error(w, "invalid path", http.StatusBadRequest)
+			return
+		}
 		comp := r.URL.Query().Get("comp")
 
 		switch comp {
@@ -175,10 +226,14 @@ func blobGetHandler(store *Store) http.HandlerFunc {
 	}
 }
 
-func blobPutHandler(store *Store, pub *Publisher, publishContainer string) http.HandlerFunc {
+func blobPutHandler(store *Store, pub *Publisher, publishContainer string, maxBodySize int64, allowedCT map[string]bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		container := r.PathValue("container")
 		blob := r.PathValue("blob")
+		if !validateBlobPath(container) || !validateBlobPath(blob) {
+			http.Error(w, "invalid path", http.StatusBadRequest)
+			return
+		}
 		comp := r.URL.Query().Get("comp")
 
 		switch comp {
@@ -196,6 +251,8 @@ func blobPutHandler(store *Store, pub *Publisher, publishContainer string) http.
 			w.WriteHeader(http.StatusOK)
 
 		default:
+			// Enforce body size limit.
+			r.Body = http.MaxBytesReader(w, r.Body, maxBodySize)
 			data, err := io.ReadAll(r.Body)
 			if err != nil {
 				http.Error(w, "error reading body", http.StatusBadRequest)
@@ -205,6 +262,12 @@ func blobPutHandler(store *Store, pub *Publisher, publishContainer string) http.
 			ct := r.Header.Get("Content-Type")
 			if ct == "" {
 				ct = "application/octet-stream"
+			}
+
+			// Validate content type.
+			if !allowedCT[ct] {
+				http.Error(w, "unsupported content type", http.StatusUnsupportedMediaType)
+				return
 			}
 
 			var tags map[string]string
@@ -246,12 +309,24 @@ func env(key, fallback string) string {
 	return fallback
 }
 
-// cors adds permissive CORS headers for local development.
-func cors(next http.Handler) http.Handler {
+// corsHandler adds CORS headers scoped to the configured origins.
+func corsHandler(next http.Handler, allowedCSV string) http.Handler {
+	allowed := make(map[string]bool)
+	for _, o := range strings.Split(allowedCSV, ",") {
+		o = strings.TrimSpace(o)
+		if o != "" {
+			allowed[o] = true
+		}
+	}
+
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
+		origin := r.Header.Get("Origin")
+		if allowed[origin] {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Vary", "Origin")
+		}
 		w.Header().Set("Access-Control-Allow-Methods", "GET, PUT, POST, DELETE, HEAD, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "*")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Blob-Tags, X-Blob-Metadata")
 		w.Header().Set("Access-Control-Expose-Headers", "Content-Type, Content-Length")
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
