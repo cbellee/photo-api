@@ -169,10 +169,10 @@ func ConvertToEvent(b *common.BindingEvent) (models.Event, error) {
 
 func GetEnvValue(key, fallback string) string {
 	if value, ok := os.LookupEnv(key); ok {
-		slog.Info("value found", "key", key, "value", value)
+		slog.Debug("env var found", "key", key)
 		return value
 	}
-	slog.Warn("value not found", "key", key, "default_value", fallback)
+	slog.Warn("env var not found, using default", "key", key)
 	return fallback
 }
 
@@ -449,12 +449,10 @@ func RoundFloat(val float64, precision uint) float64 {
 	return math.Round(val*ratio) / ratio
 }
 
-// DumpEnv logs all environment variables at debug level.
-// WARNING: may expose secrets — use only during local development.
+// DumpEnv is intentionally removed — logging environment variables
+// can expose secrets. Use targeted GetEnvValue calls instead.
 func DumpEnv() {
-	for _, e := range os.Environ() {
-		slog.Debug("env", "entry", e)
-	}
+	slog.Debug("DumpEnv called but disabled for security")
 }
 
 func extractToken(r *http.Request) (string, error) {
@@ -463,8 +461,11 @@ func extractToken(r *http.Request) (string, error) {
 		return "", fmt.Errorf("no access token found in request")
 	}
 
-	bearerToken := strings.Split(accessToken, " ")[1]
-	return bearerToken, nil
+	parts := strings.SplitN(accessToken, " ", 2)
+	if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") || parts[1] == "" {
+		return "", fmt.Errorf("malformed Authorization header")
+	}
+	return parts[1], nil
 }
 
 func VerifyToken(r *http.Request, jwksURL string, kf jwtLib.Keyfunc) (*models.MyClaims, error) {

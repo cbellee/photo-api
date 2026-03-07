@@ -17,6 +17,14 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 )
 
+// allowedImageTypes is the set of MIME types accepted for photo uploads.
+var allowedImageTypes = map[string]bool{
+	"image/jpeg": true,
+	"image/png":  true,
+	"image/gif":  true,
+	"image/webp": true,
+}
+
 // UploadHandler handles multipart file uploads, extracts EXIF data and image
 // dimensions, and saves the blob to the uploads container.
 func UploadHandler(store storage.BlobStore, cfg *Config) http.HandlerFunc {
@@ -45,6 +53,12 @@ func UploadHandler(store storage.BlobStore, cfg *Config) http.HandlerFunc {
 		if err != nil {
 			slog.Error("error unmarshalling metadata json", "error", err)
 			http.Error(w, "Invalid metadata", http.StatusBadRequest)
+			return
+		}
+
+		// Validate the declared content type.
+		if !allowedImageTypes[it.Type] {
+			http.Error(w, "Unsupported image type", http.StatusUnsupportedMediaType)
 			return
 		}
 

@@ -19,22 +19,48 @@ func UpdateHandler(store storage.BlobStore, cfg *Config) http.HandlerFunc {
 		ctx, span := tracer.Start(r.Context(), "handler.Update")
 		defer span.End()
 
+		// Derive the blob name from the validated URL path parameters
+		// instead of trusting a client-supplied "name" field in the body.
+		collection := r.PathValue("collection")
+		if err := validatePathParam("collection", collection); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		album := r.PathValue("album")
+		if err := validatePathParam("album", album); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		blobID := r.PathValue("id")
+		if blobID == "" {
+			http.Error(w, "id is required", http.StatusBadRequest)
+			return
+		}
+		blobName := fmt.Sprintf("%s/%s/%s", collection, album, blobID)
+
 		if r.Body == nil {
 			http.Error(w, "body is empty", http.StatusBadRequest)
 			return
 		}
 
+		// Limit request body size to 1 MB (tags payload should be small).
+		r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+
 		// get new tags from request body
 		newTags := map[string]string{}
 		err := json.NewDecoder(r.Body).Decode(&newTags)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			http.Error(w, "invalid request body", http.StatusBadRequest)
 			return
 		}
 
+		// Override the name with the server-derived value to prevent
+		// a client from targeting a different blob.
+		newTags["name"] = blobName
+
 		// get current blob tags from storage and compare with updated tags
-		span.SetAttributes(attribute.String("blob.name", newTags["name"]))
-		currTags, err := store.GetBlobTags(ctx, newTags["name"], cfg.ImagesContainerName)
+		span.SetAttributes(attribute.String("blob.name", blobName))
+		currTags, err := store.GetBlobTags(ctx, blobName, cfg.ImagesContainerName)
 		if err != nil {
 			slog.Error("error getting blob tags", "error", err)
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
@@ -73,7 +99,7 @@ func UpdateHandler(store storage.BlobStore, cfg *Config) http.HandlerFunc {
 		}
 
 		// update blob tags
-		err = store.SetBlobTags(ctx, newTags["name"], cfg.ImagesContainerName, newTags)
+		err = store.SetBlobTags(ctx, blobName, cfg.ImagesContainerName, newTags)
 		if err != nil {
 			slog.Error("error updating blob tags", "error", err)
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)

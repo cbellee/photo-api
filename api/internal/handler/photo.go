@@ -17,16 +17,16 @@ func PhotoHandler(store storage.BlobStore, cfg *Config) http.HandlerFunc {
 		defer span.End()
 
 		collection := r.PathValue("collection")
-		if collection == "" {
-			slog.Error("empty path value", "name", "collection")
-			http.Error(w, "collection is required", http.StatusBadRequest)
+		if err := validatePathParam("collection", collection); err != nil {
+			slog.Error("invalid path param", "name", "collection", "error", err)
+			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 
 		album := r.PathValue("album")
-		if album == "" {
-			slog.Error("empty path value", "name", "album")
-			http.Error(w, "album is required", http.StatusBadRequest)
+		if err := validatePathParam("album", album); err != nil {
+			slog.Error("invalid path param", "name", "album", "error", err)
+			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 		span.SetAttributes(

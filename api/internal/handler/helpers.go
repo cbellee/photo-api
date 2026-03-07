@@ -52,7 +52,7 @@ func BlobsToPhotos(blobs []models.Blob) []models.Photo {
 			Album:           b.Tags["album"],
 			Collection:      b.Tags["collection"],
 			Description:     b.Tags["description"],
-			ExifData:        b.MetaData["Exifdata"],
+			ExifData:        b.MetaData["ExifData"],
 			IsDeleted:       isDeleted,
 			Orientation:     orientation,
 			AlbumImage:      albumImage,

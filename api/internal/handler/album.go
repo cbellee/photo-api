@@ -18,9 +18,9 @@ func AlbumHandler(store storage.BlobStore, cfg *Config) http.HandlerFunc {
 		defer span.End()
 
 		collection := r.PathValue("collection")
-		if collection == "" {
-			slog.Error("empty path value", "name", "collection")
-			http.Error(w, "collection is required", http.StatusBadRequest)
+		if err := validatePathParam("collection", collection); err != nil {
+			slog.Error("invalid path param", "name", "collection", "error", err)
+			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 		span.SetAttributes(attribute.String("collection", collection))
