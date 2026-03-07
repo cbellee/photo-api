@@ -1,4 +1,47 @@
-/certs
-/images
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+*.prof
+
+# Go workspace file
+go.work
+go.work.sum
+
+# Dependency directories
+vendor/
+
+# IDE / editor
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Environment / secrets
 .env
 **/.env
+
+# Project-specific
+/certs
+/images
+
+# Build output
+/api/photo
+/blobemu/blobemu
+/api/cmd/face/face
+/api/cmd/resize/resize
+
+# Data directory (local dev blobs + SQLite)
+/data/

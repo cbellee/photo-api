@@ -138,7 +138,7 @@ func TestUploadHandler_NoPhotoFile_Returns400(t *testing.T) {
 
 	body := &bytes.Buffer{}
 	writer := multipart.NewWriter(body)
-	mdJSON, _ := json.Marshal(models.ImageTags{Collection: "c", Album: "a"})
+	mdJSON, _ := json.Marshal(models.ImageTags{Collection: "c", Album: "a", Type: "image/jpeg"})
 	writer.WriteField("metadata", string(mdJSON))
 	writer.Close()
 
@@ -413,7 +413,10 @@ func TestUpdateHandler_GetBlobTagsError_Returns500(t *testing.T) {
 
 	body := `{"name":"nature/sunset/p.jpg","collection":"nature","album":"sunset","description":"d"}`
 	handler := UpdateHandler(mock, cfg)
-	req := httptest.NewRequest("PUT", "/api/update/nature/sunset/p", io.NopCloser(bytes.NewBufferString(body)))
+	req := httptest.NewRequest("PUT", "/api/update/nature/sunset/p.jpg", io.NopCloser(bytes.NewBufferString(body)))
+	req.SetPathValue("collection", "nature")
+	req.SetPathValue("album", "sunset")
+	req.SetPathValue("id", "p.jpg")
 	w := httptest.NewRecorder()
 
 	handler.ServeHTTP(w, req)

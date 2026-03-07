@@ -48,7 +48,7 @@ func sampleBlobs() []models.Blob {
 			MetaData: map[string]string{
 				"Width":    "1920",
 				"Height":   "1080",
-				"Exifdata": `{"camera":"Canon"}`,
+				"ExifData": `{"camera":"Canon"}`,
 			},
 		},
 		{
@@ -462,7 +462,10 @@ func TestUpdateHandler_UpdatesTags(t *testing.T) {
 
 	body := `{"name":"nature/sunset/photo1.jpg","collection":"nature","album":"sunset","description":"Updated description","isDeleted":"false","collectionImage":"false","albumImage":"false"}`
 	handler := UpdateHandler(mock, cfg)
-	req := httptest.NewRequest("PUT", "/api/update/nature/sunset/photo1", strings.NewReader(body))
+	req := httptest.NewRequest("PUT", "/api/update/nature/sunset/photo1.jpg", strings.NewReader(body))
+	req.SetPathValue("collection", "nature")
+	req.SetPathValue("album", "sunset")
+	req.SetPathValue("id", "photo1.jpg")
 	w := httptest.NewRecorder()
 
 	handler.ServeHTTP(w, req)
@@ -477,7 +480,10 @@ func TestUpdateHandler_EmptyBody_Returns400(t *testing.T) {
 	mock := &storage.MockBlobStore{}
 
 	handler := UpdateHandler(mock, cfg)
-	req := httptest.NewRequest("PUT", "/api/update/nature/sunset/photo1", nil)
+	req := httptest.NewRequest("PUT", "/api/update/nature/sunset/photo1.jpg", nil)
+	req.SetPathValue("collection", "nature")
+	req.SetPathValue("album", "sunset")
+	req.SetPathValue("id", "photo1.jpg")
 	req.Body = nil
 	w := httptest.NewRecorder()
 
@@ -491,7 +497,10 @@ func TestUpdateHandler_InvalidJSON_Returns400(t *testing.T) {
 	mock := &storage.MockBlobStore{}
 
 	handler := UpdateHandler(mock, cfg)
-	req := httptest.NewRequest("PUT", "/api/update/nature/sunset/photo1", strings.NewReader("{invalid"))
+	req := httptest.NewRequest("PUT", "/api/update/nature/sunset/photo1.jpg", strings.NewReader("{invalid"))
+	req.SetPathValue("collection", "nature")
+	req.SetPathValue("album", "sunset")
+	req.SetPathValue("id", "photo1.jpg")
 	w := httptest.NewRecorder()
 
 	handler.ServeHTTP(w, req)
@@ -519,7 +528,10 @@ func TestUpdateHandler_TagsUnchanged_Returns304(t *testing.T) {
 
 	body, _ := json.Marshal(tags)
 	handler := UpdateHandler(mock, cfg)
-	req := httptest.NewRequest("PUT", "/api/update/nature/sunset/photo1", strings.NewReader(string(body)))
+	req := httptest.NewRequest("PUT", "/api/update/nature/sunset/photo1.jpg", strings.NewReader(string(body)))
+	req.SetPathValue("collection", "nature")
+	req.SetPathValue("album", "sunset")
+	req.SetPathValue("id", "photo1.jpg")
 	w := httptest.NewRecorder()
 
 	handler.ServeHTTP(w, req)
@@ -549,7 +561,10 @@ func TestUpdateHandler_SetsBlobTagsError_Returns500(t *testing.T) {
 
 	body := `{"name":"nature/sunset/photo1.jpg","collection":"nature","description":"New","collectionImage":"false"}`
 	handler := UpdateHandler(mock, cfg)
-	req := httptest.NewRequest("PUT", "/api/update/nature/sunset/photo1", strings.NewReader(body))
+	req := httptest.NewRequest("PUT", "/api/update/nature/sunset/photo1.jpg", strings.NewReader(body))
+	req.SetPathValue("collection", "nature")
+	req.SetPathValue("album", "sunset")
+	req.SetPathValue("id", "photo1.jpg")
 	w := httptest.NewRecorder()
 
 	handler.ServeHTTP(w, req)
@@ -595,7 +610,10 @@ func TestUpdateHandler_SwapsCollectionImage(t *testing.T) {
 
 	body := `{"name":"nature/sunset/photo1.jpg","collection":"nature","album":"sunset","description":"New","isDeleted":"false","collectionImage":"true","albumImage":"false"}`
 	handler := UpdateHandler(mock, cfg)
-	req := httptest.NewRequest("PUT", "/api/update/nature/sunset/photo1", strings.NewReader(body))
+	req := httptest.NewRequest("PUT", "/api/update/nature/sunset/photo1.jpg", strings.NewReader(body))
+	req.SetPathValue("collection", "nature")
+	req.SetPathValue("album", "sunset")
+	req.SetPathValue("id", "photo1.jpg")
 	w := httptest.NewRecorder()
 
 	handler.ServeHTTP(w, req)
