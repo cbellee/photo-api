@@ -155,6 +155,21 @@ func main() {
 	api.HandleFunc("PUT /api/update/{collection}/{album}/{id}", handler.RequireRole(cfg, handler.UpdateHandler(store, cfg)))
 	api.HandleFunc("GET /api/tags", handler.TagListHandler(store, cfg))
 
+	// Admin: rename collection/album (copies blobs to new paths)
+	api.HandleFunc("PUT /api/rename/{collection}", handler.RequireRole(cfg, handler.RenameCollectionHandler(store, cfg)))
+	api.HandleFunc("PUT /api/rename/{collection}/{album}", handler.RequireRole(cfg, handler.RenameAlbumHandler(store, cfg)))
+
+	// Admin: soft-delete collection/album (sets isDeleted='true' on all blobs)
+	api.HandleFunc("DELETE /api/{collection}", handler.RequireRole(cfg, handler.SoftDeleteCollectionHandler(store, cfg)))
+	api.HandleFunc("DELETE /api/{collection}/{album}", handler.RequireRole(cfg, handler.SoftDeleteAlbumHandler(store, cfg)))
+
+	// Admin: thumbnail management (rotate or change thumbnail image)
+	api.HandleFunc("PUT /api/thumbnail/{collection}", handler.RequireRole(cfg, handler.ThumbnailCollectionHandler(store, cfg)))
+	api.HandleFunc("PUT /api/thumbnail/{collection}/{album}", handler.RequireRole(cfg, handler.ThumbnailAlbumHandler(store, cfg)))
+
+	// All photos in a collection (for thumbnail picker)
+	api.HandleFunc("GET /api/photos/{collection}", handler.CollectionPhotosHandler(store, cfg))
+
 	slog.Info("server listening", "name", cfg.ServiceName, "port", port)
 
 	c := cors.New(cors.Options{

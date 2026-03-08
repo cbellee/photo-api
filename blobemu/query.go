@@ -76,7 +76,9 @@ func BuildFilterSQL(conditions []Condition) (string, []interface{}) {
 
 	sql := "SELECT b.id, b.container, b.name FROM blobs b"
 	if len(clauses) > 0 {
-		sql += " WHERE " + strings.Join(clauses, " AND ")
+		sql += " WHERE " + strings.Join(clauses, " AND ") + " AND b.deleted_at IS NULL"
+	} else {
+		sql += " WHERE b.deleted_at IS NULL"
 	}
 	return sql, args
 }

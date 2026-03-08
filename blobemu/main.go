@@ -85,6 +85,7 @@ func main() {
 	mux.HandleFunc("GET /{container}/{blob...}", blobGetHandler(store))
 	publishContainer := env("PUBLISH_CONTAINER", "uploads")
 	mux.HandleFunc("PUT /{container}/{blob...}", blobPutHandler(store, pub, publishContainer, maxBodySize, allowedContentTypes))
+	mux.HandleFunc("DELETE /{container}/{blob...}", blobDeleteHandler(store))
 
 	srv := &http.Server{
 		Addr:              ":" + port,
@@ -297,6 +298,25 @@ func blobPutHandler(store *Store, pub *Publisher, publishContainer string, maxBo
 
 			w.WriteHeader(http.StatusCreated)
 		}
+	}
+}
+
+func blobDeleteHandler(store *Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		container := r.PathValue("container")
+		blob := r.PathValue("blob")
+		if !validateBlobPath(container) || !validateBlobPath(blob) {
+			http.Error(w, "invalid path", http.StatusBadRequest)
+			return
+		}
+
+		if err := store.DeleteBlob(container, blob); err != nil {
+			slog.Error("delete blob error", "container", container, "blob", blob, "error", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		w.WriteHeader(http.StatusNoContent)
 	}
 }
 

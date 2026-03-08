@@ -40,6 +40,14 @@ type MockBlobStore struct {
 	// GetBlob configuration
 	GetBlobFunc  func(ctx context.Context, blobName string, containerName string) ([]byte, error)
 	GetBlobCalls []GetBlobCall
+
+	// CopyBlob configuration
+	CopyBlobFunc  func(ctx context.Context, srcBlobName string, destBlobName string, containerName string) error
+	CopyBlobCalls []CopyBlobCall
+
+	// DeleteBlob configuration
+	DeleteBlobFunc  func(ctx context.Context, blobName string, containerName string) error
+	DeleteBlobCalls []DeleteBlobCall
 }
 
 // Call tracking structs
@@ -79,6 +87,17 @@ type SaveBlobCall struct {
 }
 
 type GetBlobCall struct {
+	BlobName      string
+	ContainerName string
+}
+
+type CopyBlobCall struct {
+	SrcBlobName   string
+	DestBlobName  string
+	ContainerName string
+}
+
+type DeleteBlobCall struct {
 	BlobName      string
 	ContainerName string
 }
@@ -172,6 +191,32 @@ func (m *MockBlobStore) GetBlob(ctx context.Context, blobName string, containerN
 		return m.GetBlobFunc(ctx, blobName, containerName)
 	}
 	return nil, fmt.Errorf("GetBlob not configured")
+}
+
+func (m *MockBlobStore) CopyBlob(ctx context.Context, srcBlobName string, destBlobName string, containerName string) error {
+	m.mu.Lock()
+	m.CopyBlobCalls = append(m.CopyBlobCalls, CopyBlobCall{
+		SrcBlobName: srcBlobName, DestBlobName: destBlobName, ContainerName: containerName,
+	})
+	m.mu.Unlock()
+
+	if m.CopyBlobFunc != nil {
+		return m.CopyBlobFunc(ctx, srcBlobName, destBlobName, containerName)
+	}
+	return nil
+}
+
+func (m *MockBlobStore) DeleteBlob(ctx context.Context, blobName string, containerName string) error {
+	m.mu.Lock()
+	m.DeleteBlobCalls = append(m.DeleteBlobCalls, DeleteBlobCall{
+		BlobName: blobName, ContainerName: containerName,
+	})
+	m.mu.Unlock()
+
+	if m.DeleteBlobFunc != nil {
+		return m.DeleteBlobFunc(ctx, blobName, containerName)
+	}
+	return nil
 }
 
 // Compile-time check that MockBlobStore implements BlobStore.

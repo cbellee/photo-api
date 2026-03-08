@@ -88,6 +88,7 @@ func initSchema(db *sql.DB) error {
 			content_type TEXT DEFAULT 'application/octet-stream',
 			size         INTEGER DEFAULT 0,
 			created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			deleted_at   TIMESTAMP,
 			UNIQUE(container, name)
 		);
 		CREATE TABLE IF NOT EXISTS tags (
@@ -139,7 +140,7 @@ func (s *Store) SaveBlob(container, name string, data []byte, tags, metadata map
 	defer tx.Rollback()
 
 	var blobID int64
-	err = tx.QueryRow("SELECT id FROM blobs WHERE container = ? AND name = ?", container, name).Scan(&blobID)
+	err = tx.QueryRow("SELECT id FROM blobs WHERE container = ? AND name = ? AND deleted_at IS NULL", container, name).Scan(&blobID)
 	if err == sql.ErrNoRows {
 		res, err := tx.Exec(
 			"INSERT INTO blobs (container, name, content_type, size) VALUES (?, ?, ?, ?)",
@@ -184,7 +185,7 @@ func (s *Store) SetTags(container, name string, tags map[string]string) error {
 	defer tx.Rollback()
 
 	var blobID int64
-	if err := tx.QueryRow("SELECT id FROM blobs WHERE container = ? AND name = ?", container, name).Scan(&blobID); err != nil {
+	if err := tx.QueryRow("SELECT id FROM blobs WHERE container = ? AND name = ? AND deleted_at IS NULL", container, name).Scan(&blobID); err != nil {
 		return fmt.Errorf("blob not found: %s/%s", container, name)
 	}
 
@@ -197,6 +198,27 @@ func (s *Store) SetTags(container, name string, tags map[string]string) error {
 		}
 	}
 	return tx.Commit()
+}
+
+// DeleteBlob soft-deletes a blob by setting its deleted_at timestamp.
+// The blob data remains on disk and can be restored later.
+// Returns nil if the blob does not exist (idempotent).
+func (s *Store) DeleteBlob(container, name string) error {
+	result, err := s.db.Exec(
+		"UPDATE blobs SET deleted_at = CURRENT_TIMESTAMP WHERE container = ? AND name = ? AND deleted_at IS NULL",
+		container, name,
+	)
+	if err != nil {
+		return fmt.Errorf("soft-deleting blob: %w", err)
+	}
+
+	n, _ := result.RowsAffected()
+	if n == 0 {
+		slog.Debug("blob already deleted or not found", "container", container, "name", name)
+	} else {
+		slog.Debug("soft-deleted blob", "container", container, "name", name)
+	}
+	return nil
 }
 
 // ---------- read operations ----------
@@ -212,7 +234,7 @@ func (s *Store) GetBlob(container, name string) ([]byte, string, error) {
 	}
 
 	var ct string
-	if err := s.db.QueryRow("SELECT content_type FROM blobs WHERE container = ? AND name = ?", container, name).Scan(&ct); err != nil {
+	if err := s.db.QueryRow("SELECT content_type FROM blobs WHERE container = ? AND name = ? AND deleted_at IS NULL", container, name).Scan(&ct); err != nil {
 		ct = "application/octet-stream"
 	}
 	return data, ct, nil
@@ -221,7 +243,7 @@ func (s *Store) GetBlob(container, name string) ([]byte, string, error) {
 // GetTags returns the index tags for a blob.
 func (s *Store) GetTags(container, name string) (map[string]string, error) {
 	var blobID int64
-	if err := s.db.QueryRow("SELECT id FROM blobs WHERE container = ? AND name = ?", container, name).Scan(&blobID); err != nil {
+	if err := s.db.QueryRow("SELECT id FROM blobs WHERE container = ? AND name = ? AND deleted_at IS NULL", container, name).Scan(&blobID); err != nil {
 		return nil, fmt.Errorf("blob not found: %s/%s", container, name)
 	}
 	return s.tagsByID(blobID)
@@ -230,7 +252,7 @@ func (s *Store) GetTags(container, name string) (map[string]string, error) {
 // GetMetadata returns custom metadata for a blob.
 func (s *Store) GetMetadata(container, name string) (map[string]string, error) {
 	var blobID int64
-	if err := s.db.QueryRow("SELECT id FROM blobs WHERE container = ? AND name = ?", container, name).Scan(&blobID); err != nil {
+	if err := s.db.QueryRow("SELECT id FROM blobs WHERE container = ? AND name = ? AND deleted_at IS NULL", container, name).Scan(&blobID); err != nil {
 		return nil, fmt.Errorf("blob not found: %s/%s", container, name)
 	}
 	return s.metadataByID(blobID)
@@ -243,7 +265,7 @@ func (s *Store) ListBlobs(container string) ([]BlobInfo, error) {
 		SELECT b.id, b.name, COALESCE(t.key, ''), COALESCE(t.value, '')
 		FROM blobs b
 		LEFT JOIN tags t ON t.blob_id = b.id
-		WHERE b.container = ?
+		WHERE b.container = ? AND b.deleted_at IS NULL
 		ORDER BY b.id`
 
 	rows, err := s.db.Query(q, container)

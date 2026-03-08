@@ -117,5 +117,34 @@ func (s *AzureBlobStore) SaveBlob(ctx context.Context, data []byte, blobName str
 	return nil
 }
 
+func (s *AzureBlobStore) CopyBlob(ctx context.Context, srcBlobName string, destBlobName string, containerName string) error {
+	srcURL := fmt.Sprintf("%s/%s/%s", s.storageUrl, containerName, srcBlobName)
+	container := s.client.ServiceClient().NewContainerClient(containerName)
+	destBlob := container.NewBlockBlobClient(destBlobName)
+
+	_, err := destBlob.StartCopyFromURL(ctx, srcURL, nil)
+	if err != nil {
+		slog.Error("error copying blob", "src", srcBlobName, "dest", destBlobName, "error", err)
+		return err
+	}
+
+	slog.Debug("copied blob", "src", srcBlobName, "dest", destBlobName)
+	return nil
+}
+
+func (s *AzureBlobStore) DeleteBlob(ctx context.Context, blobName string, containerName string) error {
+	container := s.client.ServiceClient().NewContainerClient(containerName)
+	blobClient := container.NewBlockBlobClient(blobName)
+
+	_, err := blobClient.Delete(ctx, nil)
+	if err != nil {
+		slog.Error("error deleting blob", "blob", blobName, "error", err)
+		return err
+	}
+
+	slog.Debug("deleted blob", "blob", blobName)
+	return nil
+}
+
 // Compile-time check that AzureBlobStore implements BlobStore.
 var _ BlobStore = (*AzureBlobStore)(nil)

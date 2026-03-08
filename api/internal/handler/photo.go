@@ -35,7 +35,14 @@ func PhotoHandler(store storage.BlobStore, cfg *Config) http.HandlerFunc {
 		)
 
 		// get photos with matching collection & album tags
-		query := fmt.Sprintf("@container='%s' AND collection='%s' AND album='%s' AND isDeleted='false'", cfg.ImagesContainerName, collection, album)
+		// When ?includeDeleted=true is passed, return all photos (including soft-deleted ones)
+		includeDeleted := r.URL.Query().Get("includeDeleted") == "true"
+		var query string
+		if includeDeleted {
+			query = fmt.Sprintf("@container='%s' AND collection='%s' AND album='%s'", cfg.ImagesContainerName, collection, album)
+		} else {
+			query = fmt.Sprintf("@container='%s' AND collection='%s' AND album='%s' AND isDeleted='false'", cfg.ImagesContainerName, collection, album)
+		}
 		filteredBlobs, err := store.FilterBlobsByTags(ctx, query, cfg.ImagesContainerName)
 		if err != nil {
 			slog.ErrorContext(ctx, "error getting blobs by tags", "error", err)
