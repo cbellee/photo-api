@@ -108,6 +108,12 @@ jobs:
         tenant-id: ${{ inputs.tenant-id }}
         subscription-id: ${{ inputs.subscription-id }}
 
+    - name: encode-otel-config
+      id: encode-otel-config
+      run: |
+        OTEL_COLLECTOR_CONFIG=$(base64 -w 0 < ./otel-collector-config-aca.yml)
+        echo "otelCollectorConfig=$OTEL_COLLECTOR_CONFIG" >> "$GITHUB_OUTPUT"
+
     - name: deploy-infra-cli
       id: deploy-infra-cli
       uses: azure/cli@v2
@@ -125,4 +131,5 @@ jobs:
             --parameters ghcrName='ghcr.io' \
             --parameters githubUsername=${{ github.actor }} \
             --parameters cNameRecord=${{ inputs.cname }} \
-            --parameters zoneName=${{ inputs.domain-name }}
+            --parameters zoneName=${{ inputs.domain-name }} \
+            --parameters otelCollectorConfig='${{ steps.encode-otel-config.outputs.otelCollectorConfig }}'
