@@ -45,6 +45,10 @@ param containers array = [
     name: 'images'
     publicAccess: 'Blob'
   }
+  {
+    name: 'telemetry'
+    publicAccess: 'None'
+  }
 ]
 
 param photoApiName string = 'photo'
