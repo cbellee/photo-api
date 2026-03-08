@@ -6,8 +6,6 @@
 # Environment variables:
 # AZURE_STORAGE_CONNECTION_STRING – storage account connection string
 
-file_format: "0.3"
-
 receivers:
   otlp:
     protocols:
@@ -25,30 +23,30 @@ processors:
         action: upsert
 
 exporters:
-  azureblob/traces:
-    connection_string: ${env:AZURE_STORAGE_CONNECTION_STRING}
-    container: telemetry
-    blob_prefix: traces
-  azureblob/metrics:
-    connection_string: ${env:AZURE_STORAGE_CONNECTION_STRING}
-    container: telemetry
-    blob_prefix: metrics
-  azureblob/logs:
-    connection_string: ${env:AZURE_STORAGE_CONNECTION_STRING}
-    container: telemetry
-    blob_prefix: logs
+  azureblob:
+    auth:
+      type: connection_string
+      connection_string: ${env:AZURE_STORAGE_CONNECTION_STRING}
+    container:
+      traces: telemetry
+      metrics: telemetry
+      logs: telemetry
+    blob_name_format:
+      traces_format: "traces/2006/01/02/traces_15_04_05.json"
+      metrics_format: "metrics/2006/01/02/metrics_15_04_05.json"
+      logs_format: "logs/2006/01/02/logs_15_04_05.json"
 
 service:
   pipelines:
     traces:
       receivers: [otlp]
       processors: [resource, batch]
-      exporters: [azureblob/traces]
+      exporters: [azureblob]
     metrics:
       receivers: [otlp]
       processors: [resource, batch]
-      exporters: [azureblob/metrics]
+      exporters: [azureblob]
     logs:
       receivers: [otlp]
       processors: [resource, batch]
-      exporters: [azureblob/logs]
+      exporters: [azureblob]
