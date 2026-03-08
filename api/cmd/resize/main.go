@@ -4,14 +4,12 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"os"
 	"strconv"
 
 	"github.com/cbellee/photo-api/internal/storage"
 	"github.com/cbellee/photo-api/internal/telemetry"
 	"github.com/cbellee/photo-api/internal/utils"
 	daprd "github.com/dapr/go-sdk/service/grpc"
-	"go.opentelemetry.io/contrib/bridges/otelslog"
 )
 
 func main() {
@@ -33,20 +31,7 @@ func main() {
 	}
 
 	// ── Logging (stdout JSON + OTel fan-out) ─────────────────────────
-	stdoutHandler := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-		AddSource: true,
-		Level:     slog.LevelInfo,
-	})
-	var logger *slog.Logger
-	if providers != nil {
-		otelHandler := otelslog.NewHandler("resize-service",
-			otelslog.WithLoggerProvider(providers.LoggerProvider),
-		)
-		logger = slog.New(telemetry.NewFanoutHandler(stdoutHandler, otelHandler))
-	} else {
-		logger = slog.New(stdoutHandler)
-	}
-	slog.SetDefault(logger)
+	telemetry.SetupLogger("resize-service", providers)
 
 	// ── Configuration ───────────────────────────────────────────────
 	maxHeight, err := strconv.Atoi(utils.GetEnvValue("MAX_IMAGE_HEIGHT", "1200"))
@@ -77,29 +62,11 @@ func main() {
 	}
 
 	// ── Create blob store ────────────────────────────────────────────
-	var store storage.BlobStore
-
-	if emuURL := utils.GetEnvValue("EMULATED_STORAGE_URL", ""); emuURL != "" {
-		// Local / emulator mode: use plain HTTP client to talk to blobemu.
-		slog.Info("using local blob emulator", "url", emuURL)
-		store = storage.NewLocalBlobStore(emuURL, emuURL)
-	} else {
-		storageUrl := fmt.Sprintf("https://%s.%s", cfg.StorageAccount, cfg.StorageSuffix)
-		slog.Info("storage url", "url", storageUrl)
-
-		isProduction := false
-		if _, exists := os.LookupEnv("CONTAINER_APP_NAME"); exists {
-			isProduction = true
-		} else {
-			slog.Info("'CONTAINER_APP_NAME' env var not found, running in local environment")
-		}
-
-		blobClient, blobErr := utils.CreateAzureBlobClient(storageUrl, isProduction, cfg.AzureClientID)
-		if blobErr != nil {
-			slog.Error("error creating blob client", "error", blobErr)
-			return
-		}
-		store = storage.NewAzureBlobStore(blobClient, storageUrl)
+	storageUrl := fmt.Sprintf("https://%s.%s", cfg.StorageAccount, cfg.StorageSuffix)
+	store, err := storage.NewBlobStore(storageUrl, cfg.AzureClientID)
+	if err != nil {
+		slog.Error("error creating blob store", "error", err)
+		return
 	}
 
 	// ── Create handler ──────────────────────────────────────────────

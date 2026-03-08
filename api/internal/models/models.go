@@ -69,22 +69,26 @@ type Event struct {
 	Topic           string
 	Subject         string
 	EventType       string
-	Id              string
+	ID              string `json:"id"`
 	DataVersion     string
 	MetadataVersion string
 	EventTime       string
-	Data            struct {
-		Api                string
-		ClientRequestId    string
-		RequestId          string
-		ETag               string
-		ContentType        string
-		ContentLength      int32
-		BlobType           string
-		Url                string
-		Sequencer          string
-		StorageDiagnostics struct {
-			BatchId string
-		}
-	}
+	Data            EventData
+}
+
+type EventData struct {
+	API                string `json:"api"`
+	ClientRequestId    string
+	RequestId          string
+	ETag               string
+	ContentType        string
+	ContentLength      int32
+	BlobType           string
+	URL                string `json:"url"`
+	Sequencer          string
+	StorageDiagnostics StorageDiagnosticsData
+}
+
+type StorageDiagnosticsData struct {
+	BatchId string
 }

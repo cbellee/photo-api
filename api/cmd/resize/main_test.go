@@ -77,35 +77,20 @@ func createTestBindingEvent(url string, contentType string, contentLength int32)
 		Topic:           "/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.Storage/storageAccounts/teststorage",
 		Subject:         "/blobServices/default/containers/uploads/blobs/collection1/album1/test-image.jpg",
 		EventType:       "Microsoft.Storage.BlobCreated",
-		Id:              "test-event-id-12345",
+		ID:              "test-event-id-12345",
 		DataVersion:     "1.0",
 		MetadataVersion: "1",
 		EventTime:       "2023-01-01T12:00:00.0000000Z",
-		Data: struct {
-			Api                string
-			ClientRequestId    string
-			RequestId          string
-			ETag               string
-			ContentType        string
-			ContentLength      int32
-			BlobType           string
-			Url                string
-			Sequencer          string
-			StorageDiagnostics struct {
-				BatchId string
-			}
-		}{
-			Api:           "PutBlob",
+		Data: models.EventData{
+			API:           "PutBlob",
 			RequestId:     "test-request-id",
 			ETag:          "test-etag",
 			ContentType:   contentType,
 			ContentLength: contentLength,
 			BlobType:      "BlockBlob",
-			Url:           url,
+			URL:           url,
 			Sequencer:     "00000000000000EB0000000000046199",
-			StorageDiagnostics: struct {
-				BatchId string
-			}{
+			StorageDiagnostics: models.StorageDiagnosticsData{
 				BatchId: "test-batch-id",
 			},
 		},

@@ -61,7 +61,7 @@ func (h *Handler) Resize(ctx context.Context, in *common.BindingEvent) (out []by
 	h.logEvent(ctx, evt, in)
 
 	// Decompose the blob URL.
-	ref, err := parseBlobRef(evt.Data.Url)
+	ref, err := parseBlobRef(evt.Data.URL)
 	if err != nil {
 		return nil, fmt.Errorf("parsing blob URL: %w", err)
 	}
@@ -150,13 +150,13 @@ func (h *Handler) logEvent(ctx context.Context, evt models.Event, in *common.Bin
 		"subject", evt.Subject,
 		"topic", evt.Topic,
 		"event_time", evt.EventTime,
-		"id", evt.Id,
-		"api", evt.Data.Api,
+		"id", evt.ID,
+		"api", evt.Data.API,
 		"type", evt.EventType,
 		"content_length", evt.Data.ContentLength,
 		"content_type", evt.Data.ContentType,
 		"etag", evt.Data.ETag,
 		"metadata", in.Metadata,
-		"url", evt.Data.Url,
+		"url", evt.Data.URL,
 	)
 }

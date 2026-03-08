@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/cbellee/photo-api/internal/handler"
-	"github.com/cbellee/photo-api/internal/models"
 	"github.com/cbellee/photo-api/internal/storage"
 	"github.com/cbellee/photo-api/internal/telemetry"
 	"github.com/cbellee/photo-api/internal/utils"
@@ -21,7 +20,6 @@ import (
 	azlog "github.com/Azure/azure-sdk-for-go/sdk/azcore/log"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/MicahParks/keyfunc/v3"
-	"go.opentelemetry.io/contrib/bridges/otelslog"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
@@ -73,20 +71,7 @@ func main() {
 	}
 
 	// ── Logging (stdout JSON + OTel fan-out) ─────────────────────────
-	stdoutHandler := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-		AddSource: true,
-		Level:     slog.LevelInfo,
-	})
-	var logger *slog.Logger
-	if providers != nil {
-		otelHandler := otelslog.NewHandler("photo-api",
-			otelslog.WithLoggerProvider(providers.LoggerProvider),
-		)
-		logger = slog.New(telemetry.NewFanoutHandler(stdoutHandler, otelHandler))
-	} else {
-		logger = slog.New(stdoutHandler)
-	}
-	slog.SetDefault(logger)
+	telemetry.SetupLogger("photo-api", providers)
 	slog.Info("cors origins", "origins", cfg.CorsOrigins)
 	slog.Info("storage url", "url", storageUrl)
 
@@ -97,24 +82,10 @@ func main() {
 	azlog.SetEvents(azidentity.EventAuthentication)
 
 	// ── Create blob store ───────────────────────────────────────────
-	var store storage.BlobStore
-	if blobEmuURL := utils.GetEnvValue("BLOB_EMULATOR_URL", ""); blobEmuURL != "" {
-		slog.Info("using local blob emulator", "url", blobEmuURL)
-		store = storage.NewLocalBlobStore(blobEmuURL, storageUrl)
-	} else {
-		isProduction := false
-		if _, exists := os.LookupEnv("CONTAINER_APP_NAME"); exists {
-			isProduction = true
-		} else {
-			slog.Info("'CONTAINER_APP_NAME' env var not found, running in local environment")
-		}
-
-		blobClient, err := utils.CreateAzureBlobClient(storageUrl, isProduction, azureClientId)
-		if err != nil {
-			slog.Error("error creating blob client", "error", err)
-			return
-		}
-		store = storage.NewAzureBlobStore(blobClient, storageUrl)
+	store, err := storage.NewBlobStore(storageUrl, azureClientId)
+	if err != nil {
+		slog.Error("error creating blob store", "error", err)
+		return
 	}
 
 	// ── Routes ──────────────────────────────────────────────────────
@@ -228,7 +199,4 @@ func main() {
 	jwksCancel()
 
 	slog.Info("server stopped")
-
-	// Keep models import used (StorageConfig is referenced in config for backwards compat).
-	_ = models.StorageConfig{}
 }
