@@ -55,18 +55,18 @@ func SoftDeleteCollectionHandler(store storage.BlobStore, cfg *Config) http.Hand
 			slog.ErrorContext(ctx, "soft-delete collection completed with errors", "collection", collection, "errors", errors)
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusPartialContent)
-			json.NewEncoder(w).Encode(map[string]interface{}{
-				"message":  "soft-delete completed with errors",
-				"errors":   errors,
-				"affected": len(blobs),
+			json.NewEncoder(w).Encode(mutationResponse{
+				Message:  "soft-delete completed with errors",
+				Errors:   errors,
+				Affected: len(blobs),
 			})
 			return
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
-			"message":  "collection soft-deleted",
-			"affected": len(blobs),
+		json.NewEncoder(w).Encode(mutationResponse{
+			Message:  "collection soft-deleted",
+			Affected: len(blobs),
 		})
 	}
 }
@@ -131,20 +131,20 @@ func SoftDeleteAlbumHandler(store storage.BlobStore, cfg *Config) http.HandlerFu
 		if len(errors) > 0 {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusPartialContent)
-			json.NewEncoder(w).Encode(map[string]interface{}{
-				"message":           "album soft-delete completed with errors",
-				"errors":            errors,
-				"affected":          len(blobs),
-				"collectionDeleted": collectionDeleted,
+			json.NewEncoder(w).Encode(mutationResponse{
+				Message:           "album soft-delete completed with errors",
+				Errors:            errors,
+				Affected:          len(blobs),
+				CollectionDeleted: collectionDeleted,
 			})
 			return
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
-			"message":           "album soft-deleted",
-			"affected":          len(blobs),
-			"collectionDeleted": collectionDeleted,
+		json.NewEncoder(w).Encode(mutationResponse{
+			Message:           "album soft-deleted",
+			Affected:          len(blobs),
+			CollectionDeleted: collectionDeleted,
 		})
 	}
 }
@@ -205,18 +205,18 @@ func RestoreAlbumHandler(store storage.BlobStore, cfg *Config) http.HandlerFunc 
 		if len(errors) > 0 {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusPartialContent)
-			json.NewEncoder(w).Encode(map[string]interface{}{
-				"message":  "album restore completed with errors",
-				"errors":   errors,
-				"affected": len(blobs),
+			json.NewEncoder(w).Encode(mutationResponse{
+				Message:  "album restore completed with errors",
+				Errors:   errors,
+				Affected: len(blobs),
 			})
 			return
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
-			"message":  "album restored",
-			"affected": len(blobs),
+		json.NewEncoder(w).Encode(mutationResponse{
+			Message:  "album restored",
+			Affected: len(blobs),
 		})
 	}
 }
@@ -281,18 +281,18 @@ func RestoreCollectionHandler(store storage.BlobStore, cfg *Config) http.Handler
 		if len(errors) > 0 {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusPartialContent)
-			json.NewEncoder(w).Encode(map[string]interface{}{
-				"message":  "collection restore completed with errors",
-				"errors":   errors,
-				"affected": len(blobs),
+			json.NewEncoder(w).Encode(mutationResponse{
+				Message:  "collection restore completed with errors",
+				Errors:   errors,
+				Affected: len(blobs),
 			})
 			return
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
-			"message":  "collection restored",
-			"affected": len(blobs),
+		json.NewEncoder(w).Encode(mutationResponse{
+			Message:  "collection restored",
+			Affected: len(blobs),
 		})
 	}
 }

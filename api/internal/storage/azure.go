@@ -5,12 +5,13 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"slices"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blockblob"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
 	"github.com/cbellee/photo-api/internal/models"
-	"github.com/cbellee/photo-api/internal/utils"
 )
 
 // AzureBlobStore is the production BlobStore backed by Azure Blob Storage.
@@ -66,26 +67,110 @@ func (s *AzureBlobStore) FilterBlobsByTags(ctx context.Context, query string, co
 }
 
 func (s *AzureBlobStore) GetBlobTags(ctx context.Context, blobName string, containerName string) (map[string]string, error) {
-	return utils.GetBlobTags(s.client, blobName, containerName, s.storageUrl)
+	blockBlob := s.client.ServiceClient().NewContainerClient(containerName).NewBlockBlobClient(blobName)
+
+	tagResponse, err := blockBlob.GetTags(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("getting blob tags %s/%s: %w", containerName, blobName, err)
+	}
+
+	tags := make(map[string]string)
+	for _, t := range tagResponse.BlobTags.BlobTagSet {
+		tags[*t.Key] = *t.Value
+	}
+	slog.Debug("got blob tags", "blob", blobName, "tags", tags)
+	return tags, nil
 }
 
 func (s *AzureBlobStore) SetBlobTags(ctx context.Context, blobName string, containerName string, tags map[string]string) error {
-	return utils.SetBlobTags(s.client, blobName, containerName, s.storageUrl, tags)
+	blockBlob := s.client.ServiceClient().NewContainerClient(containerName).NewBlockBlobClient(blobName)
+
+	slog.Info("setting blob tags", "blob", blobName)
+	slog.Debug("tags", "blob", blobName, "tags", tags)
+	_, err := blockBlob.SetTags(ctx, tags, nil)
+	if err != nil {
+		return fmt.Errorf("setting blob tags %s/%s: %w", containerName, blobName, err)
+	}
+	return nil
 }
 
 func (s *AzureBlobStore) GetBlobMetadata(ctx context.Context, blobName string, containerName string) (map[string]string, error) {
-	return utils.GetBlobMetadata(s.client, blobName, containerName, s.storageUrl)
+	blobClient := s.client.ServiceClient().NewContainerClient(containerName).NewBlockBlobClient(blobName)
+
+	mdResponse, err := blobClient.GetProperties(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("getting blob metadata %s/%s: %w", containerName, blobName, err)
+	}
+
+	m := make(map[string]string)
+	for key, value := range mdResponse.Metadata {
+		m[key] = *value
+	}
+	slog.Debug("got blob metadata", "blob", blobName, "metadata", m)
+	return m, nil
 }
 
 func (s *AzureBlobStore) GetBlobTagList(ctx context.Context, containerName string) (map[string][]string, error) {
-	return utils.GetBlobTagList(s.client, containerName, s.storageUrl, ctx)
+	pager := s.client.NewListBlobsFlatPager(containerName, &azblob.ListBlobsFlatOptions{
+		Include: container.ListBlobsInclude{
+			Deleted:  false,
+			Versions: false,
+			Metadata: false,
+			Tags:     true,
+		},
+	})
+
+	blobTagMap := make(map[string][]string)
+
+	for pager.More() {
+		resp, err := pager.NextPage(ctx)
+		if err != nil {
+			slog.Error("error while listing blobs", "error", err)
+			break
+		}
+
+		for _, _blob := range resp.Segment.BlobItems {
+			tags := *_blob.BlobTags
+			var album, collection string
+
+			for _, t := range tags.BlobTagSet {
+				if *t.Key == "collection" {
+					collection = *t.Value
+				}
+				if *t.Key == "album" {
+					album = *t.Value
+				}
+			}
+
+			if !slices.Contains(blobTagMap[collection], album) {
+				blobTagMap[collection] = append(blobTagMap[collection], album)
+			}
+		}
+	}
+	return blobTagMap, nil
 }
 
 func (s *AzureBlobStore) GetBlob(ctx context.Context, blobName string, containerName string) ([]byte, error) {
-	buf, err := utils.GetBlobStream(s.client, ctx, blobName, containerName, s.storageUrl)
+	blockBlob := s.client.ServiceClient().NewContainerClient(containerName).NewBlockBlobClient(blobName)
+
+	// Ensure blob exists.
+	_, err := blockBlob.GetProperties(ctx, nil)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("blob not found %s/%s: %w", containerName, blobName, err)
 	}
+
+	blobStream, err := blockBlob.DownloadStream(ctx, &blob.DownloadStreamOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("downloading blob %s/%s: %w", containerName, blobName, err)
+	}
+
+	var buf bytes.Buffer
+	_, err = buf.ReadFrom(blobStream.NewRetryReader(ctx, &azblob.RetryReaderOptions{}))
+	if err != nil {
+		return nil, fmt.Errorf("reading blob stream %s/%s: %w", containerName, blobName, err)
+	}
+
+	slog.Info("got blob stream", "blob", blobName, "bytes", buf.Len())
 	return buf.Bytes(), nil
 }
 

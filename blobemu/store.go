@@ -23,12 +23,6 @@ func capitaliseKey(key string) string {
 	return string(unicode.ToUpper(r)) + key[size:]
 }
 
-// joinStrings joins a string slice with a separator (avoids importing strings
-// in hot path for a tiny helper).
-func joinStrings(elems []string, sep string) string {
-	return strings.Join(elems, sep)
-}
-
 // BlobInfo is the JSON-serialisable representation of a stored blob.
 type BlobInfo struct {
 	Name      string            `json:"name"`
@@ -347,7 +341,7 @@ func (s *Store) FilterByTags(query string) ([]BlobInfo, error) {
 		ids[i] = br.id
 		placeholders[i] = "?"
 	}
-	inClause := "(" + joinStrings(placeholders, ",") + ")"
+	inClause := "(" + strings.Join(placeholders, ",") + ")"
 
 	// Step 2: bulk-fetch tags.
 	tagMap := make(map[int64]map[string]string)

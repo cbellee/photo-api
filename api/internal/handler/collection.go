@@ -8,10 +8,7 @@ import (
 
 	"github.com/cbellee/photo-api/internal/models"
 	"github.com/cbellee/photo-api/internal/storage"
-	"go.opentelemetry.io/otel"
 )
-
-var tracer = otel.Tracer("photo-api")
 
 // CollectionHandler returns the list of collections (each represented by its
 // collectionImage placeholder photo).

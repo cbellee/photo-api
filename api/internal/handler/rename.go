@@ -105,20 +105,20 @@ func RenameCollectionHandler(store storage.BlobStore, cfg *Config) http.HandlerF
 			slog.ErrorContext(ctx, "rename completed with errors", "errors", errors)
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusPartialContent)
-			json.NewEncoder(w).Encode(map[string]interface{}{
-				"message":  "rename completed with errors",
-				"errors":   errors,
-				"newName":  req.NewName,
-				"affected": len(blobs),
+			json.NewEncoder(w).Encode(mutationResponse{
+				Message:  "rename completed with errors",
+				Errors:   errors,
+				NewName:  req.NewName,
+				Affected: len(blobs),
 			})
 			return
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
-			"message":  "collection renamed",
-			"newName":  req.NewName,
-			"affected": len(blobs),
+		json.NewEncoder(w).Encode(mutationResponse{
+			Message:  "collection renamed",
+			NewName:  req.NewName,
+			Affected: len(blobs),
 		})
 	}
 }
@@ -213,20 +213,20 @@ func RenameAlbumHandler(store storage.BlobStore, cfg *Config) http.HandlerFunc {
 		if len(errors) > 0 {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusPartialContent)
-			json.NewEncoder(w).Encode(map[string]interface{}{
-				"message":  "album rename completed with errors",
-				"errors":   errors,
-				"newName":  req.NewName,
-				"affected": len(blobs),
+			json.NewEncoder(w).Encode(mutationResponse{
+				Message:  "album rename completed with errors",
+				Errors:   errors,
+				NewName:  req.NewName,
+				Affected: len(blobs),
 			})
 			return
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
-			"message":  "album renamed",
-			"newName":  req.NewName,
-			"affected": len(blobs),
+		json.NewEncoder(w).Encode(mutationResponse{
+			Message:  "album renamed",
+			NewName:  req.NewName,
+			Affected: len(blobs),
 		})
 	}
 }

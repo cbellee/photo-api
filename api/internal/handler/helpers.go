@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"log/slog"
 	"strconv"
 
 	"github.com/cbellee/photo-api/internal/models"
@@ -14,15 +13,8 @@ func BlobsToPhotos(blobs []models.Blob) []models.Photo {
 	photos := make([]models.Photo, 0, len(blobs))
 
 	for _, b := range blobs {
-		width, err := strconv.ParseInt(b.MetaData["Width"], 10, 32)
-		if err != nil {
-			slog.Error("error converting string 'width' to int", "blob", b.Name, "error", err)
-		}
-
-		height, err := strconv.ParseInt(b.MetaData["Height"], 10, 32)
-		if err != nil {
-			slog.Error("error converting string 'height' to int", "blob", b.Name, "error", err)
-		}
+		width, _ := strconv.ParseInt(b.MetaData["Width"], 10, 32)
+		height, _ := strconv.ParseInt(b.MetaData["Height"], 10, 32)
 
 		isDeleted, err := strconv.ParseBool(b.Tags["isDeleted"])
 		if err != nil {
