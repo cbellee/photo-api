@@ -103,8 +103,8 @@ else
 	echo "skipping build..."
 fi
 
-# Base64-encode the OTel collector config for Container Apps
-OTEL_COLLECTOR_CONFIG=$(base64 < ./otel-collector-config-aca.yml)
+# Read the OTel collector config as raw YAML for Container Apps secret volume
+OTEL_COLLECTOR_CONFIG=$(cat ./otel-collector-config-aca.yml)
 
 az deployment group create \
 	--resource-group $RG_NAME \

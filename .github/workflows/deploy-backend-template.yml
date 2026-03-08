@@ -108,12 +108,6 @@ jobs:
         tenant-id: ${{ inputs.tenant-id }}
         subscription-id: ${{ inputs.subscription-id }}
 
-    - name: encode-otel-config
-      id: encode-otel-config
-      run: |
-        OTEL_COLLECTOR_CONFIG=$(base64 -w 0 < ./otel-collector-config-aca.yml)
-        echo "otelCollectorConfig=$OTEL_COLLECTOR_CONFIG" >> "$GITHUB_OUTPUT"
-
     - name: deploy-infra-cli
       id: deploy-infra-cli
       uses: azure/cli@v2
@@ -121,6 +115,7 @@ jobs:
       with:
         azcliversion: latest
         inlineScript: |
+          OTEL_COLLECTOR_CONFIG=$(cat ./otel-collector-config-aca.yml)
           az deployment group create \
             --name deploy-infra \
             --resource-group ${{ needs.deploy-rg-job.outputs.rgName}} \
@@ -132,4 +127,4 @@ jobs:
             --parameters githubUsername=${{ github.actor }} \
             --parameters cNameRecord=${{ inputs.cname }} \
             --parameters zoneName=${{ inputs.domain-name }} \
-            --parameters otelCollectorConfig='${{ steps.encode-otel-config.outputs.otelCollectorConfig }}'
+            --parameters otelCollectorConfig="$OTEL_COLLECTOR_CONFIG"

@@ -69,7 +69,7 @@ param otelCpuResource string = '0.25'
 param otelMemoryResource string = '0.5Gi'
 
 @secure()
-@description('Base64-encoded OTel collector YAML config for Azure Container Apps (otel-collector-config-aca.yml)')
+@description('Raw OTel collector YAML config for Azure Container Apps (otel-collector-config-aca.yml)')
 param otelCollectorConfig string
 
 var storageBlobDataOwnerRoleDefinitionID = 'b7e6dc6d-f1e8-4753-8033-0f276bb0955b'
