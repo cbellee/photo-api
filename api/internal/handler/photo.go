@@ -13,19 +13,19 @@ import (
 // PhotoHandler returns all photos within a specific collection/album.
 func PhotoHandler(store storage.BlobStore, cfg *Config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		_, span := tracer.Start(r.Context(), "handler.Photos")
+		ctx, span := tracer.Start(r.Context(), "handler.Photos")
 		defer span.End()
 
 		collection := r.PathValue("collection")
 		if err := validatePathParam("collection", collection); err != nil {
-			slog.Error("invalid path param", "name", "collection", "error", err)
+			slog.ErrorContext(ctx, "invalid path param", "name", "collection", "error", err)
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 
 		album := r.PathValue("album")
 		if err := validatePathParam("album", album); err != nil {
-			slog.Error("invalid path param", "name", "album", "error", err)
+			slog.ErrorContext(ctx, "invalid path param", "name", "album", "error", err)
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
@@ -36,9 +36,9 @@ func PhotoHandler(store storage.BlobStore, cfg *Config) http.HandlerFunc {
 
 		// get photos with matching collection & album tags
 		query := fmt.Sprintf("@container='%s' AND collection='%s' AND album='%s' AND isDeleted='false'", cfg.ImagesContainerName, collection, album)
-		filteredBlobs, err := store.FilterBlobsByTags(r.Context(), query, cfg.ImagesContainerName)
+		filteredBlobs, err := store.FilterBlobsByTags(ctx, query, cfg.ImagesContainerName)
 		if err != nil {
-			slog.Error("error getting blobs by tags", "error", err)
+			slog.ErrorContext(ctx, "error getting blobs by tags", "error", err)
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 			return
 		}
@@ -49,7 +49,7 @@ func PhotoHandler(store storage.BlobStore, cfg *Config) http.HandlerFunc {
 
 		photos := BlobsToPhotos(filteredBlobs)
 
-		slog.Debug("filtered photos", "metadata", photos)
+		slog.DebugContext(ctx, "filtered photos", "metadata", photos)
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(photos)
 	}

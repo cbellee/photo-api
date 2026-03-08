@@ -45,6 +45,10 @@ param containers array = [
     name: 'images'
     publicAccess: 'Blob'
   }
+  {
+    name: 'telemetry'
+    publicAccess: 'None'
+  }
 ]
 
 param photoApiName string = 'photo'
@@ -60,10 +64,18 @@ param uploadsStorageQueueName string = 'uploads'
 param imagesStorageQueueName string = 'images'
 param imagesContainerName string = 'images'
 param uploadsContainerName string = 'uploads'
+param otelCollectorImage string = 'otel/opentelemetry-collector-contrib:latest'
+param otelCpuResource string = '0.25'
+param otelMemoryResource string = '0.5Gi'
+
+@secure()
+@description('Base64-encoded OTel collector YAML config for Azure Container Apps (otel-collector-config-aca.yml)')
+param otelCollectorConfig string
 
 var storageBlobDataOwnerRoleDefinitionID = 'b7e6dc6d-f1e8-4753-8033-0f276bb0955b'
 var storageKey = storage.outputs.key
 var storageQueueCxnString = 'DefaultEndpointsProtocol=https;AccountName=${storage.outputs.name};EndpointSuffix=${environment().suffixes.storage};AccountKey=${storageKey}'
+var storageCxnString = 'DefaultEndpointsProtocol=https;AccountName=${storage.outputs.name};EndpointSuffix=${environment().suffixes.storage};AccountKey=${storageKey}'
 var affix = uniqueString(resourceGroup().id)
 var umidName = 'umid-${affix}'
 var workspaceName = 'wks-${affix}'
@@ -75,7 +87,7 @@ var corsOrigins = 'http://localhost:5173,https://${cName}'
 
 targetScope = 'resourceGroup'
 
-resource umid 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-07-31-preview' = {
+resource umid 'Microsoft.ManagedIdentity/userAssignedIdentities@2025-01-31-preview' = {
   name: umidName
   location: resourceGroup().location
   tags: tags
@@ -163,7 +175,7 @@ resource storageRbac 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   }
 }
 
-resource resizeApi 'Microsoft.App/containerApps@2024-08-02-preview' = {
+resource resizeApi 'Microsoft.App/containerApps@2025-10-02-preview' = {
   name: resizeApiName
   location: resourceGroup().location
   tags: tags
@@ -194,6 +206,14 @@ resource resizeApi 'Microsoft.App/containerApps@2024-08-02-preview' = {
         {
           name: 'ghcr-pull-token'
           value: ghcrPullToken
+        }
+        {
+          name: 'storage-cxn'
+          value: storageCxnString
+        }
+        {
+          name: 'otel-collector-config'
+          value: otelCollectorConfig
         }
       ]
       registries: [
@@ -282,6 +302,45 @@ resource resizeApi 'Microsoft.App/containerApps@2024-08-02-preview' = {
               name: 'AZURE_TENANT_ID'
               value: tenant().tenantId
             }
+            {
+              name: 'OTEL_EXPORTER_OTLP_ENDPOINT'
+              value: 'http://localhost:4317'
+            }
+          ]
+        }
+        {
+          image: otelCollectorImage
+          name: 'otel-collector'
+          resources: {
+            cpu: otelCpuResource
+            memory: otelMemoryResource
+          }
+          env: [
+            {
+              name: 'AZURE_STORAGE_CONNECTION_STRING'
+              secretRef: 'storage-cxn'
+            }
+          ]
+          args: [
+            '--config=/etc/otel/config.yaml'
+          ]
+          volumeMounts: [
+            {
+              volumeName: 'otel-config'
+              mountPath: '/etc/otel'
+            }
+          ]
+        }
+      ]
+      volumes: [
+        {
+          name: 'otel-config'
+          storageType: 'Secret'
+          secrets: [
+            {
+              secretRef: 'otel-collector-config'
+              path: 'config.yaml'
+            }
           ]
         }
       ]
@@ -308,7 +367,7 @@ resource resizeApi 'Microsoft.App/containerApps@2024-08-02-preview' = {
   }
 }
 
-resource photoApi 'Microsoft.App/containerApps@2023-11-02-preview' = {
+resource photoApi 'Microsoft.App/containerApps@2025-10-02-preview' = {
   name: photoApiName
   location: resourceGroup().location
   tags: tags
@@ -328,6 +387,14 @@ resource photoApi 'Microsoft.App/containerApps@2023-11-02-preview' = {
         {
           name: 'ghcr-pull-token'
           value: ghcrPullToken
+        }
+        {
+          name: 'storage-cxn'
+          value: storageCxnString
+        }
+        {
+          name: 'otel-collector-config'
+          value: otelCollectorConfig
         }
       ]
       registries: [
@@ -412,6 +479,45 @@ resource photoApi 'Microsoft.App/containerApps@2023-11-02-preview' = {
             {
               name: 'ROLE_NAME'
               value: 'photo.upload'
+            }
+            {
+              name: 'OTEL_EXPORTER_OTLP_ENDPOINT'
+              value: 'http://localhost:4317'
+            }
+          ]
+        }
+        {
+          image: otelCollectorImage
+          name: 'otel-collector'
+          resources: {
+            cpu: otelCpuResource
+            memory: otelMemoryResource
+          }
+          env: [
+            {
+              name: 'AZURE_STORAGE_CONNECTION_STRING'
+              secretRef: 'storage-cxn'
+            }
+          ]
+          args: [
+            '--config=/etc/otel/config.yaml'
+          ]
+          volumeMounts: [
+            {
+              volumeName: 'otel-config'
+              mountPath: '/etc/otel'
+            }
+          ]
+        }
+      ]
+      volumes: [
+        {
+          name: 'otel-config'
+          storageType: 'Secret'
+          secrets: [
+            {
+              secretRef: 'otel-collector-config'
+              path: 'config.yaml'
             }
           ]
         }

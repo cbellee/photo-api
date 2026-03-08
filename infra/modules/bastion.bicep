@@ -6,7 +6,7 @@ param location string
 var bastionName = 'bastion-${affix}'
 var bastionPublicIpName = 'bastion-pip-${affix}'
 
-resource bastionPublicIp 'Microsoft.Network/publicIPAddresses@2023-09-01' = {
+resource bastionPublicIp 'Microsoft.Network/publicIPAddresses@2025-05-01' = {
   location: location
   name: bastionPublicIpName
   sku: {
@@ -19,7 +19,7 @@ resource bastionPublicIp 'Microsoft.Network/publicIPAddresses@2023-09-01' = {
   }
 }
 
-resource bastionHost 'Microsoft.Network/bastionHosts@2023-09-01' = {
+resource bastionHost 'Microsoft.Network/bastionHosts@2025-05-01' = {
   name: bastionName
   location: location
   sku: {

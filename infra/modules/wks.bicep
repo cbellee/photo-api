@@ -11,7 +11,7 @@ param retentionInDays int = 30
 ])
 param sku string = 'PerGB2018'
 
-resource wks 'Microsoft.OperationalInsights/workspaces@2023-09-01' = {
+resource wks 'Microsoft.OperationalInsights/workspaces@2025-07-01' = {
   location: location
   name: name
   tags: tags

@@ -16,12 +16,12 @@ func TagListHandler(store storage.BlobStore, cfg *Config) http.HandlerFunc {
 
 		blobTagList, err := store.GetBlobTagList(ctx, cfg.ImagesContainerName)
 		if err != nil {
-			slog.Error("error getting blob tag list", "error", err)
+			slog.ErrorContext(ctx, "error getting blob tag list", "error", err)
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 			return
 		}
 
-		slog.Debug("blob tag map", "value", blobTagList)
+		slog.DebugContext(ctx, "blob tag map", "value", blobTagList)
 
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(blobTagList)

@@ -1,0 +1,54 @@
+# OpenTelemetry Collector configuration for Azure Container Apps.
+# Receives OTLP from the app sidecar on localhost:4317 and exports
+# traces, metrics, and logs to Azure Blob Storage.
+#
+# Requires the contrib collector image: otel/opentelemetry-collector-contrib
+# Environment variables:
+# AZURE_STORAGE_CONNECTION_STRING – storage account connection string
+
+file_format: "0.3"
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+
+processors:
+  batch:
+    timeout: 10s
+    send_batch_size: 1024
+  resource:
+    attributes:
+      - key: deployment.environment
+        value: production
+        action: upsert
+
+exporters:
+  azureblob/traces:
+    connection_string: ${env:AZURE_STORAGE_CONNECTION_STRING}
+    container: telemetry
+    blob_prefix: traces
+  azureblob/metrics:
+    connection_string: ${env:AZURE_STORAGE_CONNECTION_STRING}
+    container: telemetry
+    blob_prefix: metrics
+  azureblob/logs:
+    connection_string: ${env:AZURE_STORAGE_CONNECTION_STRING}
+    container: telemetry
+    blob_prefix: logs
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [resource, batch]
+      exporters: [azureblob/traces]
+    metrics:
+      receivers: [otlp]
+      processors: [resource, batch]
+      exporters: [azureblob/metrics]
+    logs:
+      receivers: [otlp]
+      processors: [resource, batch]
+      exporters: [azureblob/logs]

@@ -62,7 +62,7 @@ func UpdateHandler(store storage.BlobStore, cfg *Config) http.HandlerFunc {
 		span.SetAttributes(attribute.String("blob.name", blobName))
 		currTags, err := store.GetBlobTags(ctx, blobName, cfg.ImagesContainerName)
 		if err != nil {
-			slog.Error("error getting blob tags", "error", err)
+			slog.ErrorContext(ctx, "error getting blob tags", "error", err)
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 			return
 		}
@@ -71,7 +71,7 @@ func UpdateHandler(store storage.BlobStore, cfg *Config) http.HandlerFunc {
 		delete(currTags, "Url")
 
 		if maps.Equal(currTags, newTags) {
-			slog.Info("tags not modified", "tags", currTags)
+			slog.InfoContext(ctx, "tags not modified", "tags", currTags)
 			http.Error(w, "Tags not modified", http.StatusNotModified)
 			return
 		}
@@ -79,20 +79,20 @@ func UpdateHandler(store storage.BlobStore, cfg *Config) http.HandlerFunc {
 		// get current image with collectionImage tag set to 'true'
 		currentCollectionImage, err := GetCollectionImage(store, ctx, cfg, currTags["collection"])
 		if err != nil {
-			slog.Error("error getting collection image", "error", err)
+			slog.ErrorContext(ctx, "error getting collection image", "error", err)
 			// not fatal — the collection may not have a collectionImage yet
 		}
 
 		// set CollectionImage tag to 'false' on existing image if it has been set to 'true' on the current image
 		if newTags["collectionImage"] == "true" && len(currentCollectionImage) > 0 && currentCollectionImage[0].Tags["name"] != newTags["name"] {
-			slog.Info("collection image set on another image. Setting 'collectionImage'",
+			slog.InfoContext(ctx, "collection image set on another image. Setting 'collectionImage'",
 				"collection", currTags["collection"], "image", currentCollectionImage[0].Name)
 
 			currentCollectionImage[0].Tags["collectionImage"] = "false"
 
 			err = store.SetBlobTags(ctx, currentCollectionImage[0].Name, cfg.ImagesContainerName, currentCollectionImage[0].Tags)
 			if err != nil {
-				slog.Error("error setting collectionImage tag", "error", err)
+				slog.ErrorContext(ctx, "error setting collectionImage tag", "error", err)
 				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 				return
 			}
@@ -101,7 +101,7 @@ func UpdateHandler(store storage.BlobStore, cfg *Config) http.HandlerFunc {
 		// update blob tags
 		err = store.SetBlobTags(ctx, blobName, cfg.ImagesContainerName, newTags)
 		if err != nil {
-			slog.Error("error updating blob tags", "error", err)
+			slog.ErrorContext(ctx, "error updating blob tags", "error", err)
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 			return
 		}
@@ -116,7 +116,7 @@ func GetCollectionImage(store storage.BlobStore, ctx context.Context, cfg *Confi
 	query := fmt.Sprintf("@container='%s' and collection='%s' and collectionImage='true'", cfg.ImagesContainerName, collection)
 	filteredBlobs, err := store.FilterBlobsByTags(ctx, query, cfg.ImagesContainerName)
 	if err != nil {
-		slog.Error("error getting blobs by tags", "error", err)
+		slog.ErrorContext(ctx, "error getting blobs by tags", "error", err)
 		return nil, err
 	}
 

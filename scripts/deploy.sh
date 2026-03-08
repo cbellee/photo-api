@@ -27,8 +27,6 @@ IMAGES_CONTAINER_NAME='images'
 
 # az ad sp create-for-rbac --name photo-api-sp --role contributor --scopes /subscriptions/$SUBSCRIPTION_ID --json-auth
 
-
-
 az group create --location $LOCATION --name $RG_NAME
 
 # create ACR
@@ -105,13 +103,17 @@ else
 	echo "skipping build..."
 fi
 
+# Base64-encode the OTel collector config for Container Apps
+OTEL_COLLECTOR_CONFIG=$(base64 < ./otel-collector-config-aca.yml)
+
 az deployment group create \
 	--resource-group $RG_NAME \
 	--name 'infra-deployment' \
 	--template-file ./infra/main.bicep \
 	--parameters acrName=$ACR_NAME \
 	--parameters photoApiContainerImage="$ACR_NAME.azurecr.io/$PHOTO_API_IMAGE" \
-	--parameters resizeApiContainerImage="$ACR_NAME.azurecr.io/$RESIZE_API_IMAGE"
+	--parameters resizeApiContainerImage="$ACR_NAME.azurecr.io/$RESIZE_API_IMAGE" \
+	--parameters otelCollectorConfig="$OTEL_COLLECTOR_CONFIG"
 
 export STORAGE_ACCOUNT_NAME="$(az deployment group show \
 	--resource-group $RG_NAME \

@@ -19,7 +19,7 @@ func AlbumHandler(store storage.BlobStore, cfg *Config) http.HandlerFunc {
 
 		collection := r.PathValue("collection")
 		if err := validatePathParam("collection", collection); err != nil {
-			slog.Error("invalid path param", "name", "collection", "error", err)
+			slog.ErrorContext(ctx, "invalid path param", "name", "collection", "error", err)
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
@@ -28,7 +28,7 @@ func AlbumHandler(store storage.BlobStore, cfg *Config) http.HandlerFunc {
 		// 1. Get the tag-list to know every album in this collection.
 		tagList, err := store.GetBlobTagList(ctx, cfg.ImagesContainerName)
 		if err != nil {
-			slog.Error("error getting blob tag list", "error", err)
+			slog.ErrorContext(ctx, "error getting blob tag list", "error", err)
 			http.Error(w, "No albums found", http.StatusNotFound)
 			return
 		}
@@ -54,16 +54,16 @@ func AlbumHandler(store storage.BlobStore, cfg *Config) http.HandlerFunc {
 			pickQuery := fmt.Sprintf("@container='%s' and collection='%s' and album='%s'", cfg.ImagesContainerName, collection, album)
 			candidates, err := store.FilterBlobsByTags(ctx, pickQuery, cfg.ImagesContainerName)
 			if err != nil || len(candidates) == 0 {
-				slog.Warn("no blobs for album, skipping", "collection", collection, "album", album)
+				slog.WarnContext(ctx, "no blobs for album, skipping", "collection", collection, "album", album)
 				continue
 			}
 
 			pick := candidates[0]
 			pick.Tags["albumImage"] = "true"
 			if err := store.SetBlobTags(ctx, pick.Name, cfg.ImagesContainerName, pick.Tags); err != nil {
-				slog.Error("error setting albumImage tag", "blob", pick.Name, "error", err)
+				slog.ErrorContext(ctx, "error setting albumImage tag", "blob", pick.Name, "error", err)
 			} else {
-				slog.Info("auto-assigned albumImage", "collection", collection, "album", album, "blob", pick.Name)
+				slog.InfoContext(ctx, "auto-assigned albumImage", "collection", collection, "album", album, "blob", pick.Name)
 			}
 			markedBlobs = append(markedBlobs, pick)
 			markedAlbums[album] = true
@@ -78,7 +78,7 @@ func AlbumHandler(store storage.BlobStore, cfg *Config) http.HandlerFunc {
 		for i, b := range markedBlobs {
 			tags, err := store.GetBlobTags(ctx, b.Name, cfg.ImagesContainerName)
 			if err != nil {
-				slog.Error("error getting blob tags", "error", err, "blobpath", b.Path)
+				slog.ErrorContext(ctx, "error getting blob tags", "error", err, "blobpath", b.Path)
 				continue
 			}
 			markedBlobs[i].Tags = tags
