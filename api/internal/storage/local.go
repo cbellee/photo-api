@@ -260,6 +260,47 @@ func (s *LocalBlobStore) SaveBlob(ctx context.Context, data []byte, blobName str
 	return nil
 }
 
+func (s *LocalBlobStore) CopyBlob(ctx context.Context, srcBlobName string, destBlobName string, containerName string) error {
+	// Download the source blob and re-upload as the destination.
+	data, err := s.GetBlob(ctx, srcBlobName, containerName)
+	if err != nil {
+		return fmt.Errorf("copy: reading source blob: %w", err)
+	}
+
+	tags, _ := s.GetBlobTags(ctx, srcBlobName, containerName)
+	md, _ := s.GetBlobMetadata(ctx, srcBlobName, containerName)
+
+	if err := s.SaveBlob(ctx, data, destBlobName, containerName, tags, md, ""); err != nil {
+		return fmt.Errorf("copy: writing dest blob: %w", err)
+	}
+
+	slog.Debug("copied blob via emulator", "src", srcBlobName, "dest", destBlobName)
+	return nil
+}
+
+func (s *LocalBlobStore) DeleteBlob(ctx context.Context, blobName string, containerName string) error {
+	u := s.blobURL(containerName, blobName)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, u, nil)
+	if err != nil {
+		return err
+	}
+
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("delete blob failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
+		b, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("delete blob status %d: %s", resp.StatusCode, string(b))
+	}
+
+	slog.Debug("deleted blob via emulator", "container", containerName, "name", blobName)
+	return nil
+}
+
 // ---------- helpers ----------
 
 // blobURL builds a properly encoded URL for a blob, preserving

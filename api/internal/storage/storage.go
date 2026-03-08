@@ -30,4 +30,11 @@ type BlobStore interface {
 
 	// SaveBlob uploads bytes as a blob with tags, metadata, and content type.
 	SaveBlob(ctx context.Context, data []byte, blobName string, containerName string, tags map[string]string, metadata map[string]string, contentType string) error
+
+	// CopyBlob copies a blob from srcBlobName to destBlobName within the same container,
+	// preserving tags and metadata.
+	CopyBlob(ctx context.Context, srcBlobName string, destBlobName string, containerName string) error
+
+	// DeleteBlob permanently deletes a blob from storage.
+	DeleteBlob(ctx context.Context, blobName string, containerName string) error
 }

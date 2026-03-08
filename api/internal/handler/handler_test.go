@@ -214,6 +214,33 @@ func TestPhotoHandler_ReturnsPhotos(t *testing.T) {
 	assert.Equal(t, "nature/sunset/photo1.jpg", photos[0].Name)
 }
 
+func TestPhotoHandler_IncludeDeleted_OmitsDeletedFilter(t *testing.T) {
+	cfg := testConfig()
+	blobs := sampleBlobs()
+	mock := &storage.MockBlobStore{
+		FilterBlobsByTagsFunc: func(ctx context.Context, query string, containerName string) ([]models.Blob, error) {
+			assert.Contains(t, query, "collection='nature'")
+			assert.Contains(t, query, "album='sunset'")
+			assert.NotContains(t, query, "isDeleted")
+			return blobs, nil
+		},
+	}
+
+	handler := PhotoHandler(mock, cfg)
+	req := httptest.NewRequest("GET", "/api/nature/sunset?includeDeleted=true", nil)
+	req.SetPathValue("collection", "nature")
+	req.SetPathValue("album", "sunset")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	var photos []models.Photo
+	err := json.Unmarshal(w.Body.Bytes(), &photos)
+	require.NoError(t, err)
+	assert.Len(t, photos, 2)
+}
+
 func TestPhotoHandler_MissingCollection_Returns400(t *testing.T) {
 	cfg := testConfig()
 	mock := &storage.MockBlobStore{}
