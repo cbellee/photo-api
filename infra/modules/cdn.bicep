@@ -19,7 +19,7 @@ param utcValue string = utcNow()
 
 var affix = uniqueString(resourceGroup().id)
 
-resource cdn 'Microsoft.Cdn/profiles@2024-09-01' = {
+resource cdn 'Microsoft.Cdn/profiles@2025-09-01-preview' = {
   name: 'cdn-${affix}'
   location: 'global'
   sku: {
@@ -51,7 +51,7 @@ resource cdn 'Microsoft.Cdn/profiles@2024-09-01' = {
   }
 }
 
-resource dnsIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2018-11-30' = {
+resource dnsIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2025-01-31-preview' = {
   name: 'dns-identity-${affix}'
   location: resourceGroup().location
 }
@@ -61,7 +61,7 @@ var roleDefinitions = [
   'ec156ff8-a8d1-4d15-830c-5b80698ca432' // CDN Profile Contributor
 ]
 
-resource roleAssignments 'Microsoft.Authorization/roleAssignments@2020-08-01-preview' = [for roleDefinitionId in roleDefinitions: {
+resource roleAssignments 'Microsoft.Authorization/roleAssignments@2022-04-01' = [for roleDefinitionId in roleDefinitions: {
   name: guid(resourceGroup().id, roleDefinitionId)
   scope: resourceGroup()
   properties: {
@@ -71,7 +71,7 @@ resource roleAssignments 'Microsoft.Authorization/roleAssignments@2020-08-01-pre
   }
 }]
 
-resource enableHttpsForCustomDomain 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
+resource enableHttpsForCustomDomain 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
   name: 'enableHttpsForCustomDomain'
   location: resourceGroup().location
   kind: 'AzureCLI'

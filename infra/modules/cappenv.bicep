@@ -1,6 +1,6 @@
 param location string
 param name string
-// param aiKey string
+param oltpEndpointUrl string
 param wksCustomerId string
 param wksSharedKey string
 param tags object
@@ -17,11 +17,36 @@ param vnetConfig object = {
 param isInternal bool = true
 param isZoneRedundant bool = false
 
-resource containerAppEnvironment 'Microsoft.App/managedEnvironments@2024-08-02-preview' = {
+resource containerAppEnvironment 'Microsoft.App/managedEnvironments@2025-10-02-preview' = {
   location: location
   name: name
   properties: {
-   // daprAIInstrumentationKey: aiKey
+    openTelemetryConfiguration: {
+      destinationsConfiguration: {
+        otlpConfigurations: [
+          {
+            name: 'customEndpoint'
+            endpoint: oltpEndpointUrl
+            insecure: true
+          }
+        ]
+      }
+      logsConfiguration: {
+        destinations: [
+          'customEndpoint'
+        ]
+      }
+      tracesConfiguration: {
+        destinations: [
+          'customEndpoint'
+        ]
+      }
+      metricsConfiguration: {
+        destinations: [
+          'customEndpoint'
+        ]
+      }
+    }
     vnetConfiguration: isInternal ? vnetConfig : null
     zoneRedundant: isZoneRedundant
     appLogsConfiguration: {

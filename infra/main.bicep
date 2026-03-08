@@ -75,7 +75,7 @@ var corsOrigins = 'http://localhost:5173,https://${cName}'
 
 targetScope = 'resourceGroup'
 
-resource umid 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-07-31-preview' = {
+resource umid 'Microsoft.ManagedIdentity/userAssignedIdentities@2025-01-31-preview' = {
   name: umidName
   location: resourceGroup().location
   tags: tags
@@ -163,7 +163,7 @@ resource storageRbac 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   }
 }
 
-resource resizeApi 'Microsoft.App/containerApps@2024-08-02-preview' = {
+resource resizeApi 'Microsoft.App/containerApps@2025-10-02-preview' = {
   name: resizeApiName
   location: resourceGroup().location
   tags: tags
@@ -308,7 +308,7 @@ resource resizeApi 'Microsoft.App/containerApps@2024-08-02-preview' = {
   }
 }
 
-resource photoApi 'Microsoft.App/containerApps@2023-11-02-preview' = {
+resource photoApi 'Microsoft.App/containerApps@2025-10-02-preview' = {
   name: photoApiName
   location: resourceGroup().location
   tags: tags

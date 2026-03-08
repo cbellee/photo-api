@@ -61,7 +61,7 @@ var customDomainProps = {
   }
 }
 
-resource storage 'Microsoft.Storage/storageAccounts@2023-05-01' = {
+resource storage 'Microsoft.Storage/storageAccounts@2025-06-01' = {
   kind: kind
   location: location
   name: name
@@ -72,12 +72,12 @@ resource storage 'Microsoft.Storage/storageAccounts@2023-05-01' = {
   tags: tags
 }
 
-resource queueService 'Microsoft.Storage/storageAccounts/queueServices@2023-05-01' = {
+resource queueService 'Microsoft.Storage/storageAccounts/queueServices@2025-06-01' = {
   parent: storage
   name: 'default'
 }
 
-resource blobService 'Microsoft.Storage/storageAccounts/blobServices@2023-05-01' = {
+resource blobService 'Microsoft.Storage/storageAccounts/blobServices@2025-06-01' = {
   parent: storage
   name: 'default'
   properties: {
@@ -105,14 +105,14 @@ resource blobService 'Microsoft.Storage/storageAccounts/blobServices@2023-05-01'
   }
 }
 
-resource storageQueues 'Microsoft.Storage/storageAccounts/queueServices/queues@2023-05-01' = [
+resource storageQueues 'Microsoft.Storage/storageAccounts/queueServices/queues@2025-06-01' = [
   for container in containers: {
     parent: queueService
     name: container.name
   }
 ]
 
-resource blobContainers 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-05-01' = [
+resource blobContainers 'Microsoft.Storage/storageAccounts/blobServices/containers@2025-06-01' = [
   for container in containers: {
     parent: blobService
     name: container.name
@@ -122,7 +122,7 @@ resource blobContainers 'Microsoft.Storage/storageAccounts/blobServices/containe
   }
 ]
 
-resource enableStaticWebsite 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
+resource enableStaticWebsite 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
   name: 'enableStaticWebsite'
   location: resourceGroup().location
   kind: 'AzureCLI'
