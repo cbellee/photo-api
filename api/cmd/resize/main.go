@@ -29,17 +29,19 @@ func main() {
 		defer providers.Shutdown(ctx)
 	}
 
-	// ── Logging (bridged to OTel) ────────────────────────────────────
+	// ── Logging (stdout JSON + OTel fan-out) ─────────────────────────
+	stdoutHandler := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+		AddSource: true,
+		Level:     slog.LevelInfo,
+	})
 	var logger *slog.Logger
 	if providers != nil {
-		logger = otelslog.NewLogger("resize-service",
+		otelHandler := otelslog.NewHandler("resize-service",
 			otelslog.WithLoggerProvider(providers.LoggerProvider),
 		)
+		logger = slog.New(telemetry.NewFanoutHandler(stdoutHandler, otelHandler))
 	} else {
-		logger = slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-			AddSource: true,
-			Level:     slog.LevelInfo,
-		}))
+		logger = slog.New(stdoutHandler)
 	}
 	slog.SetDefault(logger)
 

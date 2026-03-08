@@ -51,15 +51,15 @@ func (h *Handler) Resize(ctx context.Context, in *common.BindingEvent) ([]byte, 
 	// Parse the incoming event.
 	evt, err := utils.ConvertToEvent(in)
 	if err != nil {
-		slog.Error("error converting binding event", "error", err)
+		slog.ErrorContext(ctx, "error converting binding event", "error", err)
 		return nil, fmt.Errorf("converting binding event: %w", err)
 	}
-	h.logEvent(evt, in)
+	h.logEvent(ctx, evt, in)
 
 	// Decompose the blob URL.
 	ref, err := parseBlobRef(evt.Data.Url)
 	if err != nil {
-		slog.Error("error parsing blob URL", "url", evt.Data.Url, "error", err)
+		slog.ErrorContext(ctx, "error parsing blob URL", "url", evt.Data.Url, "error", err)
 		return nil, fmt.Errorf("parsing blob URL: %w", err)
 	}
 	span.SetAttributes(
@@ -68,41 +68,41 @@ func (h *Handler) Resize(ctx context.Context, in *common.BindingEvent) ([]byte, 
 		attribute.String("blob.collection", ref.collection),
 		attribute.String("blob.album", ref.album),
 	)
-	slog.Info("processing blob", "container", ref.container, "path", ref.path, "album", ref.album, "collection", ref.collection)
+	slog.InfoContext(ctx, "processing blob", "container", ref.container, "path", ref.path, "album", ref.album, "collection", ref.collection)
 
 	// Download the source blob.
 	blobBytes, err := h.store.GetBlob(ctx, ref.path, ref.container)
 	if err != nil {
-		slog.Error("error downloading blob", "path", ref.path, "error", err)
+		slog.ErrorContext(ctx, "error downloading blob", "path", ref.path, "error", err)
 		return nil, fmt.Errorf("downloading blob %s: %w", ref.path, err)
 	}
 
 	// Fetch existing tags and metadata.
 	tags, err := h.store.GetBlobTags(ctx, ref.path, ref.container)
 	if err != nil {
-		slog.Error("error getting blob tags", "path", ref.path, "error", err)
+		slog.ErrorContext(ctx, "error getting blob tags", "path", ref.path, "error", err)
 		return nil, fmt.Errorf("getting blob tags for %s: %w", ref.path, err)
 	}
 	metadata, err := h.store.GetBlobMetadata(ctx, ref.path, ref.container)
 	if err != nil {
-		slog.Error("error getting blob metadata", "path", ref.path, "error", err)
+		slog.ErrorContext(ctx, "error getting blob metadata", "path", ref.path, "error", err)
 		return nil, fmt.Errorf("getting blob metadata for %s: %w", ref.path, err)
 	}
 
 	// Resize the image.
 	imgBytes, err := utils.ResizeImage(blobBytes, evt.Data.ContentType, ref.path, h.cfg.MaxImageHeight, h.cfg.MaxImageWidth)
 	if err != nil {
-		slog.Error("error resizing image", "path", ref.path, "error", err)
+		slog.ErrorContext(ctx, "error resizing image", "path", ref.path, "error", err)
 		return nil, fmt.Errorf("resizing image %s: %w", ref.path, err)
 	}
 
 	// Read the dimensions of the resized image.
 	imgCfg, _, err := image.DecodeConfig(bytes.NewReader(imgBytes))
 	if err != nil {
-		slog.Error("error decoding resized image config", "path", ref.path, "error", err)
+		slog.ErrorContext(ctx, "error decoding resized image config", "path", ref.path, "error", err)
 		return nil, fmt.Errorf("decoding resized image config %s: %w", ref.path, err)
 	}
-	slog.Info("resized image", "path", ref.path, "height", imgCfg.Height, "width", imgCfg.Width, "bytes", len(imgBytes))
+	slog.InfoContext(ctx, "resized image", "path", ref.path, "height", imgCfg.Height, "width", imgCfg.Width, "bytes", len(imgBytes))
 
 	// Enrich metadata with the new dimensions.
 	metadata["Size"] = strconv.Itoa(len(imgBytes))
@@ -112,7 +112,7 @@ func (h *Handler) Resize(ctx context.Context, in *common.BindingEvent) ([]byte, 
 	// Save the resized image to the images container.
 	err = h.store.SaveBlob(ctx, imgBytes, ref.path, h.cfg.ImagesContainerName, tags, metadata, evt.Data.ContentType)
 	if err != nil {
-		slog.Error("error saving resized blob", "path", ref.path, "error", err)
+		slog.ErrorContext(ctx, "error saving resized blob", "path", ref.path, "error", err)
 		return nil, fmt.Errorf("saving resized blob %s: %w", ref.path, err)
 	}
 
@@ -141,8 +141,8 @@ func parseBlobRef(rawURL string) (blobRef, error) {
 }
 
 // logEvent writes structured debug information about the incoming event.
-func (h *Handler) logEvent(evt models.Event, in *common.BindingEvent) {
-	slog.Debug("input binding handler",
+func (h *Handler) logEvent(ctx context.Context, evt models.Event, in *common.BindingEvent) {
+	slog.DebugContext(ctx, "input binding handler",
 		"name", h.cfg.UploadsQueueBinding,
 		"subject", evt.Subject,
 		"topic", evt.Topic,

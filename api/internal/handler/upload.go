@@ -51,7 +51,7 @@ func UploadHandler(store storage.BlobStore, cfg *Config) http.HandlerFunc {
 		}
 		err = json.Unmarshal([]byte(metadataValues[0]), &it)
 		if err != nil {
-			slog.Error("error unmarshalling metadata json", "error", err)
+			slog.ErrorContext(ctx, "error unmarshalling metadata json", "error", err)
 			http.Error(w, "Invalid metadata", http.StatusBadRequest)
 			return
 		}
@@ -91,7 +91,7 @@ func UploadHandler(store storage.BlobStore, cfg *Config) http.HandlerFunc {
 
 		file, err := fh[0].Open()
 		if err != nil {
-			slog.Error("error opening file", "filename", fh[0].Filename, "error", err)
+			slog.ErrorContext(ctx, "error opening file", "filename", fh[0].Filename, "error", err)
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 			return
 		}
@@ -99,14 +99,14 @@ func UploadHandler(store storage.BlobStore, cfg *Config) http.HandlerFunc {
 
 		buf := bytes.NewBuffer(nil)
 		if _, err := io.Copy(buf, file); err != nil {
-			slog.Error("error copying to buffer", "filename", fh[0].Filename, "error", err)
+			slog.ErrorContext(ctx, "error copying to buffer", "filename", fh[0].Filename, "error", err)
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 			return
 		}
 
 		img, _, err := image.DecodeConfig(bytes.NewReader(buf.Bytes()))
 		if err != nil {
-			slog.Error("error decoding image config", "error", err)
+			slog.ErrorContext(ctx, "error decoding image config", "error", err)
 			http.Error(w, "Invalid image file", http.StatusBadRequest)
 			return
 		}
@@ -114,7 +114,7 @@ func UploadHandler(store storage.BlobStore, cfg *Config) http.HandlerFunc {
 		exifData := ""
 		exifData, err = exif.GetExifJSON(buf.Bytes())
 		if err != nil {
-			slog.Error("error getting exif data", "error", err)
+			slog.ErrorContext(ctx, "error getting exif data", "error", err)
 			// EXIF errors are non-fatal — continue without EXIF data
 		}
 
@@ -134,7 +134,7 @@ func UploadHandler(store storage.BlobStore, cfg *Config) http.HandlerFunc {
 			it.Type,
 		)
 		if err != nil {
-			slog.Error("error saving blob", "error", err)
+			slog.ErrorContext(ctx, "error saving blob", "error", err)
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 			return
 		}

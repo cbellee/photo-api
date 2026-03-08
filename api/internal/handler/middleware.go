@@ -13,24 +13,24 @@ import (
 // that the caller has the specified role claim. On failure it returns 401/403.
 func RequireRole(cfg *Config, next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		_, span := tracer.Start(r.Context(), "middleware.RequireRole")
+		ctx, span := tracer.Start(r.Context(), "middleware.RequireRole")
 		defer span.End()
 		span.SetAttributes(attribute.String("auth.required_role", cfg.RoleName))
 
 		claims, err := utils.VerifyToken(r, cfg.JwksURL, cfg.JWTKeyfunc)
 		if err != nil {
-			slog.Error("token verification failed", "error", err)
+			slog.ErrorContext(ctx, "token verification failed", "error", err)
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
 		}
 
 		if !slices.Contains(claims.Roles, cfg.RoleName) {
-			slog.Warn("caller does not have required role", "required", cfg.RoleName, "roles", claims.Roles)
+			slog.WarnContext(ctx, "caller does not have required role", "required", cfg.RoleName, "roles", claims.Roles)
 			http.Error(w, "Forbidden", http.StatusForbidden)
 			return
 		}
 
-		slog.Debug("role claim found in token", "roles", claims.Roles)
+		slog.DebugContext(ctx, "role claim found in token", "roles", claims.Roles)
 		next(w, r)
 	}
 }
