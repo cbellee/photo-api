@@ -30,7 +30,6 @@ func (s *AzureBlobStore) FilterBlobsByTags(ctx context.Context, query string, co
 
 	resp, err := s.client.ServiceClient().FilterBlobs(ctx, query, nil)
 	if err != nil {
-		slog.Error("error getting blobs by tags", "error", err)
 		return nil, err
 	}
 
@@ -39,13 +38,12 @@ func (s *AzureBlobStore) FilterBlobsByTags(ctx context.Context, query string, co
 
 		tags, err := s.GetBlobTags(ctx, *_blob.Name, containerName)
 		if err != nil {
-			slog.Error("error getting blob tags", "blobPath", blobPath, "error", err)
 			return nil, err
 		}
 
 		md, err := s.GetBlobMetadata(ctx, *_blob.Name, *_blob.ContainerName)
 		if err != nil {
-			slog.Error("error getting metadata", "blobPath", blobPath, "error", err)
+			slog.Warn("error getting metadata", "blobPath", blobPath, "error", err)
 		}
 
 		b := models.Blob{
@@ -109,8 +107,7 @@ func (s *AzureBlobStore) SaveBlob(ctx context.Context, data []byte, blobName str
 		},
 	})
 	if err != nil {
-		slog.Error("error uploading blob stream", "blob_url", blobUrl, "error", err)
-		return err
+		return fmt.Errorf("uploading blob %s: %w", blobUrl, err)
 	}
 
 	slog.Debug("uploaded blob stream", "blob_url", blobUrl, "tags", tags, "metadata", metadata)
@@ -124,8 +121,7 @@ func (s *AzureBlobStore) CopyBlob(ctx context.Context, srcBlobName string, destB
 
 	_, err := destBlob.StartCopyFromURL(ctx, srcURL, nil)
 	if err != nil {
-		slog.Error("error copying blob", "src", srcBlobName, "dest", destBlobName, "error", err)
-		return err
+		return fmt.Errorf("copying blob %s to %s: %w", srcBlobName, destBlobName, err)
 	}
 
 	slog.Debug("copied blob", "src", srcBlobName, "dest", destBlobName)
@@ -138,8 +134,7 @@ func (s *AzureBlobStore) DeleteBlob(ctx context.Context, blobName string, contai
 
 	_, err := blobClient.Delete(ctx, nil)
 	if err != nil {
-		slog.Error("error deleting blob", "blob", blobName, "error", err)
-		return err
+		return fmt.Errorf("deleting blob %s: %w", blobName, err)
 	}
 
 	slog.Debug("deleted blob", "blob", blobName)

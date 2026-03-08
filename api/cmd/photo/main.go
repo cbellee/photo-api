@@ -32,6 +32,9 @@ func main() {
 		ServiceName:    "photo-api",
 		ServiceVersion: "1.0.0",
 		OTLPEndpoint:   utils.GetEnvValue("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317"),
+		EnableTraces:   utils.GetEnvValue("OTEL_TRACES_ENABLED", "true") == "true",
+		EnableMetrics:  utils.GetEnvValue("OTEL_METRICS_ENABLED", "true") == "true",
+		EnableLogs:     utils.GetEnvValue("OTEL_LOGS_ENABLED", "true") == "true",
 	}
 	providers, err := telemetry.Init(ctx, otelCfg)
 	if err != nil {
@@ -163,6 +166,10 @@ func main() {
 	api.HandleFunc("DELETE /api/{collection}", handler.RequireRole(cfg, handler.SoftDeleteCollectionHandler(store, cfg)))
 	api.HandleFunc("DELETE /api/{collection}/{album}", handler.RequireRole(cfg, handler.SoftDeleteAlbumHandler(store, cfg)))
 
+	// Admin: restore (undelete) a soft-deleted collection or album
+	api.HandleFunc("PATCH /api/{collection}/{album}", handler.RequireRole(cfg, handler.RestoreAlbumHandler(store, cfg)))
+	api.HandleFunc("PATCH /api/{collection}", handler.RequireRole(cfg, handler.RestoreCollectionHandler(store, cfg)))
+
 	// Admin: thumbnail management (rotate or change thumbnail image)
 	api.HandleFunc("PUT /api/thumbnail/{collection}", handler.RequireRole(cfg, handler.ThumbnailCollectionHandler(store, cfg)))
 	api.HandleFunc("PUT /api/thumbnail/{collection}/{album}", handler.RequireRole(cfg, handler.ThumbnailAlbumHandler(store, cfg)))
@@ -174,7 +181,7 @@ func main() {
 
 	c := cors.New(cors.Options{
 		AllowedOrigins:   cfg.CorsOrigins,
-		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"},
+		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"},
 		AllowedHeaders:   []string{"Origin", "X-Requested-With", "Content-Type", "Accept", "Authorization"},
 		AllowCredentials: true,
 		MaxAge:           300,

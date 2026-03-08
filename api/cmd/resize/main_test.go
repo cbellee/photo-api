@@ -729,6 +729,9 @@ func TestResizeHandler_HappyPath(t *testing.T) {
 			savedMeta = metadata
 			return nil
 		},
+		DeleteBlobFunc: func(ctx context.Context, blobName string, containerName string) error {
+			return nil
+		},
 	}
 
 	h := NewHandler(mock, cfg)
@@ -771,6 +774,9 @@ func TestResizeHandler_HappyPath_SmallImage(t *testing.T) {
 		},
 		SaveBlobFunc: func(ctx context.Context, data []byte, blobName string, containerName string, tags map[string]string, metadata map[string]string, contentType string) error {
 			savedBlob = data
+			return nil
+		},
+		DeleteBlobFunc: func(ctx context.Context, blobName string, containerName string) error {
 			return nil
 		},
 	}
@@ -860,6 +866,82 @@ func TestResizeHandler_SaveBlobError(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "saving resized blob")
+}
+
+func TestResizeHandler_DeleteSourceBlobAfterResize(t *testing.T) {
+	cfg := testConfig()
+	cfg.MaxImageHeight = 600
+	cfg.MaxImageWidth = 800
+	srcJPEG := makeTestJPEG(t, 2000, 1500)
+
+	var deletedBlobName, deletedContainer string
+
+	mock := &storage.MockBlobStore{
+		GetBlobFunc: func(ctx context.Context, blobName string, containerName string) ([]byte, error) {
+			return srcJPEG, nil
+		},
+		GetBlobTagsFunc: func(ctx context.Context, blobName string, containerName string) (map[string]string, error) {
+			return map[string]string{"collection": "c", "album": "a"}, nil
+		},
+		GetBlobMetadataFunc: func(ctx context.Context, blobName string, containerName string) (map[string]string, error) {
+			return map[string]string{}, nil
+		},
+		SaveBlobFunc: func(ctx context.Context, data []byte, blobName string, containerName string, tags map[string]string, metadata map[string]string, contentType string) error {
+			return nil
+		},
+		DeleteBlobFunc: func(ctx context.Context, blobName string, containerName string) error {
+			deletedBlobName = blobName
+			deletedContainer = containerName
+			return nil
+		},
+	}
+
+	h := NewHandler(mock, cfg)
+	ctx := context.Background()
+	testURL := "https://teststorage.blob.core.windows.net/uploads/collection1/album1/test-image.jpg"
+	event := createTestBindingEvent(testURL, "image/jpeg", int32(len(srcJPEG)))
+
+	_, err := h.Resize(ctx, event)
+	require.NoError(t, err)
+
+	assert.Equal(t, "collection1/album1/test-image.jpg", deletedBlobName, "should delete the source blob path")
+	assert.Equal(t, "uploads", deletedContainer, "should delete from the uploads container")
+	require.Len(t, mock.DeleteBlobCalls, 1)
+}
+
+func TestResizeHandler_DeleteSourceBlobError(t *testing.T) {
+	cfg := testConfig()
+	cfg.MaxImageHeight = 600
+	cfg.MaxImageWidth = 800
+	srcJPEG := makeTestJPEG(t, 100, 100)
+
+	mock := &storage.MockBlobStore{
+		GetBlobFunc: func(ctx context.Context, blobName string, containerName string) ([]byte, error) {
+			return srcJPEG, nil
+		},
+		GetBlobTagsFunc: func(ctx context.Context, blobName string, containerName string) (map[string]string, error) {
+			return map[string]string{}, nil
+		},
+		GetBlobMetadataFunc: func(ctx context.Context, blobName string, containerName string) (map[string]string, error) {
+			return map[string]string{}, nil
+		},
+		SaveBlobFunc: func(ctx context.Context, data []byte, blobName string, containerName string, tags map[string]string, metadata map[string]string, contentType string) error {
+			return nil
+		},
+		DeleteBlobFunc: func(ctx context.Context, blobName string, containerName string) error {
+			return assert.AnError
+		},
+	}
+
+	h := NewHandler(mock, cfg)
+	ctx := context.Background()
+	testURL := "https://teststorage.blob.core.windows.net/uploads/c/a/f.jpg"
+	event := createTestBindingEvent(testURL, "image/jpeg", int32(len(srcJPEG)))
+
+	_, err := h.Resize(ctx, event)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "deleting source blob")
 }
 
 func TestResizeHandler_GetBlobMetadataError(t *testing.T) {

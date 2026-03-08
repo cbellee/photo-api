@@ -26,6 +26,9 @@ type Config struct {
 	ServiceName    string
 	ServiceVersion string
 	OTLPEndpoint   string // e.g. "localhost:4317"
+	EnableTraces   bool   // when false, traces are not exported
+	EnableMetrics  bool   // when false, metrics are not exported
+	EnableLogs     bool   // when false, logs are not exported via OTLP
 }
 
 // Providers groups the three initialised OTel providers.
@@ -50,8 +53,15 @@ func (p *Providers) Shutdown(ctx context.Context) {
 }
 
 // Init creates OTLP/gRPC exporters and returns fully-wired Providers.
+// Individual signals (traces, metrics, logs) are only initialised when
+// the corresponding Enable* flag in Config is true.
 // The caller must defer Providers.Shutdown().
 func Init(ctx context.Context, cfg Config) (*Providers, error) {
+	// If nothing is enabled, return nil so callers can skip telemetry.
+	if !cfg.EnableTraces && !cfg.EnableMetrics && !cfg.EnableLogs {
+		return nil, nil
+	}
+
 	// WithEndpoint() expects "host:port", not a URL.  Strip any scheme
 	// that may have been injected via OTEL_EXPORTER_OTLP_ENDPOINT.
 	endpoint := cfg.OTLPEndpoint
@@ -68,54 +78,64 @@ func Init(ctx context.Context, cfg Config) (*Providers, error) {
 		semconv.ServiceVersion(cfg.ServiceVersion),
 	)
 
+	p := &Providers{}
+
 	// ── Trace exporter → provider ───────────────────────────────────
-	traceExp, err := otlptracegrpc.New(ctx,
-		otlptracegrpc.WithEndpoint(endpoint),
-		otlptracegrpc.WithInsecure(),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("creating trace exporter: %w", err)
+	if cfg.EnableTraces {
+		traceExp, err := otlptracegrpc.New(ctx,
+			otlptracegrpc.WithEndpoint(endpoint),
+			otlptracegrpc.WithInsecure(),
+		)
+		if err != nil {
+			return nil, fmt.Errorf("creating trace exporter: %w", err)
+		}
+		tp := trace.NewTracerProvider(
+			trace.WithBatcher(traceExp, trace.WithBatchTimeout(5*time.Second)),
+			trace.WithResource(res),
+		)
+		otel.SetTracerProvider(tp)
+		p.TracerProvider = tp
 	}
-	tp := trace.NewTracerProvider(
-		trace.WithBatcher(traceExp, trace.WithBatchTimeout(5*time.Second)),
-		trace.WithResource(res),
-	)
-	otel.SetTracerProvider(tp)
+
+	// Always set the propagator so trace context is forwarded even when
+	// local trace export is disabled.
 	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
 		propagation.TraceContext{},
 		propagation.Baggage{},
 	))
 
 	// ── Metric exporter → provider ──────────────────────────────────
-	metricExp, err := otlpmetricgrpc.New(ctx,
-		otlpmetricgrpc.WithEndpoint(endpoint),
-		otlpmetricgrpc.WithInsecure(),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("creating metric exporter: %w", err)
+	if cfg.EnableMetrics {
+		metricExp, err := otlpmetricgrpc.New(ctx,
+			otlpmetricgrpc.WithEndpoint(endpoint),
+			otlpmetricgrpc.WithInsecure(),
+		)
+		if err != nil {
+			return nil, fmt.Errorf("creating metric exporter: %w", err)
+		}
+		mp := metric.NewMeterProvider(
+			metric.WithReader(metric.NewPeriodicReader(metricExp, metric.WithInterval(30*time.Second))),
+			metric.WithResource(res),
+		)
+		otel.SetMeterProvider(mp)
+		p.MeterProvider = mp
 	}
-	mp := metric.NewMeterProvider(
-		metric.WithReader(metric.NewPeriodicReader(metricExp, metric.WithInterval(30*time.Second))),
-		metric.WithResource(res),
-	)
-	otel.SetMeterProvider(mp)
 
 	// ── Log exporter → provider ─────────────────────────────────────
-	logExp, err := otlploggrpc.New(ctx,
-		otlploggrpc.WithEndpoint(endpoint),
-		otlploggrpc.WithInsecure(),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("creating log exporter: %w", err)
+	if cfg.EnableLogs {
+		logExp, err := otlploggrpc.New(ctx,
+			otlploggrpc.WithEndpoint(endpoint),
+			otlploggrpc.WithInsecure(),
+		)
+		if err != nil {
+			return nil, fmt.Errorf("creating log exporter: %w", err)
+		}
+		lp := sdklog.NewLoggerProvider(
+			sdklog.WithProcessor(sdklog.NewBatchProcessor(logExp)),
+			sdklog.WithResource(res),
+		)
+		p.LoggerProvider = lp
 	}
-	lp := sdklog.NewLoggerProvider(
-		sdklog.WithProcessor(sdklog.NewBatchProcessor(logExp)),
-		sdklog.WithResource(res),
-	)
 
-	return &Providers{
-		TracerProvider: tp,
-		MeterProvider:  mp,
-		LoggerProvider: lp,
-	}, nil
+	return p, nil
 }

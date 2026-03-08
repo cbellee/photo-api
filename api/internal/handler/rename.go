@@ -78,7 +78,6 @@ func RenameCollectionHandler(store storage.BlobStore, cfg *Config) http.HandlerF
 
 			// Copy blob to new location.
 			if err := store.CopyBlob(ctx, blob.Name, newBlobName, cfg.ImagesContainerName); err != nil {
-				slog.ErrorContext(ctx, "error copying blob during rename", "src", blob.Name, "dest", newBlobName, "error", err)
 				errors = append(errors, fmt.Sprintf("copy %s: %v", blob.Name, err))
 				continue
 			}
@@ -92,14 +91,12 @@ func RenameCollectionHandler(store storage.BlobStore, cfg *Config) http.HandlerF
 			newTags["name"] = newBlobName
 
 			if err := store.SetBlobTags(ctx, newBlobName, cfg.ImagesContainerName, newTags); err != nil {
-				slog.ErrorContext(ctx, "error setting tags on renamed blob", "blob", newBlobName, "error", err)
 				errors = append(errors, fmt.Sprintf("set tags %s: %v", newBlobName, err))
 				continue
 			}
 
 			// Delete old blob.
 			if err := store.DeleteBlob(ctx, blob.Name, cfg.ImagesContainerName); err != nil {
-				slog.ErrorContext(ctx, "error deleting old blob during rename", "blob", blob.Name, "error", err)
 				errors = append(errors, fmt.Sprintf("delete %s: %v", blob.Name, err))
 			}
 		}
@@ -192,7 +189,6 @@ func RenameAlbumHandler(store storage.BlobStore, cfg *Config) http.HandlerFunc {
 			newBlobName := replaceSecondSegment(blob.Name, req.NewName)
 
 			if err := store.CopyBlob(ctx, blob.Name, newBlobName, cfg.ImagesContainerName); err != nil {
-				slog.ErrorContext(ctx, "error copying blob during album rename", "src", blob.Name, "dest", newBlobName, "error", err)
 				errors = append(errors, fmt.Sprintf("copy %s: %v", blob.Name, err))
 				continue
 			}
@@ -205,13 +201,11 @@ func RenameAlbumHandler(store storage.BlobStore, cfg *Config) http.HandlerFunc {
 			newTags["name"] = newBlobName
 
 			if err := store.SetBlobTags(ctx, newBlobName, cfg.ImagesContainerName, newTags); err != nil {
-				slog.ErrorContext(ctx, "error setting tags on renamed blob", "blob", newBlobName, "error", err)
 				errors = append(errors, fmt.Sprintf("set tags %s: %v", newBlobName, err))
 				continue
 			}
 
 			if err := store.DeleteBlob(ctx, blob.Name, cfg.ImagesContainerName); err != nil {
-				slog.ErrorContext(ctx, "error deleting old blob during album rename", "blob", blob.Name, "error", err)
 				errors = append(errors, fmt.Sprintf("delete %s: %v", blob.Name, err))
 			}
 		}

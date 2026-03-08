@@ -21,6 +21,9 @@ func main() {
 		ServiceName:    "resize-service",
 		ServiceVersion: "1.0.0",
 		OTLPEndpoint:   utils.GetEnvValue("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317"),
+		EnableTraces:   utils.GetEnvValue("OTEL_TRACES_ENABLED", "true") == "true",
+		EnableMetrics:  utils.GetEnvValue("OTEL_METRICS_ENABLED", "true") == "true",
+		EnableLogs:     utils.GetEnvValue("OTEL_LOGS_ENABLED", "true") == "true",
 	}
 	providers, err := telemetry.Init(ctx, otelCfg)
 	if err != nil {

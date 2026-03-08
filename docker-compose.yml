@@ -13,6 +13,9 @@ services:
       SERVICE_NAME: photo
       SERVICE_PORT: "8080"
       OTEL_EXPORTER_OTLP_ENDPOINT: otel-collector:4317
+      OTEL_TRACES_ENABLED: "true"
+      OTEL_METRICS_ENABLED: "true"
+      OTEL_LOGS_ENABLED: "true"
       EMULATED_STORAGE_URL: http://localhost:10000
       BLOB_EMULATOR_URL: http://blobemu:10000
     depends_on:
@@ -31,6 +34,9 @@ services:
       SERVICE_NAME: resize
       SERVICE_PORT: "8081"
       OTEL_EXPORTER_OTLP_ENDPOINT: otel-collector:4317
+      OTEL_TRACES_ENABLED: "true"
+      OTEL_METRICS_ENABLED: "true"
+      OTEL_LOGS_ENABLED: "true"
       STORAGE_ACCOUNT_NAME: blobemu
       STORAGE_ACCOUNT_SUFFIX: "localhost:10000"
       EMULATED_STORAGE_URL: http://blobemu:10000

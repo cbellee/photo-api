@@ -116,8 +116,7 @@ func GetCollectionImage(store storage.BlobStore, ctx context.Context, cfg *Confi
 	query := fmt.Sprintf("@container='%s' and collection='%s' and collectionImage='true'", cfg.ImagesContainerName, collection)
 	filteredBlobs, err := store.FilterBlobsByTags(ctx, query, cfg.ImagesContainerName)
 	if err != nil {
-		slog.ErrorContext(ctx, "error getting blobs by tags", "error", err)
-		return nil, err
+		return nil, fmt.Errorf("getting collection image for %s: %w", collection, err)
 	}
 
 	if len(filteredBlobs) == 0 {
