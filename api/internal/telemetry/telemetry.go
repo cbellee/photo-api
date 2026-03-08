@@ -6,6 +6,7 @@ package telemetry
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"go.opentelemetry.io/otel"
@@ -51,6 +52,12 @@ func (p *Providers) Shutdown(ctx context.Context) {
 // Init creates OTLP/gRPC exporters and returns fully-wired Providers.
 // The caller must defer Providers.Shutdown().
 func Init(ctx context.Context, cfg Config) (*Providers, error) {
+	// WithEndpoint() expects "host:port", not a URL.  Strip any scheme
+	// that may have been injected via OTEL_EXPORTER_OTLP_ENDPOINT.
+	endpoint := cfg.OTLPEndpoint
+	endpoint = strings.TrimPrefix(endpoint, "http://")
+	endpoint = strings.TrimPrefix(endpoint, "https://")
+
 	// ── Resource (shared service identity) ──────────────────────────
 	// Avoid resource.Default() and the With*() detectors – they embed the
 	// SDK's built-in semconv schema URL (v1.39.0) which conflicts with our
@@ -63,7 +70,7 @@ func Init(ctx context.Context, cfg Config) (*Providers, error) {
 
 	// ── Trace exporter → provider ───────────────────────────────────
 	traceExp, err := otlptracegrpc.New(ctx,
-		otlptracegrpc.WithEndpoint(cfg.OTLPEndpoint),
+		otlptracegrpc.WithEndpoint(endpoint),
 		otlptracegrpc.WithInsecure(),
 	)
 	if err != nil {
@@ -81,7 +88,7 @@ func Init(ctx context.Context, cfg Config) (*Providers, error) {
 
 	// ── Metric exporter → provider ──────────────────────────────────
 	metricExp, err := otlpmetricgrpc.New(ctx,
-		otlpmetricgrpc.WithEndpoint(cfg.OTLPEndpoint),
+		otlpmetricgrpc.WithEndpoint(endpoint),
 		otlpmetricgrpc.WithInsecure(),
 	)
 	if err != nil {
@@ -95,7 +102,7 @@ func Init(ctx context.Context, cfg Config) (*Providers, error) {
 
 	// ── Log exporter → provider ─────────────────────────────────────
 	logExp, err := otlploggrpc.New(ctx,
-		otlploggrpc.WithEndpoint(cfg.OTLPEndpoint),
+		otlploggrpc.WithEndpoint(endpoint),
 		otlploggrpc.WithInsecure(),
 	)
 	if err != nil {
