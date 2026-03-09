@@ -68,6 +68,12 @@ spec:
               value: {{ .Values.resizeApi.env.servicePort | quote }}
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
               value: "{{ $otelFQDN }}:{{ .Values.otelCollector.service.otlpGrpcPort }}"
+            - name: OTEL_TRACES_ENABLED
+              value: {{ .Values.otel.tracesEnabled | quote }}
+            - name: OTEL_METRICS_ENABLED
+              value: {{ .Values.otel.metricsEnabled | quote }}
+            - name: OTEL_LOGS_ENABLED
+              value: {{ .Values.otel.logsEnabled | quote }}
             - name: EMULATED_STORAGE_URL
               value: "http://{{ $blobFQDN }}:{{ .Values.blobemu.service.port }}"
             - name: IMAGES_CONTAINER_NAME

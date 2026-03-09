@@ -360,6 +360,59 @@ func indexSubstring(s, sub string) int {
 
 // ── PhotoHandler edge cases ─────────────────────────────────────────
 
+func TestAlbumHandler_DeduplicatesDuplicateAlbumImages(t *testing.T) {
+	cfg := testConfig()
+
+	// Two blobs for the same album "soccer" both marked albumImage=true
+	dup1 := models.Blob{
+		Name: "sport/soccer/p1.jpg",
+		Path: "https://stor/images/sport/soccer/p1.jpg",
+		Tags: map[string]string{"collection": "sport", "album": "soccer", "albumImage": "true", "isDeleted": "false"},
+	}
+	dup2 := models.Blob{
+		Name: "sport/soccer/p2.jpg",
+		Path: "https://stor/images/sport/soccer/p2.jpg",
+		Tags: map[string]string{"collection": "sport", "album": "soccer", "albumImage": "true", "isDeleted": "false"},
+	}
+
+	mock := &storage.MockBlobStore{
+		GetBlobTagListFunc: func(ctx context.Context, containerName string) (map[string][]string, error) {
+			return map[string][]string{"sport": {"soccer"}}, nil
+		},
+		FilterBlobsByTagsFunc: func(ctx context.Context, query string, containerName string) ([]models.Blob, error) {
+			if contains(query, "albumImage='true'") {
+				return []models.Blob{dup1, dup2}, nil // two blobs for same album
+			}
+			return nil, nil
+		},
+		SetBlobTagsFunc: func(ctx context.Context, blobName string, containerName string, tags map[string]string) error {
+			// The stale duplicate should have albumImage cleared
+			assert.Equal(t, "sport/soccer/p2.jpg", blobName)
+			assert.Equal(t, "false", tags["albumImage"])
+			return nil
+		},
+		GetBlobTagsFunc: func(ctx context.Context, blobName string, containerName string) (map[string]string, error) {
+			return dup1.Tags, nil
+		},
+	}
+
+	handler := AlbumHandler(mock, cfg)
+	req := httptest.NewRequest("GET", "/api/sport", nil)
+	req.SetPathValue("collection", "sport")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var photos []models.Photo
+	err := json.Unmarshal(w.Body.Bytes(), &photos)
+	require.NoError(t, err)
+	assert.Len(t, photos, 1, "should deduplicate to one album thumbnail")
+	assert.Equal(t, "soccer", photos[0].Album)
+	assert.Len(t, mock.SetBlobTagsCalls, 1, "should clear stale albumImage tag on duplicate")
+}
+
 func TestPhotoHandler_StorageError_Returns500(t *testing.T) {
 	cfg := testConfig()
 	mock := &storage.MockBlobStore{

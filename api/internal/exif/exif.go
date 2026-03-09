@@ -2,7 +2,7 @@ package exif
 
 import (
 	"bytes"
-	"log/slog"
+	"fmt"
 
 	"github.com/rwcarlsen/goexif/exif"
 )
@@ -11,16 +11,13 @@ import (
 func GetExifJSON(data []byte) (string, error) {
 	exMeta, err := exif.Decode(bytes.NewReader(data))
 	if err != nil {
-		slog.Error("error reading exif data", "error", err)
-		return "", err
+		return "", fmt.Errorf("reading exif data: %w", err)
 	}
 
 	jsonByte, err := exMeta.MarshalJSON()
 	if err != nil {
-		slog.Error("error marshalling exif metadata to JSON")
-		return "", err
+		return "", fmt.Errorf("marshalling exif metadata to JSON: %w", err)
 	}
 
-	jsonString := string(jsonByte)
-	return jsonString, nil
+	return string(jsonByte), nil
 }

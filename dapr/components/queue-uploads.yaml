@@ -24,3 +24,5 @@ spec:
       value: "false"
     - name: direction
       value: "input"
+    - name: prefetchCount
+      value: "1"

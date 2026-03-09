@@ -5,10 +5,11 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"github.com/cbellee/photo-api/internal/models"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/cbellee/photo-api/internal/models"
 	"github.com/cbellee/photo-api/internal/utils"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
@@ -63,10 +64,10 @@ func faceRecogniserHandler(ctx context.Context, in *common.BindingEvent) (out []
 		slog.Error("error converting BindingEvent to struct", "error", err)
 	}
 
-	slog.Info("binding", uploadsQueueBinding, "url", evt.Data.Url, "eventTime", evt.EventTime, "metadata", in.Metadata)
+	slog.Info("binding", uploadsQueueBinding, "url", evt.Data.URL, "eventTime", evt.EventTime, "metadata", in.Metadata)
 
 	storageUrl := fmt.Sprintf("https://%s/", storageConfig.StorageAccount)
-	blobPath := strings.Split(evt.Data.Url, "https://")[1]
+	blobPath := strings.Split(evt.Data.URL, "https://")[1]
 	blobNameTemp := strings.Split(blobPath, "/")
 	blobName := blobNameTemp[len(blobNameTemp)-1]
 	blobContainer := strings.Split(blobPath, "/")[1]

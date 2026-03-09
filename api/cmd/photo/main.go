@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/cbellee/photo-api/internal/handler"
-	"github.com/cbellee/photo-api/internal/models"
 	"github.com/cbellee/photo-api/internal/storage"
 	"github.com/cbellee/photo-api/internal/telemetry"
 	"github.com/cbellee/photo-api/internal/utils"
@@ -21,7 +20,6 @@ import (
 	azlog "github.com/Azure/azure-sdk-for-go/sdk/azcore/log"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/MicahParks/keyfunc/v3"
-	"go.opentelemetry.io/contrib/bridges/otelslog"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
@@ -32,6 +30,9 @@ func main() {
 		ServiceName:    "photo-api",
 		ServiceVersion: "1.0.0",
 		OTLPEndpoint:   utils.GetEnvValue("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317"),
+		EnableTraces:   utils.GetEnvValue("OTEL_TRACES_ENABLED", "true") == "true",
+		EnableMetrics:  utils.GetEnvValue("OTEL_METRICS_ENABLED", "true") == "true",
+		EnableLogs:     utils.GetEnvValue("OTEL_LOGS_ENABLED", "true") == "true",
 	}
 	providers, err := telemetry.Init(ctx, otelCfg)
 	if err != nil {
@@ -70,20 +71,7 @@ func main() {
 	}
 
 	// ── Logging (stdout JSON + OTel fan-out) ─────────────────────────
-	stdoutHandler := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-		AddSource: true,
-		Level:     slog.LevelInfo,
-	})
-	var logger *slog.Logger
-	if providers != nil {
-		otelHandler := otelslog.NewHandler("photo-api",
-			otelslog.WithLoggerProvider(providers.LoggerProvider),
-		)
-		logger = slog.New(telemetry.NewFanoutHandler(stdoutHandler, otelHandler))
-	} else {
-		logger = slog.New(stdoutHandler)
-	}
-	slog.SetDefault(logger)
+	telemetry.SetupLogger("photo-api", providers)
 	slog.Info("cors origins", "origins", cfg.CorsOrigins)
 	slog.Info("storage url", "url", storageUrl)
 
@@ -94,24 +82,10 @@ func main() {
 	azlog.SetEvents(azidentity.EventAuthentication)
 
 	// ── Create blob store ───────────────────────────────────────────
-	var store storage.BlobStore
-	if blobEmuURL := utils.GetEnvValue("BLOB_EMULATOR_URL", ""); blobEmuURL != "" {
-		slog.Info("using local blob emulator", "url", blobEmuURL)
-		store = storage.NewLocalBlobStore(blobEmuURL, storageUrl)
-	} else {
-		isProduction := false
-		if _, exists := os.LookupEnv("CONTAINER_APP_NAME"); exists {
-			isProduction = true
-		} else {
-			slog.Info("'CONTAINER_APP_NAME' env var not found, running in local environment")
-		}
-
-		blobClient, err := utils.CreateAzureBlobClient(storageUrl, isProduction, azureClientId)
-		if err != nil {
-			slog.Error("error creating blob client", "error", err)
-			return
-		}
-		store = storage.NewAzureBlobStore(blobClient, storageUrl)
+	store, err := storage.NewBlobStore(storageUrl, azureClientId)
+	if err != nil {
+		slog.Error("error creating blob store", "error", err)
+		return
 	}
 
 	// ── Routes ──────────────────────────────────────────────────────
@@ -163,6 +137,10 @@ func main() {
 	api.HandleFunc("DELETE /api/{collection}", handler.RequireRole(cfg, handler.SoftDeleteCollectionHandler(store, cfg)))
 	api.HandleFunc("DELETE /api/{collection}/{album}", handler.RequireRole(cfg, handler.SoftDeleteAlbumHandler(store, cfg)))
 
+	// Admin: restore (undelete) a soft-deleted collection or album
+	api.HandleFunc("PATCH /api/{collection}/{album}", handler.RequireRole(cfg, handler.RestoreAlbumHandler(store, cfg)))
+	api.HandleFunc("PATCH /api/{collection}", handler.RequireRole(cfg, handler.RestoreCollectionHandler(store, cfg)))
+
 	// Admin: thumbnail management (rotate or change thumbnail image)
 	api.HandleFunc("PUT /api/thumbnail/{collection}", handler.RequireRole(cfg, handler.ThumbnailCollectionHandler(store, cfg)))
 	api.HandleFunc("PUT /api/thumbnail/{collection}/{album}", handler.RequireRole(cfg, handler.ThumbnailAlbumHandler(store, cfg)))
@@ -174,7 +152,7 @@ func main() {
 
 	c := cors.New(cors.Options{
 		AllowedOrigins:   cfg.CorsOrigins,
-		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"},
+		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"},
 		AllowedHeaders:   []string{"Origin", "X-Requested-With", "Content-Type", "Accept", "Authorization"},
 		AllowCredentials: true,
 		MaxAge:           300,
@@ -221,7 +199,4 @@ func main() {
 	jwksCancel()
 
 	slog.Info("server stopped")
-
-	// Keep models import used (StorageConfig is referenced in config for backwards compat).
-	_ = models.StorageConfig{}
 }

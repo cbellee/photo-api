@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -17,7 +19,7 @@ type BlobEvent struct {
 	Topic           string        `json:"topic"`
 	Subject         string        `json:"subject"`
 	EventType       string        `json:"eventType"`
-	Id              string        `json:"id"`
+	ID              string        `json:"id"`
 	DataVersion     string        `json:"dataVersion"`
 	MetadataVersion string        `json:"metadataVersion"`
 	EventTime       string        `json:"eventTime"`
@@ -26,14 +28,14 @@ type BlobEvent struct {
 
 // BlobEventData carries the payload of a blob-storage event.
 type BlobEventData struct {
-	Api                string                 `json:"api"`
+	API                string                 `json:"api"`
 	ClientRequestId    string                 `json:"clientRequestId"`
 	RequestId          string                 `json:"requestId"`
 	ETag               string                 `json:"eTag"`
 	ContentType        string                 `json:"contentType"`
 	ContentLength      int32                  `json:"contentLength"`
 	BlobType           string                 `json:"blobType"`
-	Url                string                 `json:"url"`
+	URL                string                 `json:"url"`
 	Sequencer          string                 `json:"sequencer"`
 	StorageDiagnostics StorageDiagnosticsData `json:"storageDiagnostics"`
 }
@@ -130,26 +132,38 @@ func (p *Publisher) Close() {
 	p.conn.Close()
 }
 
+// encodeBlobPath percent-encodes each segment of a blob path so the
+// resulting URL is valid RFC 3986.  Slashes between segments are preserved.
+func encodeBlobPath(name string) string {
+	segments := strings.Split(name, "/")
+	for i, seg := range segments {
+		segments[i] = url.PathEscape(seg)
+	}
+	return strings.Join(segments, "/")
+}
+
 // PublishBlobCreated sends an Event-Grid-compatible BlobCreated event.
 func (p *Publisher) PublishBlobCreated(container, name, contentType string, size int) error {
 	if p == nil {
 		return nil // publishing disabled
 	}
 
+	blobURL := fmt.Sprintf("%s/%s/%s", p.baseURL, url.PathEscape(container), encodeBlobPath(name))
+
 	evt := BlobEvent{
 		Topic:           fmt.Sprintf("/blobServices/default/containers/%s", container),
 		Subject:         fmt.Sprintf("/blobServices/default/containers/%s/blobs/%s", container, name),
 		EventType:       "Microsoft.Storage.BlobCreated",
-		Id:              uuid.New().String(),
+		ID:              uuid.New().String(),
 		DataVersion:     "1",
 		MetadataVersion: "1",
 		EventTime:       time.Now().UTC().Format(time.RFC3339),
 		Data: BlobEventData{
-			Api:           "PutBlob",
+			API:           "PutBlob",
 			ContentType:   contentType,
 			ContentLength: int32(size),
 			BlobType:      "BlockBlob",
-			Url:           fmt.Sprintf("%s/%s/%s", p.baseURL, container, name),
+			URL:           blobURL,
 		},
 	}
 
@@ -175,6 +189,6 @@ func (p *Publisher) PublishBlobCreated(container, name, contentType string, size
 		return fmt.Errorf("publishing event: %w", err)
 	}
 
-	slog.Info("published BlobCreated event", "container", container, "blob", name, "url", evt.Data.Url)
+	slog.Info("published BlobCreated event", "container", container, "blob", name, "url", evt.Data.URL)
 	return nil
 }

@@ -40,9 +40,19 @@ func NewHandler(store storage.BlobStore, cfg *Config) *Handler {
 }
 
 // Resize is the Dapr binding invocation handler for image-resize events.
-func (h *Handler) Resize(ctx context.Context, in *common.BindingEvent) ([]byte, error) {
+// It always returns nil so Dapr ACKs the message.  Returning a non-nil
+// error causes Dapr to NACK the RabbitMQ message, which requeues it and
+// creates an infinite retry loop for non-transient failures (e.g. 404).
+func (h *Handler) Resize(ctx context.Context, in *common.BindingEvent) (out []byte, err error) {
 	ctx, span := tracer.Start(ctx, "resize.Resize")
 	defer span.End()
+	defer func() {
+		if err != nil {
+			slog.ErrorContext(ctx, "resize failed (message acknowledged to prevent requeue)", "error", err)
+			span.RecordError(err)
+			err = nil // ACK — reprocessing will not fix non-transient errors
+		}
+	}()
 
 	if in == nil {
 		return nil, fmt.Errorf("received nil binding event")
@@ -51,15 +61,13 @@ func (h *Handler) Resize(ctx context.Context, in *common.BindingEvent) ([]byte, 
 	// Parse the incoming event.
 	evt, err := utils.ConvertToEvent(in)
 	if err != nil {
-		slog.ErrorContext(ctx, "error converting binding event", "error", err)
 		return nil, fmt.Errorf("converting binding event: %w", err)
 	}
 	h.logEvent(ctx, evt, in)
 
 	// Decompose the blob URL.
-	ref, err := parseBlobRef(evt.Data.Url)
+	ref, err := parseBlobRef(evt.Data.URL)
 	if err != nil {
-		slog.ErrorContext(ctx, "error parsing blob URL", "url", evt.Data.Url, "error", err)
 		return nil, fmt.Errorf("parsing blob URL: %w", err)
 	}
 	span.SetAttributes(
@@ -73,33 +81,28 @@ func (h *Handler) Resize(ctx context.Context, in *common.BindingEvent) ([]byte, 
 	// Download the source blob.
 	blobBytes, err := h.store.GetBlob(ctx, ref.path, ref.container)
 	if err != nil {
-		slog.ErrorContext(ctx, "error downloading blob", "path", ref.path, "error", err)
 		return nil, fmt.Errorf("downloading blob %s: %w", ref.path, err)
 	}
 
 	// Fetch existing tags and metadata.
 	tags, err := h.store.GetBlobTags(ctx, ref.path, ref.container)
 	if err != nil {
-		slog.ErrorContext(ctx, "error getting blob tags", "path", ref.path, "error", err)
 		return nil, fmt.Errorf("getting blob tags for %s: %w", ref.path, err)
 	}
 	metadata, err := h.store.GetBlobMetadata(ctx, ref.path, ref.container)
 	if err != nil {
-		slog.ErrorContext(ctx, "error getting blob metadata", "path", ref.path, "error", err)
 		return nil, fmt.Errorf("getting blob metadata for %s: %w", ref.path, err)
 	}
 
 	// Resize the image.
 	imgBytes, err := utils.ResizeImage(blobBytes, evt.Data.ContentType, ref.path, h.cfg.MaxImageHeight, h.cfg.MaxImageWidth)
 	if err != nil {
-		slog.ErrorContext(ctx, "error resizing image", "path", ref.path, "error", err)
 		return nil, fmt.Errorf("resizing image %s: %w", ref.path, err)
 	}
 
 	// Read the dimensions of the resized image.
 	imgCfg, _, err := image.DecodeConfig(bytes.NewReader(imgBytes))
 	if err != nil {
-		slog.ErrorContext(ctx, "error decoding resized image config", "path", ref.path, "error", err)
 		return nil, fmt.Errorf("decoding resized image config %s: %w", ref.path, err)
 	}
 	slog.InfoContext(ctx, "resized image", "path", ref.path, "height", imgCfg.Height, "width", imgCfg.Width, "bytes", len(imgBytes))
@@ -112,9 +115,14 @@ func (h *Handler) Resize(ctx context.Context, in *common.BindingEvent) ([]byte, 
 	// Save the resized image to the images container.
 	err = h.store.SaveBlob(ctx, imgBytes, ref.path, h.cfg.ImagesContainerName, tags, metadata, evt.Data.ContentType)
 	if err != nil {
-		slog.ErrorContext(ctx, "error saving resized blob", "path", ref.path, "error", err)
 		return nil, fmt.Errorf("saving resized blob %s: %w", ref.path, err)
 	}
+
+	// Delete the original upload now that the resized copy is saved.
+	if err := h.store.DeleteBlob(ctx, ref.path, ref.container); err != nil {
+		return nil, fmt.Errorf("deleting source blob %s/%s: %w", ref.container, ref.path, err)
+	}
+	slog.InfoContext(ctx, "deleted source blob after successful resize", "path", ref.path, "container", ref.container)
 
 	return nil, nil
 }
@@ -147,13 +155,13 @@ func (h *Handler) logEvent(ctx context.Context, evt models.Event, in *common.Bin
 		"subject", evt.Subject,
 		"topic", evt.Topic,
 		"event_time", evt.EventTime,
-		"id", evt.Id,
-		"api", evt.Data.Api,
+		"id", evt.ID,
+		"api", evt.Data.API,
 		"type", evt.EventType,
 		"content_length", evt.Data.ContentLength,
 		"content_type", evt.Data.ContentType,
 		"etag", evt.Data.ETag,
 		"metadata", in.Metadata,
-		"url", evt.Data.Url,
+		"url", evt.Data.URL,
 	)
 }

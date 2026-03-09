@@ -195,6 +195,7 @@ func blobGetHandler(store *Store) http.HandlerFunc {
 			return
 		}
 		comp := r.URL.Query().Get("comp")
+		slog.Info("GET blob", "container", container, "blob", blob, "comp", comp, "rawPath", r.URL.RawPath)
 
 		switch comp {
 		case "tags":
@@ -236,6 +237,7 @@ func blobPutHandler(store *Store, pub *Publisher, publishContainer string, maxBo
 			return
 		}
 		comp := r.URL.Query().Get("comp")
+		slog.Info("PUT blob", "container", container, "blob", blob, "comp", comp, "rawPath", r.URL.RawPath)
 
 		switch comp {
 		case "tags":

@@ -77,35 +77,20 @@ func createTestBindingEvent(url string, contentType string, contentLength int32)
 		Topic:           "/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.Storage/storageAccounts/teststorage",
 		Subject:         "/blobServices/default/containers/uploads/blobs/collection1/album1/test-image.jpg",
 		EventType:       "Microsoft.Storage.BlobCreated",
-		Id:              "test-event-id-12345",
+		ID:              "test-event-id-12345",
 		DataVersion:     "1.0",
 		MetadataVersion: "1",
 		EventTime:       "2023-01-01T12:00:00.0000000Z",
-		Data: struct {
-			Api                string
-			ClientRequestId    string
-			RequestId          string
-			ETag               string
-			ContentType        string
-			ContentLength      int32
-			BlobType           string
-			Url                string
-			Sequencer          string
-			StorageDiagnostics struct {
-				BatchId string
-			}
-		}{
-			Api:           "PutBlob",
+		Data: models.EventData{
+			API:           "PutBlob",
 			RequestId:     "test-request-id",
 			ETag:          "test-etag",
 			ContentType:   contentType,
 			ContentLength: contentLength,
 			BlobType:      "BlockBlob",
-			Url:           url,
+			URL:           url,
 			Sequencer:     "00000000000000EB0000000000046199",
-			StorageDiagnostics: struct {
-				BatchId string
-			}{
+			StorageDiagnostics: models.StorageDiagnosticsData{
 				BatchId: "test-batch-id",
 			},
 		},
@@ -240,18 +225,10 @@ func TestResizeHandler(t *testing.T) {
 
 			result, err := h.Resize(ctx, event)
 
-			if tt.expectError {
-				assert.Error(t, err, "Expected an error for test case: %s", tt.description)
-				assert.Nil(t, result, "Expected nil result when error occurs")
-			} else {
-				assert.NoError(t, err, "Expected no error for test case: %s", tt.description)
-				assert.NotNil(t, result, "Expected non-nil result for successful case")
-			}
-
-			if tt.errorContains != "" && err != nil {
-				assert.Contains(t, err.Error(), tt.errorContains,
-					"Error message should contain expected text")
-			}
+			// Handler always ACKs the message (returns nil error) to prevent
+			// infinite requeue in Dapr/RabbitMQ. Errors are logged internally.
+			assert.NoError(t, err, "Handler must always return nil to ACK the message")
+			assert.Nil(t, result)
 		})
 	}
 }
@@ -318,11 +295,8 @@ func TestResizeHandler_URLParsing(t *testing.T) {
 
 			_, err := h.Resize(ctx, event)
 
-			if tt.expectError {
-				assert.Error(t, err, "Expected error for %s", tt.description)
-			} else {
-				assert.NoError(t, err, "Expected no error for %s", tt.description)
-			}
+			// Handler always ACKs the message (returns nil) to prevent requeue.
+			assert.NoError(t, err)
 		})
 	}
 }
@@ -381,11 +355,8 @@ func TestResizeHandler_ConfigDimensions(t *testing.T) {
 
 			_, err := h.Resize(ctx, event)
 
-			if tt.expectError {
-				assert.Error(t, err, "Expected error for %s", tt.description)
-			} else {
-				assert.NoError(t, err, "Expected no error for %s", tt.description)
-			}
+			// Handler always ACKs the message (returns nil) to prevent requeue.
+			assert.NoError(t, err)
 		})
 	}
 }
@@ -442,11 +413,8 @@ func TestResizeHandler_InputValidation(t *testing.T) {
 
 			_, err := h.Resize(ctx, tt.event)
 
-			if tt.expectError {
-				assert.Error(t, err, "Expected error for %s", tt.description)
-			} else {
-				assert.NoError(t, err, "Expected no error for %s", tt.description)
-			}
+			// Handler always ACKs the message (returns nil) to prevent requeue.
+			assert.NoError(t, err)
 		})
 	}
 }
@@ -499,11 +467,8 @@ func TestResizeHandler_ContextHandling(t *testing.T) {
 
 			_, err := h.Resize(ctx, event)
 
-			if tt.expectError {
-				assert.Error(t, err, "Expected error for %s", tt.description)
-			} else {
-				assert.NoError(t, err, "Expected no error for %s", tt.description)
-			}
+			// Handler always ACKs the message (returns nil) to prevent requeue.
+			assert.NoError(t, err)
 		})
 	}
 }
@@ -520,8 +485,8 @@ func TestResizeHandler_ErrorHandling(t *testing.T) {
 
 		result, err := h.Resize(ctx, event)
 
-		// Should propagate errors from utility functions
-		assert.Error(t, err)
+		// Handler always ACKs the message (returns nil) to prevent requeue.
+		assert.NoError(t, err)
 		assert.Nil(t, result)
 	})
 }
@@ -729,6 +694,9 @@ func TestResizeHandler_HappyPath(t *testing.T) {
 			savedMeta = metadata
 			return nil
 		},
+		DeleteBlobFunc: func(ctx context.Context, blobName string, containerName string) error {
+			return nil
+		},
 	}
 
 	h := NewHandler(mock, cfg)
@@ -773,6 +741,9 @@ func TestResizeHandler_HappyPath_SmallImage(t *testing.T) {
 			savedBlob = data
 			return nil
 		},
+		DeleteBlobFunc: func(ctx context.Context, blobName string, containerName string) error {
+			return nil
+		},
 	}
 
 	h := NewHandler(mock, cfg)
@@ -802,8 +773,8 @@ func TestResizeHandler_GetBlobError(t *testing.T) {
 
 	_, err := h.Resize(ctx, event)
 
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "downloading blob")
+	// Handler always ACKs to prevent requeue; error is logged, not returned.
+	require.NoError(t, err)
 }
 
 func TestResizeHandler_GetBlobTagsError(t *testing.T) {
@@ -826,8 +797,8 @@ func TestResizeHandler_GetBlobTagsError(t *testing.T) {
 
 	_, err := h.Resize(ctx, event)
 
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "getting blob tags")
+	// Handler always ACKs to prevent requeue; error is logged, not returned.
+	require.NoError(t, err)
 }
 
 func TestResizeHandler_SaveBlobError(t *testing.T) {
@@ -858,8 +829,84 @@ func TestResizeHandler_SaveBlobError(t *testing.T) {
 
 	_, err := h.Resize(ctx, event)
 
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "saving resized blob")
+	// Handler always ACKs to prevent requeue; error is logged, not returned.
+	require.NoError(t, err)
+}
+
+func TestResizeHandler_DeleteSourceBlobAfterResize(t *testing.T) {
+	cfg := testConfig()
+	cfg.MaxImageHeight = 600
+	cfg.MaxImageWidth = 800
+	srcJPEG := makeTestJPEG(t, 2000, 1500)
+
+	var deletedBlobName, deletedContainer string
+
+	mock := &storage.MockBlobStore{
+		GetBlobFunc: func(ctx context.Context, blobName string, containerName string) ([]byte, error) {
+			return srcJPEG, nil
+		},
+		GetBlobTagsFunc: func(ctx context.Context, blobName string, containerName string) (map[string]string, error) {
+			return map[string]string{"collection": "c", "album": "a"}, nil
+		},
+		GetBlobMetadataFunc: func(ctx context.Context, blobName string, containerName string) (map[string]string, error) {
+			return map[string]string{}, nil
+		},
+		SaveBlobFunc: func(ctx context.Context, data []byte, blobName string, containerName string, tags map[string]string, metadata map[string]string, contentType string) error {
+			return nil
+		},
+		DeleteBlobFunc: func(ctx context.Context, blobName string, containerName string) error {
+			deletedBlobName = blobName
+			deletedContainer = containerName
+			return nil
+		},
+	}
+
+	h := NewHandler(mock, cfg)
+	ctx := context.Background()
+	testURL := "https://teststorage.blob.core.windows.net/uploads/collection1/album1/test-image.jpg"
+	event := createTestBindingEvent(testURL, "image/jpeg", int32(len(srcJPEG)))
+
+	_, err := h.Resize(ctx, event)
+	require.NoError(t, err)
+
+	assert.Equal(t, "collection1/album1/test-image.jpg", deletedBlobName, "should delete the source blob path")
+	assert.Equal(t, "uploads", deletedContainer, "should delete from the uploads container")
+	require.Len(t, mock.DeleteBlobCalls, 1)
+}
+
+func TestResizeHandler_DeleteSourceBlobError(t *testing.T) {
+	cfg := testConfig()
+	cfg.MaxImageHeight = 600
+	cfg.MaxImageWidth = 800
+	srcJPEG := makeTestJPEG(t, 100, 100)
+
+	mock := &storage.MockBlobStore{
+		GetBlobFunc: func(ctx context.Context, blobName string, containerName string) ([]byte, error) {
+			return srcJPEG, nil
+		},
+		GetBlobTagsFunc: func(ctx context.Context, blobName string, containerName string) (map[string]string, error) {
+			return map[string]string{}, nil
+		},
+		GetBlobMetadataFunc: func(ctx context.Context, blobName string, containerName string) (map[string]string, error) {
+			return map[string]string{}, nil
+		},
+		SaveBlobFunc: func(ctx context.Context, data []byte, blobName string, containerName string, tags map[string]string, metadata map[string]string, contentType string) error {
+			return nil
+		},
+		DeleteBlobFunc: func(ctx context.Context, blobName string, containerName string) error {
+			return assert.AnError
+		},
+	}
+
+	h := NewHandler(mock, cfg)
+	ctx := context.Background()
+	testURL := "https://teststorage.blob.core.windows.net/uploads/c/a/f.jpg"
+	event := createTestBindingEvent(testURL, "image/jpeg", int32(len(srcJPEG)))
+
+	_, err := h.Resize(ctx, event)
+
+	// Handler always ACKs to prevent requeue; error is logged, not returned.
+	require.NoError(t, err)
 }
 
 func TestResizeHandler_GetBlobMetadataError(t *testing.T) {
@@ -887,6 +934,6 @@ func TestResizeHandler_GetBlobMetadataError(t *testing.T) {
 
 	_, err := h.Resize(ctx, event)
 
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "getting blob metadata")
+	// Handler always ACKs to prevent requeue; error is logged, not returned.
+	require.NoError(t, err)
 }

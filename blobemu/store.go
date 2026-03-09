@@ -23,12 +23,6 @@ func capitaliseKey(key string) string {
 	return string(unicode.ToUpper(r)) + key[size:]
 }
 
-// joinStrings joins a string slice with a separator (avoids importing strings
-// in hot path for a tiny helper).
-func joinStrings(elems []string, sep string) string {
-	return strings.Join(elems, sep)
-}
-
 // BlobInfo is the JSON-serialisable representation of a stored blob.
 type BlobInfo struct {
 	Name      string            `json:"name"`
@@ -200,42 +194,87 @@ func (s *Store) SetTags(container, name string, tags map[string]string) error {
 	return tx.Commit()
 }
 
-// DeleteBlob soft-deletes a blob by setting its deleted_at timestamp.
-// The blob data remains on disk and can be restored later.
+// DeleteBlob permanently deletes a blob: removes the DB row (plus
+// associated tags/metadata) and the file from disk.
 // Returns nil if the blob does not exist (idempotent).
 func (s *Store) DeleteBlob(container, name string) error {
-	result, err := s.db.Exec(
-		"UPDATE blobs SET deleted_at = CURRENT_TIMESTAMP WHERE container = ? AND name = ? AND deleted_at IS NULL",
+	// Look up the blob id so we can cascade-delete tags & metadata.
+	var blobID int64
+	err := s.db.QueryRow(
+		"SELECT id FROM blobs WHERE container = ? AND name = ?",
 		container, name,
-	)
+	).Scan(&blobID)
 	if err != nil {
-		return fmt.Errorf("soft-deleting blob: %w", err)
+		slog.Debug("blob not found for delete", "container", container, "name", name)
+		return nil
 	}
 
-	n, _ := result.RowsAffected()
-	if n == 0 {
-		slog.Debug("blob already deleted or not found", "container", container, "name", name)
-	} else {
-		slog.Debug("soft-deleted blob", "container", container, "name", name)
+	// Delete tags, metadata, then the blob row.
+	tx, err := s.db.Begin()
+	if err != nil {
+		return fmt.Errorf("begin tx for delete: %w", err)
 	}
+	defer tx.Rollback() //nolint:errcheck
+
+	if _, err := tx.Exec("DELETE FROM tags WHERE blob_id = ?", blobID); err != nil {
+		return fmt.Errorf("deleting tags: %w", err)
+	}
+	if _, err := tx.Exec("DELETE FROM metadata WHERE blob_id = ?", blobID); err != nil {
+		return fmt.Errorf("deleting metadata: %w", err)
+	}
+	if _, err := tx.Exec("DELETE FROM blobs WHERE id = ?", blobID); err != nil {
+		return fmt.Errorf("deleting blob row: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit delete tx: %w", err)
+	}
+
+	return s.removeFile(container, name)
+}
+
+// removeFile deletes the blob file from disk and prunes empty parent dirs.
+func (s *Store) removeFile(container, name string) error {
+	p := s.blobPath(container, name)
+	if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
+		slog.Warn("failed to remove blob file", "path", p, "error", err)
+	} else {
+		slog.Debug("removed blob file", "path", p)
+	}
+
+	// Clean up empty parent directories up to the container root.
+	containerRoot := filepath.Join(s.dataDir, "blobs", container)
+	dir := filepath.Dir(p)
+	for dir != containerRoot && strings.HasPrefix(dir, containerRoot) {
+		entries, err := os.ReadDir(dir)
+		if err != nil || len(entries) > 0 {
+			break
+		}
+		os.Remove(dir)
+		dir = filepath.Dir(dir)
+	}
+
+	slog.Debug("permanently deleted blob", "container", container, "name", name)
 	return nil
 }
 
 // ---------- read operations ----------
 
 // GetBlob returns the raw bytes and content-type.
+// The blob must exist both on disk AND in the database; orphaned files
+// (left over from a previous run whose DB was recreated) are treated as
+// not-found so behaviour is consistent with GetTags / GetMetadata.
 func (s *Store) GetBlob(container, name string) ([]byte, string, error) {
+	var ct string
+	if err := s.db.QueryRow("SELECT content_type FROM blobs WHERE container = ? AND name = ? AND deleted_at IS NULL", container, name).Scan(&ct); err != nil {
+		return nil, "", fmt.Errorf("blob not found %s/%s", container, name)
+	}
+
 	data, err := os.ReadFile(s.blobPath(container, name))
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, "", fmt.Errorf("blob not found: %s/%s", container, name)
 		}
 		return nil, "", fmt.Errorf("reading blob: %w", err)
-	}
-
-	var ct string
-	if err := s.db.QueryRow("SELECT content_type FROM blobs WHERE container = ? AND name = ? AND deleted_at IS NULL", container, name).Scan(&ct); err != nil {
-		ct = "application/octet-stream"
 	}
 	return data, ct, nil
 }
@@ -347,7 +386,7 @@ func (s *Store) FilterByTags(query string) ([]BlobInfo, error) {
 		ids[i] = br.id
 		placeholders[i] = "?"
 	}
-	inClause := "(" + joinStrings(placeholders, ",") + ")"
+	inClause := "(" + strings.Join(placeholders, ",") + ")"
 
 	// Step 2: bulk-fetch tags.
 	tagMap := make(map[int64]map[string]string)
