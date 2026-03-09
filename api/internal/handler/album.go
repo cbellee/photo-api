@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/cbellee/photo-api/internal/models"
 	"github.com/cbellee/photo-api/internal/storage"
 	"go.opentelemetry.io/otel/attribute"
 )
@@ -41,12 +42,27 @@ func AlbumHandler(store storage.BlobStore, cfg *Config) http.HandlerFunc {
 		query := fmt.Sprintf("@container='%s' and collection='%s' and albumImage='true' and isDeleted='false'", cfg.ImagesContainerName, collection)
 		markedBlobs, _ := store.FilterBlobsByTags(ctx, query, cfg.ImagesContainerName)
 
+		// Deduplicate: keep only the first blob per album and clear
+		// the stale albumImage tag on any extras (race between concurrent requests
+		// can cause two blobs to be tagged for the same album).
 		markedAlbums := make(map[string]bool)
+		var dedupBlobs []models.Blob
 		for _, b := range markedBlobs {
-			if a, ok := b.Tags["album"]; ok {
-				markedAlbums[a] = true
+			a := b.Tags["album"]
+			if markedAlbums[a] {
+				// Stale duplicate — clear the tag asynchronously.
+				b.Tags["albumImage"] = "false"
+				if err := store.SetBlobTags(ctx, b.Name, cfg.ImagesContainerName, b.Tags); err != nil {
+					slog.ErrorContext(ctx, "error clearing stale albumImage tag", "blob", b.Name, "error", err)
+				} else {
+					slog.InfoContext(ctx, "cleared stale albumImage", "collection", collection, "album", a, "blob", b.Name)
+				}
+				continue
 			}
+			markedAlbums[a] = true
+			dedupBlobs = append(dedupBlobs, b)
 		}
+		markedBlobs = dedupBlobs
 
 		// 3. For every album that is NOT yet marked, pick one non-deleted image and tag it.
 		for _, album := range albums {

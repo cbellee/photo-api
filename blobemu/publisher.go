@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -130,11 +132,23 @@ func (p *Publisher) Close() {
 	p.conn.Close()
 }
 
+// encodeBlobPath percent-encodes each segment of a blob path so the
+// resulting URL is valid RFC 3986.  Slashes between segments are preserved.
+func encodeBlobPath(name string) string {
+	segments := strings.Split(name, "/")
+	for i, seg := range segments {
+		segments[i] = url.PathEscape(seg)
+	}
+	return strings.Join(segments, "/")
+}
+
 // PublishBlobCreated sends an Event-Grid-compatible BlobCreated event.
 func (p *Publisher) PublishBlobCreated(container, name, contentType string, size int) error {
 	if p == nil {
 		return nil // publishing disabled
 	}
+
+	blobURL := fmt.Sprintf("%s/%s/%s", p.baseURL, url.PathEscape(container), encodeBlobPath(name))
 
 	evt := BlobEvent{
 		Topic:           fmt.Sprintf("/blobServices/default/containers/%s", container),
@@ -149,7 +163,7 @@ func (p *Publisher) PublishBlobCreated(container, name, contentType string, size
 			ContentType:   contentType,
 			ContentLength: int32(size),
 			BlobType:      "BlockBlob",
-			URL:           fmt.Sprintf("%s/%s/%s", p.baseURL, container, name),
+			URL:           blobURL,
 		},
 	}
 

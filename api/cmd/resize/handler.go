@@ -40,12 +40,17 @@ func NewHandler(store storage.BlobStore, cfg *Config) *Handler {
 }
 
 // Resize is the Dapr binding invocation handler for image-resize events.
+// It always returns nil so Dapr ACKs the message.  Returning a non-nil
+// error causes Dapr to NACK the RabbitMQ message, which requeues it and
+// creates an infinite retry loop for non-transient failures (e.g. 404).
 func (h *Handler) Resize(ctx context.Context, in *common.BindingEvent) (out []byte, err error) {
 	ctx, span := tracer.Start(ctx, "resize.Resize")
 	defer span.End()
 	defer func() {
 		if err != nil {
-			slog.ErrorContext(ctx, "resize failed", "error", err)
+			slog.ErrorContext(ctx, "resize failed (message acknowledged to prevent requeue)", "error", err)
+			span.RecordError(err)
+			err = nil // ACK — reprocessing will not fix non-transient errors
 		}
 	}()
 

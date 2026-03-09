@@ -39,6 +39,7 @@ services:
       OTEL_LOGS_ENABLED: "true"
       STORAGE_ACCOUNT_NAME: blobemu
       STORAGE_ACCOUNT_SUFFIX: "localhost:10000"
+      BLOB_EMULATOR_URL: http://blobemu:10000
       EMULATED_STORAGE_URL: http://blobemu:10000
       IMAGES_CONTAINER_NAME: images
       MAX_IMAGE_HEIGHT: "1200"

@@ -225,18 +225,10 @@ func TestResizeHandler(t *testing.T) {
 
 			result, err := h.Resize(ctx, event)
 
-			if tt.expectError {
-				assert.Error(t, err, "Expected an error for test case: %s", tt.description)
-				assert.Nil(t, result, "Expected nil result when error occurs")
-			} else {
-				assert.NoError(t, err, "Expected no error for test case: %s", tt.description)
-				assert.NotNil(t, result, "Expected non-nil result for successful case")
-			}
-
-			if tt.errorContains != "" && err != nil {
-				assert.Contains(t, err.Error(), tt.errorContains,
-					"Error message should contain expected text")
-			}
+			// Handler always ACKs the message (returns nil error) to prevent
+			// infinite requeue in Dapr/RabbitMQ. Errors are logged internally.
+			assert.NoError(t, err, "Handler must always return nil to ACK the message")
+			assert.Nil(t, result)
 		})
 	}
 }
@@ -303,11 +295,8 @@ func TestResizeHandler_URLParsing(t *testing.T) {
 
 			_, err := h.Resize(ctx, event)
 
-			if tt.expectError {
-				assert.Error(t, err, "Expected error for %s", tt.description)
-			} else {
-				assert.NoError(t, err, "Expected no error for %s", tt.description)
-			}
+			// Handler always ACKs the message (returns nil) to prevent requeue.
+			assert.NoError(t, err)
 		})
 	}
 }
@@ -366,11 +355,8 @@ func TestResizeHandler_ConfigDimensions(t *testing.T) {
 
 			_, err := h.Resize(ctx, event)
 
-			if tt.expectError {
-				assert.Error(t, err, "Expected error for %s", tt.description)
-			} else {
-				assert.NoError(t, err, "Expected no error for %s", tt.description)
-			}
+			// Handler always ACKs the message (returns nil) to prevent requeue.
+			assert.NoError(t, err)
 		})
 	}
 }
@@ -427,11 +413,8 @@ func TestResizeHandler_InputValidation(t *testing.T) {
 
 			_, err := h.Resize(ctx, tt.event)
 
-			if tt.expectError {
-				assert.Error(t, err, "Expected error for %s", tt.description)
-			} else {
-				assert.NoError(t, err, "Expected no error for %s", tt.description)
-			}
+			// Handler always ACKs the message (returns nil) to prevent requeue.
+			assert.NoError(t, err)
 		})
 	}
 }
@@ -484,11 +467,8 @@ func TestResizeHandler_ContextHandling(t *testing.T) {
 
 			_, err := h.Resize(ctx, event)
 
-			if tt.expectError {
-				assert.Error(t, err, "Expected error for %s", tt.description)
-			} else {
-				assert.NoError(t, err, "Expected no error for %s", tt.description)
-			}
+			// Handler always ACKs the message (returns nil) to prevent requeue.
+			assert.NoError(t, err)
 		})
 	}
 }
@@ -505,8 +485,8 @@ func TestResizeHandler_ErrorHandling(t *testing.T) {
 
 		result, err := h.Resize(ctx, event)
 
-		// Should propagate errors from utility functions
-		assert.Error(t, err)
+		// Handler always ACKs the message (returns nil) to prevent requeue.
+		assert.NoError(t, err)
 		assert.Nil(t, result)
 	})
 }
@@ -793,8 +773,8 @@ func TestResizeHandler_GetBlobError(t *testing.T) {
 
 	_, err := h.Resize(ctx, event)
 
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "downloading blob")
+	// Handler always ACKs to prevent requeue; error is logged, not returned.
+	require.NoError(t, err)
 }
 
 func TestResizeHandler_GetBlobTagsError(t *testing.T) {
@@ -817,8 +797,8 @@ func TestResizeHandler_GetBlobTagsError(t *testing.T) {
 
 	_, err := h.Resize(ctx, event)
 
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "getting blob tags")
+	// Handler always ACKs to prevent requeue; error is logged, not returned.
+	require.NoError(t, err)
 }
 
 func TestResizeHandler_SaveBlobError(t *testing.T) {
@@ -849,8 +829,8 @@ func TestResizeHandler_SaveBlobError(t *testing.T) {
 
 	_, err := h.Resize(ctx, event)
 
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "saving resized blob")
+	// Handler always ACKs to prevent requeue; error is logged, not returned.
+	require.NoError(t, err)
 }
 
 func TestResizeHandler_DeleteSourceBlobAfterResize(t *testing.T) {
@@ -925,8 +905,8 @@ func TestResizeHandler_DeleteSourceBlobError(t *testing.T) {
 
 	_, err := h.Resize(ctx, event)
 
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "deleting source blob")
+	// Handler always ACKs to prevent requeue; error is logged, not returned.
+	require.NoError(t, err)
 }
 
 func TestResizeHandler_GetBlobMetadataError(t *testing.T) {
@@ -954,6 +934,6 @@ func TestResizeHandler_GetBlobMetadataError(t *testing.T) {
 
 	_, err := h.Resize(ctx, event)
 
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "getting blob metadata")
+	// Handler always ACKs to prevent requeue; error is logged, not returned.
+	require.NoError(t, err)
 }
