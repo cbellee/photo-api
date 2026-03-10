@@ -118,19 +118,6 @@ func (h *Handler) Resize(ctx context.Context, in *common.BindingEvent) (out []by
 		return nil, fmt.Errorf("saving resized blob %s: %w", ref.path, err)
 	}
 
-	// Copy EXIF sidecar blob from the source (uploads) to images container.
-	// The sidecar follows the naming convention: <blobName>.exif.json.
-	// Errors are non-fatal — the photo just won't have EXIF data.
-	exifSidecarName := ref.path + ".exif.json"
-	sidecarBytes, sidecarErr := h.store.GetBlob(ctx, exifSidecarName, ref.container)
-	if sidecarErr == nil && len(sidecarBytes) > 0 {
-		if err := h.store.SaveBlob(ctx, sidecarBytes, exifSidecarName, h.cfg.ImagesContainerName, nil, nil, "application/json"); err != nil {
-			slog.WarnContext(ctx, "failed to copy exif sidecar to images container", "sidecar", exifSidecarName, "error", err)
-		} else {
-			slog.InfoContext(ctx, "copied exif sidecar to images container", "sidecar", exifSidecarName)
-		}
-	}
-
 	return nil, nil
 }
 

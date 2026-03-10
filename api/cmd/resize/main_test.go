@@ -5,12 +5,10 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
-	"fmt"
 	"image"
 	"image/color"
 	"image/jpeg"
 	"os"
-	"strings"
 	"testing"
 
 	"github.com/cbellee/photo-api/internal/models"
@@ -672,10 +670,6 @@ func TestResizeHandler_HappyPath(t *testing.T) {
 
 	mock := &storage.MockBlobStore{
 		GetBlobFunc: func(ctx context.Context, blobName string, containerName string) ([]byte, error) {
-			// Sidecar fetch during exif copy — no sidecar in this test.
-			if strings.HasSuffix(blobName, ".exif.json") {
-				return nil, fmt.Errorf("sidecar not found: %s", blobName)
-			}
 			assert.Equal(t, "collection1/album1/test-image.jpg", blobName)
 			assert.Equal(t, "uploads", containerName)
 			return srcJPEG, nil
@@ -694,13 +688,10 @@ func TestResizeHandler_HappyPath(t *testing.T) {
 			}, nil
 		},
 		SaveBlobFunc: func(ctx context.Context, data []byte, blobName string, containerName string, tags map[string]string, metadata map[string]string, contentType string) error {
-			// Only capture image save, not sidecar save.
-			if !strings.HasSuffix(blobName, ".exif.json") {
-				savedBlob = data
-				savedContainer = containerName
-				savedTags = tags
-				savedMeta = metadata
-			}
+			savedBlob = data
+			savedContainer = containerName
+			savedTags = tags
+			savedMeta = metadata
 			return nil
 		},
 	}
@@ -735,9 +726,6 @@ func TestResizeHandler_HappyPath_SmallImage(t *testing.T) {
 
 	mock := &storage.MockBlobStore{
 		GetBlobFunc: func(ctx context.Context, blobName string, containerName string) ([]byte, error) {
-			if strings.HasSuffix(blobName, ".exif.json") {
-				return nil, fmt.Errorf("sidecar not found: %s", blobName)
-			}
 			return srcJPEG, nil
 		},
 		GetBlobTagsFunc: func(ctx context.Context, blobName string, containerName string) (map[string]string, error) {
