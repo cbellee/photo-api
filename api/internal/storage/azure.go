@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"slices"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/streaming"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blockblob"
@@ -184,7 +185,7 @@ func (s *AzureBlobStore) SaveBlob(ctx context.Context, data []byte, blobName str
 		md[key] = &v
 	}
 
-	_, err := blockBlob.UploadStream(ctx, bytes.NewReader(data), &blockblob.UploadStreamOptions{
+	_, err := blockBlob.Upload(ctx, streaming.NopCloser(bytes.NewReader(data)), &blockblob.UploadOptions{
 		Tags:     tags,
 		Metadata: md,
 		HTTPHeaders: &blob.HTTPHeaders{
@@ -195,7 +196,7 @@ func (s *AzureBlobStore) SaveBlob(ctx context.Context, data []byte, blobName str
 		return fmt.Errorf("uploading blob %s: %w", blobUrl, err)
 	}
 
-	slog.Debug("uploaded blob stream", "blob_url", blobUrl, "tags", tags, "metadata", metadata)
+	slog.Debug("uploaded blob", "blob_url", blobUrl, "tags", tags, "metadata", metadata)
 	return nil
 }
 

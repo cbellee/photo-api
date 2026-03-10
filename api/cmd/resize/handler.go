@@ -118,12 +118,6 @@ func (h *Handler) Resize(ctx context.Context, in *common.BindingEvent) (out []by
 		return nil, fmt.Errorf("saving resized blob %s: %w", ref.path, err)
 	}
 
-	// Delete the original upload now that the resized copy is saved.
-	if err := h.store.DeleteBlob(ctx, ref.path, ref.container); err != nil {
-		return nil, fmt.Errorf("deleting source blob %s/%s: %w", ref.container, ref.path, err)
-	}
-	slog.InfoContext(ctx, "deleted source blob after successful resize", "path", ref.path, "container", ref.container)
-
 	return nil, nil
 }
 
