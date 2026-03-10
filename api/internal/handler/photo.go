@@ -55,6 +55,7 @@ func PhotoHandler(store storage.BlobStore, cfg *Config) http.HandlerFunc {
 		}
 
 		photos := BlobsToPhotos(filteredBlobs)
+		HydrateExifData(ctx, photos, store, cfg.ImagesContainerName)
 
 		slog.DebugContext(ctx, "filtered photos", "metadata", photos)
 		w.Header().Set("Content-Type", "application/json")

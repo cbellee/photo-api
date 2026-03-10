@@ -122,7 +122,18 @@ func UploadHandler(store storage.BlobStore, cfg *Config) http.HandlerFunc {
 		md["height"] = fmt.Sprint(img.Height)
 		md["width"] = fmt.Sprint(img.Width)
 		md["size"] = strconv.Itoa(int(fh[0].Size))
-		md["exifData"] = exifData
+
+		// Save EXIF data as a sidecar blob rather than inline metadata
+		// (blob metadata has an 8 KB total limit which EXIF easily exceeds).
+		if exifData != "" {
+			exifBlobName := fileNameWithPrefix + ".exif.json"
+			if sErr := store.SaveBlob(ctx, []byte(exifData), exifBlobName, cfg.UploadsContainerName, nil, nil, "application/json"); sErr != nil {
+				slog.ErrorContext(ctx, "error saving exif sidecar blob", "error", sErr)
+			} else {
+				md["exifsidecar"] = exifBlobName
+				slog.DebugContext(ctx, "saved exif sidecar", "sidecar", exifBlobName)
+			}
+		}
 
 		err = store.SaveBlob(
 			ctx,

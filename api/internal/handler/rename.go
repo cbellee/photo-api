@@ -82,6 +82,11 @@ func RenameCollectionHandler(store storage.BlobStore, cfg *Config) http.HandlerF
 				continue
 			}
 
+			// Copy EXIF sidecar (if it exists). Errors are non-fatal.
+			oldSidecar := blob.Name + ".exif.json"
+			newSidecar := newBlobName + ".exif.json"
+			_ = store.CopyBlob(ctx, oldSidecar, newSidecar, cfg.ImagesContainerName)
+
 			// Update tags on the new blob.
 			newTags := make(map[string]string, len(blob.Tags))
 			for k, v := range blob.Tags {
@@ -95,10 +100,12 @@ func RenameCollectionHandler(store storage.BlobStore, cfg *Config) http.HandlerF
 				continue
 			}
 
-			// Delete old blob.
+			// Delete old blob and its sidecar.
 			if err := store.DeleteBlob(ctx, blob.Name, cfg.ImagesContainerName); err != nil {
 				errors = append(errors, fmt.Sprintf("delete %s: %v", blob.Name, err))
 			}
+			// Delete old EXIF sidecar (if it exists). Errors are non-fatal.
+			_ = store.DeleteBlob(ctx, oldSidecar, cfg.ImagesContainerName)
 		}
 
 		if len(errors) > 0 {
@@ -193,6 +200,11 @@ func RenameAlbumHandler(store storage.BlobStore, cfg *Config) http.HandlerFunc {
 				continue
 			}
 
+			// Copy EXIF sidecar (if it exists). Errors are non-fatal.
+			oldSidecar := blob.Name + ".exif.json"
+			newSidecar := newBlobName + ".exif.json"
+			_ = store.CopyBlob(ctx, oldSidecar, newSidecar, cfg.ImagesContainerName)
+
 			newTags := make(map[string]string, len(blob.Tags))
 			for k, v := range blob.Tags {
 				newTags[k] = v
@@ -205,9 +217,12 @@ func RenameAlbumHandler(store storage.BlobStore, cfg *Config) http.HandlerFunc {
 				continue
 			}
 
+			// Delete old blob and its sidecar.
 			if err := store.DeleteBlob(ctx, blob.Name, cfg.ImagesContainerName); err != nil {
 				errors = append(errors, fmt.Sprintf("delete %s: %v", blob.Name, err))
 			}
+			// Delete old EXIF sidecar (if it exists). Errors are non-fatal.
+			_ = store.DeleteBlob(ctx, oldSidecar, cfg.ImagesContainerName)
 		}
 
 		if len(errors) > 0 {
