@@ -5,6 +5,9 @@
 		},
 		{
 			"path": "../photo-spa"
+		},
+		{
+			"path": "../otel-viewer"
 		}
 	],
 	"settings": {}

@@ -16,7 +16,7 @@ func main() {
 	// ── Telemetry ────────────────────────────────────────────────────
 	ctx := context.Background()
 	otelCfg := telemetry.Config{
-		ServiceName:    "resize-service",
+		ServiceName:    "resize-api",
 		ServiceVersion: "1.0.0",
 		OTLPEndpoint:   utils.GetEnvValue("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317"),
 		EnableTraces:   utils.GetEnvValue("OTEL_TRACES_ENABLED", "true") == "true",
@@ -31,7 +31,7 @@ func main() {
 	}
 
 	// ── Logging (stdout JSON + OTel fan-out) ─────────────────────────
-	telemetry.SetupLogger("resize-service", providers)
+	telemetry.SetupLogger("", providers)
 
 	// ── Configuration ───────────────────────────────────────────────
 	maxHeight, err := strconv.Atoi(utils.GetEnvValue("MAX_IMAGE_HEIGHT", "1200"))

@@ -110,7 +110,7 @@ The component name `queue-uploads` is intentionally identical to the production 
 New services added:
 
 - **`rabbitmq`** — `rabbitmq:3-management-alpine` with management UI on port 15672. Includes a health check (`rabbitmq-diagnostics ping`) so dependent services wait until RabbitMQ is ready.
-- **`resize-service`** — Builds the resize Go binary. Uses `network_mode: "service:resize-dapr"` to share the Dapr sidecar's network namespace (required so Dapr can reach the app on `localhost:8081`).
+- **`resize-api`** — Builds the resize Go binary. Uses `network_mode: "service:resize-dapr"` to share the Dapr sidecar's network namespace (required so Dapr can reach the app on `localhost:8081`).
 - **`resize-dapr`** — `daprio/daprd:latest` sidecar configured with `--app-port 8081`, `--app-protocol grpc`, and `--resources-path /components` pointing to the mounted `dapr/components/` directory.
 
 Updated services:
