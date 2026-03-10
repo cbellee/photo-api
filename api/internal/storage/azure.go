@@ -187,6 +187,12 @@ func (s *AzureBlobStore) SaveBlob(ctx context.Context, data []byte, blobName str
 		md[key] = &v
 	}
 
+	// Delete any existing blob (and its uncommitted blocks) before uploading.
+	// UploadStream uses Put Block + Put Block List; stale uncommitted blocks
+	// from a previous failed or concurrent upload cause InvalidBlockList errors.
+	// Deleting first guarantees a clean slate. Ignore "not found" errors.
+	_, _ = blockBlob.Delete(ctx, nil)
+
 	_, err := blockBlob.UploadStream(ctx, bytes.NewReader(data), &blockblob.UploadStreamOptions{
 		Tags:     tags,
 		Metadata: md,
