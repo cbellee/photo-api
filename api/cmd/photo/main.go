@@ -25,19 +25,28 @@ import (
 
 func main() {
 	// ── Telemetry ────────────────────────────────────────────────────
+	// Read OTel config with os.Getenv (not utils.GetEnvValue) to avoid
+	// logging before the fanout logger is installed.
 	ctx := context.Background()
 	otelCfg := telemetry.Config{
 		ServiceName:    "photo-api",
 		ServiceVersion: "1.0.0",
-		OTLPEndpoint:   utils.GetEnvValue("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317"),
-		EnableTraces:   utils.GetEnvValue("OTEL_TRACES_ENABLED", "true") == "true",
-		EnableMetrics:  utils.GetEnvValue("OTEL_METRICS_ENABLED", "true") == "true",
-		EnableLogs:     utils.GetEnvValue("OTEL_LOGS_ENABLED", "true") == "true",
+		OTLPEndpoint:   envOr("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317"),
+		EnableTraces:   envOr("OTEL_TRACES_ENABLED", "true") == "true",
+		EnableMetrics:  envOr("OTEL_METRICS_ENABLED", "true") == "true",
+		EnableLogs:     envOr("OTEL_LOGS_ENABLED", "true") == "true",
 	}
 	providers, err := telemetry.Init(ctx, otelCfg)
 	if err != nil {
 		slog.Error("failed to init telemetry", "error", err)
+	} else {
+		defer providers.Shutdown(ctx)
 	}
+
+	// ── Logging (stdout JSON + OTel fan-out) ─────────────────────────
+	// Must be set up before any utils.GetEnvValue calls so their
+	// slog.Warn messages flow through the OTel bridge.
+	telemetry.SetupLogger("photo-api", providers)
 
 	// ── Configuration ───────────────────────────────────────────────
 	// EMULATED_STORAGE_URL overrides the computed Azure storage URL (used with the blob emulator).
@@ -70,8 +79,6 @@ func main() {
 		cfg.JWTKeyfunc = k.Keyfunc
 	}
 
-	// ── Logging (stdout JSON + OTel fan-out) ─────────────────────────
-	telemetry.SetupLogger("photo-api", providers)
 	slog.Info("cors origins", "origins", cfg.CorsOrigins)
 	slog.Info("storage url", "url", storageUrl)
 
@@ -188,15 +195,17 @@ func main() {
 		slog.Error("server shutdown error", "error", err)
 	}
 
-	// Flush telemetry before exit.
-	if providers != nil {
-		flushCtx, flushCancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer flushCancel()
-		providers.Shutdown(flushCtx)
-	}
-
 	// Stop JWKS background refresh.
 	jwksCancel()
 
 	slog.Info("server stopped")
+}
+
+// envOr reads an environment variable without logging (used before
+// the fanout logger is installed).
+func envOr(key, fallback string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return fallback
 }
