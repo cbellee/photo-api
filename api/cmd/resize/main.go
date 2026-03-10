@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
 	"strconv"
 
 	"github.com/cbellee/photo-api/internal/storage"
@@ -14,14 +15,16 @@ import (
 
 func main() {
 	// ── Telemetry ────────────────────────────────────────────────────
+	// Read OTel config with os.Getenv (not utils.GetEnvValue) to avoid
+	// logging before the fanout logger is installed.
 	ctx := context.Background()
 	otelCfg := telemetry.Config{
 		ServiceName:    "resize-api",
 		ServiceVersion: "1.0.0",
-		OTLPEndpoint:   utils.GetEnvValue("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317"),
-		EnableTraces:   utils.GetEnvValue("OTEL_TRACES_ENABLED", "true") == "true",
-		EnableMetrics:  utils.GetEnvValue("OTEL_METRICS_ENABLED", "true") == "true",
-		EnableLogs:     utils.GetEnvValue("OTEL_LOGS_ENABLED", "true") == "true",
+		OTLPEndpoint:   envOr("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317"),
+		EnableTraces:   envOr("OTEL_TRACES_ENABLED", "true") == "true",
+		EnableMetrics:  envOr("OTEL_METRICS_ENABLED", "true") == "true",
+		EnableLogs:     envOr("OTEL_LOGS_ENABLED", "true") == "true",
 	}
 	providers, err := telemetry.Init(ctx, otelCfg)
 	if err != nil {
@@ -31,7 +34,9 @@ func main() {
 	}
 
 	// ── Logging (stdout JSON + OTel fan-out) ─────────────────────────
-	telemetry.SetupLogger("", providers)
+	// Must be set up before any utils.GetEnvValue calls so their
+	// slog.Warn messages flow through the OTel bridge.
+	telemetry.SetupLogger("resize-api", providers)
 
 	// ── Configuration ───────────────────────────────────────────────
 	maxHeight, err := strconv.Atoi(utils.GetEnvValue("MAX_IMAGE_HEIGHT", "1200"))
@@ -92,4 +97,13 @@ func main() {
 		slog.Error("server failed to start", "error", err)
 		return
 	}
+}
+
+// envOr reads an environment variable without logging (used before
+// the fanout logger is installed).
+func envOr(key, fallback string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return fallback
 }
