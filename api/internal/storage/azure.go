@@ -131,6 +131,9 @@ func (s *AzureBlobStore) GetBlobTagList(ctx context.Context, containerName strin
 		}
 
 		for _, _blob := range resp.Segment.BlobItems {
+			if _blob.BlobTags == nil {
+				continue // sidecar / untagged blobs — skip
+			}
 			tags := *_blob.BlobTags
 			var album, collection string
 
