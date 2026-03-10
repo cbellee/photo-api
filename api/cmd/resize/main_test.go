@@ -22,7 +22,7 @@ import (
 
 func testConfig() *Config {
 	return &Config{
-		ServiceName:         "test-resize-service",
+		ServiceName:         "test-resize-api",
 		ServicePort:         "3000",
 		UploadsQueueBinding: "test-queue",
 		AzureClientID:       "test-client-id",
@@ -38,7 +38,7 @@ func testConfig() *Config {
 // setupTestHandler creates a Handler for testing and returns it along with a
 // cleanup function that unsets environment variables.
 func setupTestHandler() (*Handler, func()) {
-	os.Setenv("SERVICE_NAME", "test-resize-service")
+	os.Setenv("SERVICE_NAME", "test-resize-api")
 	os.Setenv("SERVICE_PORT", "3000")
 	os.Setenv("UPLOADS_QUEUE_BINDING", "test-queue")
 	os.Setenv("AZURE_CLIENT_ID", "test-client-id")

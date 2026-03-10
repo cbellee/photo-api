@@ -53,8 +53,8 @@ Shared bootstrap package used by both services. Key exports:
 
 ### `cmd/resize/main.go` (Resize Dapr Worker)
 
-1. **Telemetry init** — calls `telemetry.Init()` at the top of `main()` with `ServiceName: "resize-service"`. Defers `providers.Shutdown()`.
-2. **Logging bridge** — replaced the plain `slog.NewJSONHandler` with `otelslog.NewLogger("resize-service")`, with the same JSON fallback.
+1. **Telemetry init** — calls `telemetry.Init()` at the top of `main()` with `ServiceName: "resize-api"`. Defers `providers.Shutdown()`.
+2. **Logging bridge** — replaced the plain `slog.NewJSONHandler` with `otelslog.NewLogger("resize-api")`, with the same JSON fallback.
 
 ---
 
@@ -109,7 +109,7 @@ All handler files in `internal/handler/` share this tracer. Each handler functio
 A separate package-level tracer is declared in `cmd/resize/handler.go`:
 
 ```go
-var tracer = otel.Tracer("resize-service")
+var tracer = otel.Tracer("resize-api")
 ```
 
 ### `cmd/resize/handler.go` — `Handler.Resize`

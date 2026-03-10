@@ -18,7 +18,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 )
 
-var tracer = otel.Tracer("resize-service")
+var tracer = otel.Tracer("resize-api")
 
 // blobRef holds the decomposed parts of a blob URL.
 type blobRef struct {
