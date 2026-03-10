@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"slices"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/streaming"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blockblob"
@@ -187,13 +188,7 @@ func (s *AzureBlobStore) SaveBlob(ctx context.Context, data []byte, blobName str
 		md[key] = &v
 	}
 
-	// Delete any existing blob (and its uncommitted blocks) before uploading.
-	// UploadStream uses Put Block + Put Block List; stale uncommitted blocks
-	// from a previous failed or concurrent upload cause InvalidBlockList errors.
-	// Deleting first guarantees a clean slate. Ignore "not found" errors.
-	_, _ = blockBlob.Delete(ctx, nil)
-
-	_, err := blockBlob.UploadStream(ctx, bytes.NewReader(data), &blockblob.UploadStreamOptions{
+	_, err := blockBlob.Upload(ctx, streaming.NopCloser(bytes.NewReader(data)), &blockblob.UploadOptions{
 		Tags:     tags,
 		Metadata: md,
 		HTTPHeaders: &blob.HTTPHeaders{
