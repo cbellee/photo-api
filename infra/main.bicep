@@ -1,6 +1,7 @@
 param photoApiContainerImage string
 param resizeApiContainerImage string
 param cpuResource string = '0.25'
+param coolDownPeriod int = 600 // 10 minutes
 param memoryResource string = '0.5Gi'
 param zoneName string = 'bellee.net'
 param cNameRecord string = 'photo'
@@ -347,6 +348,7 @@ resource resizeApi 'Microsoft.App/containerApps@2025-10-02-preview' = {
       scale: {
         minReplicas: 0
         maxReplicas: 2
+        cooldownPeriod: coolDownPeriod
         rules: [
           {
             name: 'azure-queue-scaler'
