@@ -1,15 +1,16 @@
 package exif
 
 import (
-	"bytes"
 	"fmt"
+	"io"
 
 	"github.com/rwcarlsen/goexif/exif"
 )
 
-// GetExifJSON extracts EXIF metadata from raw image bytes and returns it as a JSON string.
-func GetExifJSON(data []byte) (string, error) {
-	exMeta, err := exif.Decode(bytes.NewReader(data))
+// GetExifJSON extracts EXIF metadata from an image reader and returns it as a JSON string.
+// The caller should provide a reader positioned at the start of the image data.
+func GetExifJSON(r io.Reader) (string, error) {
+	exMeta, err := exif.Decode(r)
 	if err != nil {
 		return "", fmt.Errorf("reading exif data: %w", err)
 	}

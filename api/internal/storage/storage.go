@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"io"
 
 	"github.com/cbellee/photo-api/internal/models"
 )
@@ -28,8 +29,9 @@ type BlobStore interface {
 	// GetBlob downloads blob content and returns the raw bytes.
 	GetBlob(ctx context.Context, blobName string, containerName string) ([]byte, error)
 
-	// SaveBlob uploads bytes as a blob with tags, metadata, and content type.
-	SaveBlob(ctx context.Context, data []byte, blobName string, containerName string, tags map[string]string, metadata map[string]string, contentType string) error
+	// SaveBlob uploads a blob from a seekable reader with tags, metadata, and content type.
+	// The caller is responsible for seeking the reader to the desired position before calling.
+	SaveBlob(ctx context.Context, reader io.ReadSeeker, size int64, blobName string, containerName string, tags map[string]string, metadata map[string]string, contentType string) error
 
 	// CopyBlob copies a blob from srcBlobName to destBlobName within the same container,
 	// preserving tags and metadata.

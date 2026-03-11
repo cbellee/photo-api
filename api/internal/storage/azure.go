@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"log/slog"
 	"slices"
 
@@ -178,7 +179,7 @@ func (s *AzureBlobStore) GetBlob(ctx context.Context, blobName string, container
 	return buf.Bytes(), nil
 }
 
-func (s *AzureBlobStore) SaveBlob(ctx context.Context, data []byte, blobName string, containerName string, tags map[string]string, metadata map[string]string, contentType string) error {
+func (s *AzureBlobStore) SaveBlob(ctx context.Context, reader io.ReadSeeker, size int64, blobName string, containerName string, tags map[string]string, metadata map[string]string, contentType string) error {
 	blobUrl := fmt.Sprintf("%s/%s/%s", s.storageUrl, containerName, blobName)
 	blockBlob := s.client.ServiceClient().NewContainerClient(containerName).NewBlockBlobClient(blobName)
 
@@ -188,7 +189,7 @@ func (s *AzureBlobStore) SaveBlob(ctx context.Context, data []byte, blobName str
 		md[key] = &v
 	}
 
-	_, err := blockBlob.Upload(ctx, streaming.NopCloser(bytes.NewReader(data)), &blockblob.UploadOptions{
+	_, err := blockBlob.Upload(ctx, streaming.NopCloser(reader), &blockblob.UploadOptions{
 		Tags:     tags,
 		Metadata: md,
 		HTTPHeaders: &blob.HTTPHeaders{

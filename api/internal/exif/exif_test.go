@@ -19,9 +19,9 @@ func buildJPEGWithExif(t *testing.T) []byte {
 	var tiff bytes.Buffer
 
 	// TIFF header — little-endian
-	tiff.Write([]byte{'I', 'I'})                                    // byte order
-	binary.Write(&tiff, binary.LittleEndian, uint16(0x002A))        // TIFF magic
-	binary.Write(&tiff, binary.LittleEndian, uint32(0x00000008))    // offset to IFD0
+	tiff.Write([]byte{'I', 'I'})                                 // byte order
+	binary.Write(&tiff, binary.LittleEndian, uint16(0x002A))     // TIFF magic
+	binary.Write(&tiff, binary.LittleEndian, uint32(0x00000008)) // offset to IFD0
 
 	// IFD0 at offset 8
 	binary.Write(&tiff, binary.LittleEndian, uint16(1)) // 1 entry
@@ -47,11 +47,11 @@ func buildJPEGWithExif(t *testing.T) []byte {
 	// Full JPEG
 	payloadLen := uint16(app1Payload.Len() + 2) // +2 for the length field itself
 	var jpeg bytes.Buffer
-	jpeg.Write([]byte{0xFF, 0xD8})                                   // SOI
-	jpeg.Write([]byte{0xFF, 0xE1})                                   // APP1 marker
-	binary.Write(&jpeg, binary.BigEndian, payloadLen)                // APP1 length
+	jpeg.Write([]byte{0xFF, 0xD8})                    // SOI
+	jpeg.Write([]byte{0xFF, 0xE1})                    // APP1 marker
+	binary.Write(&jpeg, binary.BigEndian, payloadLen) // APP1 length
 	jpeg.Write(app1Payload.Bytes())
-	jpeg.Write([]byte{0xFF, 0xD9})                                   // EOI
+	jpeg.Write([]byte{0xFF, 0xD9}) // EOI
 
 	return jpeg.Bytes()
 }
@@ -59,7 +59,7 @@ func buildJPEGWithExif(t *testing.T) []byte {
 func TestGetExifJSON_SuccessPath(t *testing.T) {
 	data := buildJPEGWithExif(t)
 
-	result, err := GetExifJSON(data)
+	result, err := GetExifJSON(bytes.NewReader(data))
 
 	require.NoError(t, err, "valid EXIF JPEG should not produce an error")
 	assert.NotEmpty(t, result, "result should contain EXIF JSON")
@@ -133,7 +133,7 @@ func TestGetExifJSON(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := GetExifJSON(tt.data)
+			result, err := GetExifJSON(bytes.NewReader(tt.data))
 
 			if tt.expectError {
 				assert.Error(t, err, "Expected an error for test case: %s", tt.description)
@@ -160,7 +160,7 @@ func TestGetExifJSON(t *testing.T) {
 
 func TestGetExifJSON_ReturnTypes(t *testing.T) {
 	t.Run("Return type validation", func(t *testing.T) {
-		result, err := GetExifJSON([]byte{})
+		result, err := GetExifJSON(bytes.NewReader([]byte{}))
 
 		assert.IsType(t, "", result, "Result should be string type")
 		if err != nil {
@@ -175,7 +175,7 @@ func TestGetExifJSON_BufferState(t *testing.T) {
 		input := make([]byte, len(originalData))
 		copy(input, originalData)
 
-		_, _ = GetExifJSON(input)
+		_, _ = GetExifJSON(bytes.NewReader(input))
 
 		assert.Equal(t, originalData, input,
 			"Input data should remain unchanged after function call")
@@ -186,7 +186,7 @@ func TestGetExifJSON_LargeData(t *testing.T) {
 	t.Run("Boundary case - large invalid data", func(t *testing.T) {
 		largeInvalidData := make([]byte, 1024*1024) // 1MB of zeros
 
-		result, err := GetExifJSON(largeInvalidData)
+		result, err := GetExifJSON(bytes.NewReader(largeInvalidData))
 
 		assert.Error(t, err, "Should return error for large invalid data")
 		assert.Empty(t, result, "Should return empty result for invalid data")
@@ -208,7 +208,7 @@ func TestGetExifJSON_ErrorHandling(t *testing.T) {
 
 		for _, tc := range testCases {
 			t.Run(tc.name, func(t *testing.T) {
-				result, err := GetExifJSON(tc.data)
+				result, err := GetExifJSON(bytes.NewReader(tc.data))
 
 				assert.Error(t, err, "Should return error for %s", tc.name)
 				assert.Empty(t, result, "Should return empty result for %s", tc.name)
@@ -222,7 +222,7 @@ func TestGetExifJSON_ErrorHandling(t *testing.T) {
 func TestGetExifJSON_MemoryManagement(t *testing.T) {
 	t.Run("Memory management test", func(t *testing.T) {
 		for i := 0; i < 100; i++ {
-			_, _ = GetExifJSON([]byte{0x01, 0x02, 0x03})
+			_, _ = GetExifJSON(bytes.NewReader([]byte{0x01, 0x02, 0x03}))
 		}
 		assert.True(t, true, "Memory management test completed successfully")
 	})
@@ -235,7 +235,7 @@ func TestGetExifJSON_ConcurrentAccess(t *testing.T) {
 		for i := 0; i < 10; i++ {
 			go func() {
 				defer func() { done <- true }()
-				_, _ = GetExifJSON([]byte{0x01, 0x02, 0x03})
+				_, _ = GetExifJSON(bytes.NewReader([]byte{0x01, 0x02, 0x03}))
 			}()
 		}
 
@@ -267,7 +267,7 @@ func TestGetExifJSON_InputValidation(t *testing.T) {
 
 		for _, input := range inputs {
 			t.Run(input.name, func(t *testing.T) {
-				result, err := GetExifJSON(input.data)
+				result, err := GetExifJSON(bytes.NewReader(input.data))
 
 				assert.Error(t, err)
 				assert.Empty(t, result)
@@ -281,6 +281,6 @@ func BenchmarkGetExifJSON(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, _ = GetExifJSON(testData)
+		_, _ = GetExifJSON(bytes.NewReader(testData))
 	}
 }

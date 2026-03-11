@@ -113,7 +113,7 @@ func (h *Handler) Resize(ctx context.Context, in *common.BindingEvent) (out []by
 	metadata["Width"] = fmt.Sprint(imgCfg.Width)
 
 	// Save the resized image to the images container.
-	err = h.store.SaveBlob(ctx, imgBytes, ref.path, h.cfg.ImagesContainerName, tags, metadata, evt.Data.ContentType)
+	err = h.store.SaveBlob(ctx, bytes.NewReader(imgBytes), int64(len(imgBytes)), ref.path, h.cfg.ImagesContainerName, tags, metadata, evt.Data.ContentType)
 	if err != nil {
 		return nil, fmt.Errorf("saving resized blob %s: %w", ref.path, err)
 	}
