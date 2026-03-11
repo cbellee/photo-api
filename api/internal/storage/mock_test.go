@@ -3,6 +3,8 @@ package storage
 import (
 	"context"
 	"fmt"
+	"io"
+	"strings"
 	"sync"
 	"testing"
 
@@ -58,7 +60,7 @@ func TestMock_GetBlobTagList_DefaultError(t *testing.T) {
 
 func TestMock_SaveBlob_DefaultNilError(t *testing.T) {
 	m := &MockBlobStore{}
-	err := m.SaveBlob(context.Background(), []byte("data"), "b", "c", nil, nil, "ct")
+	err := m.SaveBlob(context.Background(), strings.NewReader("data"), 4, "b", "c", nil, nil, "ct")
 	assert.NoError(t, err) // default is nil error
 	require.Len(t, m.SaveBlobCalls, 1)
 	assert.Equal(t, []byte("data"), m.SaveBlobCalls[0].Data)
@@ -103,11 +105,11 @@ func TestMock_GetBlob_CustomFunc(t *testing.T) {
 
 func TestMock_SaveBlob_CustomFunc_ReturnsError(t *testing.T) {
 	m := &MockBlobStore{
-		SaveBlobFunc: func(ctx context.Context, data []byte, blobName string, containerName string, tags map[string]string, metadata map[string]string, contentType string) error {
+		SaveBlobFunc: func(ctx context.Context, reader io.ReadSeeker, size int64, blobName string, containerName string, tags map[string]string, metadata map[string]string, contentType string) error {
 			return fmt.Errorf("disk full")
 		},
 	}
-	err := m.SaveBlob(context.Background(), nil, "b", "c", nil, nil, "")
+	err := m.SaveBlob(context.Background(), strings.NewReader(""), 0, "b", "c", nil, nil, "")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "disk full")
 }

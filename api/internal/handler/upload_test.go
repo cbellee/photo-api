@@ -59,7 +59,8 @@ func TestUploadHandler_Success(t *testing.T) {
 	var savedMeta map[string]string
 
 	mock := &storage.MockBlobStore{
-		SaveBlobFunc: func(ctx context.Context, data []byte, blobName string, containerName string, tags map[string]string, metadata map[string]string, contentType string) error {
+		SaveBlobFunc: func(ctx context.Context, reader io.ReadSeeker, size int64, blobName string, containerName string, tags map[string]string, metadata map[string]string, contentType string) error {
+			data, _ := io.ReadAll(reader)
 			savedData = data
 			savedTags = tags
 			savedMeta = metadata
@@ -199,7 +200,7 @@ func TestUploadHandler_InvalidImage_Returns400(t *testing.T) {
 func TestUploadHandler_SaveBlobError_Returns500(t *testing.T) {
 	cfg := testConfig()
 	mock := &storage.MockBlobStore{
-		SaveBlobFunc: func(ctx context.Context, data []byte, blobName string, containerName string, tags map[string]string, metadata map[string]string, contentType string) error {
+		SaveBlobFunc: func(ctx context.Context, reader io.ReadSeeker, size int64, blobName string, containerName string, tags map[string]string, metadata map[string]string, contentType string) error {
 			return fmt.Errorf("storage failure")
 		},
 	}
@@ -241,7 +242,7 @@ func TestUploadHandler_TagStripping(t *testing.T) {
 	var savedTags map[string]string
 
 	mock := &storage.MockBlobStore{
-		SaveBlobFunc: func(ctx context.Context, data []byte, blobName string, containerName string, tags map[string]string, metadata map[string]string, contentType string) error {
+		SaveBlobFunc: func(ctx context.Context, reader io.ReadSeeker, size int64, blobName string, containerName string, tags map[string]string, metadata map[string]string, contentType string) error {
 			savedTags = tags
 			return nil
 		},

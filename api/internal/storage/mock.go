@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"fmt"
+	"io"
 	"sync"
 
 	"github.com/cbellee/photo-api/internal/models"
@@ -34,7 +35,7 @@ type MockBlobStore struct {
 	GetBlobTagListCalls []GetBlobTagListCall
 
 	// SaveBlob configuration
-	SaveBlobFunc  func(ctx context.Context, data []byte, blobName string, containerName string, tags map[string]string, metadata map[string]string, contentType string) error
+	SaveBlobFunc  func(ctx context.Context, reader io.ReadSeeker, size int64, blobName string, containerName string, tags map[string]string, metadata map[string]string, contentType string) error
 	SaveBlobCalls []SaveBlobCall
 
 	// GetBlob configuration
@@ -78,7 +79,8 @@ type GetBlobTagListCall struct {
 }
 
 type SaveBlobCall struct {
-	Data          []byte
+	Data          []byte // Data is populated by reading the reader at call time.
+	Size          int64
 	BlobName      string
 	ContainerName string
 	Tags          map[string]string
@@ -167,15 +169,20 @@ func (m *MockBlobStore) GetBlobTagList(ctx context.Context, containerName string
 	return nil, fmt.Errorf("GetBlobTagList not configured")
 }
 
-func (m *MockBlobStore) SaveBlob(ctx context.Context, data []byte, blobName string, containerName string, tags map[string]string, metadata map[string]string, contentType string) error {
+func (m *MockBlobStore) SaveBlob(ctx context.Context, reader io.ReadSeeker, size int64, blobName string, containerName string, tags map[string]string, metadata map[string]string, contentType string) error {
+	// Read all data so tests can inspect it.
+	data, _ := io.ReadAll(reader)
+	// Rewind in case the caller needs the reader again.
+	reader.Seek(0, io.SeekStart)
+
 	m.mu.Lock()
 	m.SaveBlobCalls = append(m.SaveBlobCalls, SaveBlobCall{
-		Data: data, BlobName: blobName, ContainerName: containerName, Tags: tags, Metadata: metadata, ContentType: contentType,
+		Data: data, Size: size, BlobName: blobName, ContainerName: containerName, Tags: tags, Metadata: metadata, ContentType: contentType,
 	})
 	m.mu.Unlock()
 
 	if m.SaveBlobFunc != nil {
-		return m.SaveBlobFunc(ctx, data, blobName, containerName, tags, metadata, contentType)
+		return m.SaveBlobFunc(ctx, reader, size, blobName, containerName, tags, metadata, contentType)
 	}
 	return nil
 }

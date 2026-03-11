@@ -272,7 +272,8 @@ func TestLocalBlobStore_SaveBlob_Success(t *testing.T) {
 	store := NewLocalBlobStore(srv.URL, srv.URL)
 	err := store.SaveBlob(
 		context.Background(),
-		[]byte("image-data"),
+		strings.NewReader("image-data"),
+		int64(len("image-data")),
 		"nature/sunset/p1.jpg",
 		"images",
 		map[string]string{"collection": "nature"},
@@ -289,7 +290,7 @@ func TestLocalBlobStore_SaveBlob_Error(t *testing.T) {
 	defer srv.Close()
 
 	store := NewLocalBlobStore(srv.URL, srv.URL)
-	err := store.SaveBlob(context.Background(), []byte("data"), "b", "c", nil, nil, "")
+	err := store.SaveBlob(context.Background(), strings.NewReader("data"), 4, "b", "c", nil, nil, "")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "500")
 }
@@ -303,7 +304,7 @@ func TestLocalBlobStore_SaveBlob_NoContentType(t *testing.T) {
 	defer srv.Close()
 
 	store := NewLocalBlobStore(srv.URL, srv.URL)
-	err := store.SaveBlob(context.Background(), []byte("data"), "b", "c", nil, nil, "")
+	err := store.SaveBlob(context.Background(), strings.NewReader("data"), 4, "b", "c", nil, nil, "")
 	assert.NoError(t, err)
 }
 

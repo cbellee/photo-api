@@ -8,6 +8,7 @@ import (
 	"image"
 	"image/color"
 	"image/jpeg"
+	"io"
 	"os"
 	"testing"
 
@@ -687,7 +688,8 @@ func TestResizeHandler_HappyPath(t *testing.T) {
 				"Height": "1500",
 			}, nil
 		},
-		SaveBlobFunc: func(ctx context.Context, data []byte, blobName string, containerName string, tags map[string]string, metadata map[string]string, contentType string) error {
+		SaveBlobFunc: func(ctx context.Context, reader io.ReadSeeker, size int64, blobName string, containerName string, tags map[string]string, metadata map[string]string, contentType string) error {
+			data, _ := io.ReadAll(reader)
 			savedBlob = data
 			savedContainer = containerName
 			savedTags = tags
@@ -734,7 +736,8 @@ func TestResizeHandler_HappyPath_SmallImage(t *testing.T) {
 		GetBlobMetadataFunc: func(ctx context.Context, blobName string, containerName string) (map[string]string, error) {
 			return map[string]string{}, nil
 		},
-		SaveBlobFunc: func(ctx context.Context, data []byte, blobName string, containerName string, tags map[string]string, metadata map[string]string, contentType string) error {
+		SaveBlobFunc: func(ctx context.Context, reader io.ReadSeeker, size int64, blobName string, containerName string, tags map[string]string, metadata map[string]string, contentType string) error {
+			data, _ := io.ReadAll(reader)
 			savedBlob = data
 			return nil
 		},
@@ -811,7 +814,7 @@ func TestResizeHandler_SaveBlobError(t *testing.T) {
 		GetBlobMetadataFunc: func(ctx context.Context, blobName string, containerName string) (map[string]string, error) {
 			return map[string]string{}, nil
 		},
-		SaveBlobFunc: func(ctx context.Context, data []byte, blobName string, containerName string, tags map[string]string, metadata map[string]string, contentType string) error {
+		SaveBlobFunc: func(ctx context.Context, reader io.ReadSeeker, size int64, blobName string, containerName string, tags map[string]string, metadata map[string]string, contentType string) error {
 			return assert.AnError
 		},
 	}

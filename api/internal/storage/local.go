@@ -225,13 +225,14 @@ func (s *LocalBlobStore) GetBlob(ctx context.Context, blobName string, container
 	return data, nil
 }
 
-func (s *LocalBlobStore) SaveBlob(ctx context.Context, data []byte, blobName string, containerName string, tags map[string]string, metadata map[string]string, contentType string) error {
+func (s *LocalBlobStore) SaveBlob(ctx context.Context, reader io.ReadSeeker, size int64, blobName string, containerName string, tags map[string]string, metadata map[string]string, contentType string) error {
 	u := s.blobURL(containerName, blobName)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPut, u, bytes.NewReader(data))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPut, u, io.NopCloser(reader))
 	if err != nil {
 		return err
 	}
+	req.ContentLength = size
 
 	if contentType != "" {
 		req.Header.Set("Content-Type", contentType)
@@ -270,7 +271,7 @@ func (s *LocalBlobStore) CopyBlob(ctx context.Context, srcBlobName string, destB
 	tags, _ := s.GetBlobTags(ctx, srcBlobName, containerName)
 	md, _ := s.GetBlobMetadata(ctx, srcBlobName, containerName)
 
-	if err := s.SaveBlob(ctx, data, destBlobName, containerName, tags, md, ""); err != nil {
+	if err := s.SaveBlob(ctx, bytes.NewReader(data), int64(len(data)), destBlobName, containerName, tags, md, ""); err != nil {
 		return fmt.Errorf("copy: writing dest blob: %w", err)
 	}
 

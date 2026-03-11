@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"image"
@@ -27,6 +26,11 @@ var allowedImageTypes = map[string]bool{
 
 // UploadHandler handles multipart file uploads, extracts EXIF data and image
 // dimensions, and saves the blob to the uploads container.
+//
+// Memory optimisation: the multipart file is used directly as an io.ReadSeeker
+// so we never allocate a second in-memory copy of the file data. With a low
+// ParseMultipartForm memory limit (1 MiB) large files are spilled to a temp
+// file on disk, keeping per-request RSS near zero.
 func UploadHandler(store storage.BlobStore, cfg *Config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, span := tracer.Start(r.Context(), "handler.Upload")
@@ -37,7 +41,10 @@ func UploadHandler(store storage.BlobStore, cfg *Config) http.HandlerFunc {
 			return
 		}
 
-		err := r.ParseMultipartForm(cfg.MemoryLimitMb << 20)
+		// Use a small in-memory limit so large uploads spill to temp files,
+		// keeping per-request memory low even under high concurrency.
+		const multipartMemLimit = 1 << 20 // 1 MiB
+		err := r.ParseMultipartForm(multipartMemLimit)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -97,22 +104,26 @@ func UploadHandler(store storage.BlobStore, cfg *Config) http.HandlerFunc {
 		}
 		defer file.Close()
 
-		buf := bytes.NewBuffer(nil)
-		if _, err := io.Copy(buf, file); err != nil {
-			slog.ErrorContext(ctx, "error copying to buffer", "filename", fh[0].Filename, "error", err)
-			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-			return
-		}
+		// multipart.File implements io.ReadSeeker so we can rewind between
+		// operations without ever copying the full payload into a []byte.
 
-		img, _, err := image.DecodeConfig(bytes.NewReader(buf.Bytes()))
+		// 1. Decode image dimensions (reads only the header bytes).
+		img, _, err := image.DecodeConfig(file)
 		if err != nil {
 			slog.ErrorContext(ctx, "error decoding image config", "error", err)
 			http.Error(w, "Invalid image file", http.StatusBadRequest)
 			return
 		}
 
+		// 2. Rewind and extract EXIF metadata.
+		if _, err := file.Seek(0, io.SeekStart); err != nil {
+			slog.ErrorContext(ctx, "error seeking file", "error", err)
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
+
 		exifData := ""
-		exifData, err = exif.GetExifJSON(buf.Bytes())
+		exifData, err = exif.GetExifJSON(file)
 		if err != nil {
 			slog.ErrorContext(ctx, "error getting exif data", "error", err)
 			// EXIF errors are non-fatal — continue without EXIF data
@@ -127,9 +138,17 @@ func UploadHandler(store storage.BlobStore, cfg *Config) http.HandlerFunc {
 			md["exifData"] = exifData
 		}
 
+		// 3. Rewind and stream to blob storage — no second buffer needed.
+		if _, err := file.Seek(0, io.SeekStart); err != nil {
+			slog.ErrorContext(ctx, "error seeking file for upload", "error", err)
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
+
 		err = store.SaveBlob(
 			ctx,
-			buf.Bytes(),
+			file,
+			fh[0].Size,
 			fileNameWithPrefix,
 			cfg.UploadsContainerName,
 			tags,
