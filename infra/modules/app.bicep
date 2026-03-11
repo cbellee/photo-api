@@ -14,8 +14,8 @@ param dapr object
 param secrets array
 param traffic array
 
-@allowed(['http', 'tcp'])
-param transport string = 'http'
+@allowed(['auto', 'http', 'http2', 'tcp'])
+param transport string = 'auto'
 
 @allowed(['single', 'multiple'])
 param revisionMode string = 'single'
