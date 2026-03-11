@@ -233,7 +233,7 @@ resource resizeApi 'Microsoft.App/containerApps@2025-10-02-preview' = {
             weight: 100
           }
         ]
-        transport: 'http'
+        transport: 'auto'
       }
     }
     managedEnvironmentId: containerAppEnvironment.outputs.resourceId
@@ -432,7 +432,7 @@ resource photoApi 'Microsoft.App/containerApps@2025-10-02-preview' = {
             weight: 100
           }
         ]
-        transport: 'http'
+        transport: 'auto'
       }
     }
     managedEnvironmentId: containerAppEnvironment.outputs.resourceId
