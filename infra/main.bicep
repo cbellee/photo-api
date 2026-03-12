@@ -309,7 +309,7 @@ resource resizeApi 'Microsoft.App/containerApps@2025-10-02-preview' = {
             }
           ]
         }
-        {
+        /* {
           image: otelCollectorImage
           name: 'otel-collector'
           resources: {
@@ -331,10 +331,10 @@ resource resizeApi 'Microsoft.App/containerApps@2025-10-02-preview' = {
               mountPath: '/etc/otel'
             }
           ]
-        }
+        } */
       ]
       volumes: [
-        {
+        /* {
           name: 'otel-config'
           storageType: 'Secret'
           secrets: [
@@ -343,7 +343,7 @@ resource resizeApi 'Microsoft.App/containerApps@2025-10-02-preview' = {
               path: 'config.yaml'
             }
           ]
-        }
+        } */
       ]
       scale: {
         minReplicas: 0
@@ -488,7 +488,7 @@ resource photoApi 'Microsoft.App/containerApps@2025-10-02-preview' = {
             }
           ]
         }
-        {
+        /* {
           image: otelCollectorImage
           name: 'otel-collector'
           resources: {
@@ -510,10 +510,10 @@ resource photoApi 'Microsoft.App/containerApps@2025-10-02-preview' = {
               mountPath: '/etc/otel'
             }
           ]
-        }
+        } */
       ]
       volumes: [
-        {
+        /* {
           name: 'otel-config'
           storageType: 'Secret'
           secrets: [
@@ -522,7 +522,7 @@ resource photoApi 'Microsoft.App/containerApps@2025-10-02-preview' = {
               path: 'config.yaml'
             }
           ]
-        }
+        } */
       ]
       scale: {
         minReplicas: 0
