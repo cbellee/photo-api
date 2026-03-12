@@ -41,10 +41,11 @@ func UploadHandler(store storage.BlobStore, cfg *Config) http.HandlerFunc {
 			return
 		}
 
-		// Use a small in-memory limit so large uploads spill to temp files,
-		// keeping per-request memory low even under high concurrency.
-		const multipartMemLimit = 1 << 20 // 1 MiB
-		err := r.ParseMultipartForm(multipartMemLimit)
+		// Keep files in memory rather than spilling to temp disk files.
+		// The container image is FROM scratch so /tmp does not exist.
+		// With the double-buffer copy eliminated and SPA concurrency
+		// capped at 3, worst-case RSS ≈ 3 × 32 MiB = 96 MiB.
+		err := r.ParseMultipartForm(cfg.MemoryLimitMb << 20)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
