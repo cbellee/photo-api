@@ -242,6 +242,34 @@ resource resizeApi 'Microsoft.App/containerApps@2025-10-02-preview' = {
         {
           image: resizeApiContainerImage
           name: resizeApiName
+          probes: [
+            {
+              type: 'Liveness'
+              timeoutSeconds: 5
+              failureThreshold: 3
+              initialDelaySeconds: 0
+              periodSeconds: 10
+              successThreshold: 1
+              httpGet: {
+                port: 8081
+                path: '/healthz'
+                scheme: 'HTTP'
+              }
+            }
+            {
+              type: 'Readiness'
+              timeoutSeconds: 5
+              failureThreshold: 48
+              initialDelaySeconds: 0
+              periodSeconds: 5
+              successThreshold: 1
+              httpGet: {
+                port: 8081
+                path: '/readyz'
+                scheme: 'HTTP'
+              }
+            }
+          ]
           resources: {
             cpu: cpuResource
             memory: memoryResource

@@ -4,6 +4,7 @@ package main
 type Config struct {
 	ServiceName         string
 	ServicePort         string
+	HealthPort          string
 	UploadsQueueBinding string
 	AzureClientID       string
 	ImagesContainerName string

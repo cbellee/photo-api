@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/cbellee/photo-api/internal/storage"
 	"github.com/cbellee/photo-api/internal/telemetry"
@@ -56,6 +58,7 @@ func main() {
 	cfg := &Config{
 		ServiceName:         utils.GetEnvValue("SERVICE_NAME", ""),
 		ServicePort:         utils.GetEnvValue("SERVICE_PORT", ""),
+		HealthPort:          utils.GetEnvValue("HEALTH_PORT", "8081"),
 		UploadsQueueBinding: utils.GetEnvValue("UPLOADS_QUEUE_BINDING", ""),
 		AzureClientID:       utils.GetEnvValue("AZURE_CLIENT_ID", ""),
 		ImagesContainerName: utils.GetEnvValue("IMAGES_CONTAINER_NAME", "images"),
@@ -90,6 +93,46 @@ func main() {
 		return
 	}
 	slog.Info("added binding handler", "name", cfg.UploadsQueueBinding)
+
+	// ── Health probes (separate HTTP server) ────────────────────────
+	// The Dapr gRPC service does not expose HTTP endpoints, so we run
+	// a lightweight HTTP server on a separate port for k8s probes.
+	healthMux := http.NewServeMux()
+
+	// Liveness probe – returns 200 if the process is running.
+	healthMux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintln(w, `{"status":"ok"}`)
+	})
+
+	// Readiness probe – returns 200 when the service can reach blob storage.
+	healthMux.HandleFunc("GET /readyz", func(w http.ResponseWriter, _ *http.Request) {
+		readyCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		_, err := store.FilterBlobsByTags(readyCtx,
+			fmt.Sprintf("@container='%s'", cfg.ImagesContainerName),
+			cfg.ImagesContainerName)
+		if err != nil {
+			slog.Warn("readiness check failed", "error", err)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusServiceUnavailable)
+			fmt.Fprintln(w, `{"status":"unavailable"}`)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintln(w, `{"status":"ok"}`)
+	})
+
+	healthAddr := fmt.Sprintf(":%s", cfg.HealthPort)
+	go func() {
+		slog.Info("starting health probe server", "addr", healthAddr)
+		if err := http.ListenAndServe(healthAddr, healthMux); err != nil {
+			slog.Error("health probe server failed", "error", err)
+		}
+	}()
 
 	// ── Start ───────────────────────────────────────────────────────
 	slog.Info("starting service", "name", cfg.ServiceName, "port", cfg.ServicePort)
