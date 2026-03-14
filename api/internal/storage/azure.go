@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"slices"
+	"sync"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/streaming"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
@@ -29,40 +30,48 @@ func NewAzureBlobStore(client *azblob.Client, storageUrl string) *AzureBlobStore
 }
 
 func (s *AzureBlobStore) FilterBlobsByTags(ctx context.Context, query string, containerName string) ([]models.Blob, error) {
-	var blobs []models.Blob
-
 	resp, err := s.client.ServiceClient().FilterBlobs(ctx, query, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	for _, _blob := range resp.Blobs {
-		blobPath := fmt.Sprintf("%s/%s/%s", s.storageUrl, containerName, *_blob.Name)
-
-		tags, err := s.GetBlobTags(ctx, *_blob.Name, containerName)
-		if err != nil {
-			return nil, err
-		}
-
-		md, err := s.GetBlobMetadata(ctx, *_blob.Name, *_blob.ContainerName)
-		if err != nil {
-			slog.Warn("error getting metadata", "blobPath", blobPath, "error", err)
-		}
-
-		b := models.Blob{
-			Name:     *_blob.Name,
-			Path:     fmt.Sprintf("%s/%s/%s", s.storageUrl, containerName, *_blob.Name),
-			Tags:     tags,
-			MetaData: md,
-		}
-
-		blobs = append(blobs, b)
-	}
-
-	if len(blobs) == 0 {
+	if len(resp.Blobs) == 0 {
 		slog.Debug("no blobs found", "query", query)
 		return nil, nil
 	}
+
+	// Build blobs with tags parsed directly from the FilterBlobs response
+	// (avoids N individual GetBlobTags calls).
+	blobs := make([]models.Blob, len(resp.Blobs))
+	for i, fb := range resp.Blobs {
+		tags := make(map[string]string)
+		if fb.Tags != nil {
+			for _, t := range fb.Tags.BlobTagSet {
+				tags[*t.Key] = *t.Value
+			}
+		}
+		blobs[i] = models.Blob{
+			Name: *fb.Name,
+			Path: fmt.Sprintf("%s/%s/%s", s.storageUrl, containerName, *fb.Name),
+			Tags: tags,
+		}
+	}
+
+	// Fetch metadata in parallel (Width, Height, ExifData).
+	var wg sync.WaitGroup
+	for i := range blobs {
+		wg.Add(1)
+		go func(idx int) {
+			defer wg.Done()
+			md, err := s.GetBlobMetadata(ctx, blobs[idx].Name, containerName)
+			if err != nil {
+				slog.Warn("error getting metadata", "blob", blobs[idx].Name, "error", err)
+				return
+			}
+			blobs[idx].MetaData = md
+		}(i)
+	}
+	wg.Wait()
 
 	slog.Info("found blobs by tag query", "query", query, "num_blobs", len(blobs))
 	return blobs, nil
