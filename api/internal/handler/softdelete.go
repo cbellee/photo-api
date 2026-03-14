@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"sync"
 
 	"github.com/cbellee/photo-api/internal/storage"
 	"go.opentelemetry.io/otel/attribute"
@@ -41,28 +40,16 @@ func SoftDeleteCollectionHandler(store storage.BlobStore, cfg *Config) http.Hand
 
 		slog.InfoContext(ctx, "soft-deleting collection", "collection", collection, "blobCount", len(blobs))
 
-		var (
-			mu     sync.Mutex
-			errors []string
-			wg     sync.WaitGroup
-		)
-		for i := range blobs {
-			wg.Add(1)
-			go func(idx int) {
-				defer wg.Done()
-				b := blobs[idx]
-				b.Tags["isDeleted"] = "true"
-				b.Tags["collectionImage"] = "false"
-				b.Tags["albumImage"] = "false"
+		var errors []string
+		for _, blob := range blobs {
+			blob.Tags["isDeleted"] = "true"
+			blob.Tags["collectionImage"] = "false"
+			blob.Tags["albumImage"] = "false"
 
-				if err := store.SetBlobTags(ctx, b.Name, cfg.ImagesContainerName, b.Tags); err != nil {
-					mu.Lock()
-					errors = append(errors, fmt.Sprintf("set tags %s: %v", b.Name, err))
-					mu.Unlock()
-				}
-			}(i)
+			if err := store.SetBlobTags(ctx, blob.Name, cfg.ImagesContainerName, blob.Tags); err != nil {
+				errors = append(errors, fmt.Sprintf("set tags %s: %v", blob.Name, err))
+			}
 		}
-		wg.Wait()
 
 		if len(errors) > 0 {
 			slog.ErrorContext(ctx, "soft-delete collection completed with errors", "collection", collection, "errors", errors)
@@ -121,28 +108,16 @@ func SoftDeleteAlbumHandler(store storage.BlobStore, cfg *Config) http.HandlerFu
 
 		slog.InfoContext(ctx, "soft-deleting album", "collection", collection, "album", album, "blobCount", len(blobs))
 
-		var (
-			mu     sync.Mutex
-			errors []string
-			wg     sync.WaitGroup
-		)
-		for i := range blobs {
-			wg.Add(1)
-			go func(idx int) {
-				defer wg.Done()
-				b := blobs[idx]
-				b.Tags["isDeleted"] = "true"
-				b.Tags["albumImage"] = "false"
-				b.Tags["collectionImage"] = "false"
+		var errors []string
+		for _, blob := range blobs {
+			blob.Tags["isDeleted"] = "true"
+			blob.Tags["albumImage"] = "false"
+			blob.Tags["collectionImage"] = "false"
 
-				if err := store.SetBlobTags(ctx, b.Name, cfg.ImagesContainerName, b.Tags); err != nil {
-					mu.Lock()
-					errors = append(errors, fmt.Sprintf("set tags %s: %v", b.Name, err))
-					mu.Unlock()
-				}
-			}(i)
+			if err := store.SetBlobTags(ctx, blob.Name, cfg.ImagesContainerName, blob.Tags); err != nil {
+				errors = append(errors, fmt.Sprintf("set tags %s: %v", blob.Name, err))
+			}
 		}
-		wg.Wait()
 
 		// Check whether the entire collection is now soft-deleted.
 		remainingQuery := fmt.Sprintf("@container='%s' and collection='%s' and isDeleted='false'",
@@ -212,31 +187,20 @@ func RestoreAlbumHandler(store storage.BlobStore, cfg *Config) http.HandlerFunc 
 
 		slog.InfoContext(ctx, "restoring album", "collection", collection, "album", album, "blobCount", len(blobs))
 
-		var (
-			mu     sync.Mutex
-			errors []string
-			wg     sync.WaitGroup
-		)
-		// First blob gets albumImage=true; the rest run in parallel.
-		blobs[0].Tags["isDeleted"] = "false"
-		blobs[0].Tags["albumImage"] = "true"
-		if err := store.SetBlobTags(ctx, blobs[0].Name, cfg.ImagesContainerName, blobs[0].Tags); err != nil {
-			errors = append(errors, fmt.Sprintf("set tags %s: %v", blobs[0].Name, err))
+		var errors []string
+		albumImageAssigned := false
+		for _, blob := range blobs {
+			blob.Tags["isDeleted"] = "false"
+			// Re-assign albumImage to the first blob.
+			if !albumImageAssigned {
+				blob.Tags["albumImage"] = "true"
+				albumImageAssigned = true
+			}
+
+			if err := store.SetBlobTags(ctx, blob.Name, cfg.ImagesContainerName, blob.Tags); err != nil {
+				errors = append(errors, fmt.Sprintf("set tags %s: %v", blob.Name, err))
+			}
 		}
-		for i := 1; i < len(blobs); i++ {
-			wg.Add(1)
-			go func(idx int) {
-				defer wg.Done()
-				b := blobs[idx]
-				b.Tags["isDeleted"] = "false"
-				if err := store.SetBlobTags(ctx, b.Name, cfg.ImagesContainerName, b.Tags); err != nil {
-					mu.Lock()
-					errors = append(errors, fmt.Sprintf("set tags %s: %v", b.Name, err))
-					mu.Unlock()
-				}
-			}(i)
-		}
-		wg.Wait()
 
 		if len(errors) > 0 {
 			w.Header().Set("Content-Type", "application/json")
@@ -292,41 +256,27 @@ func RestoreCollectionHandler(store storage.BlobStore, cfg *Config) http.Handler
 		albumImageAssigned := make(map[string]bool)
 		collectionImageAssigned := false
 
-		// Pre-compute tags for each blob (assign collectionImage/albumImage
-		// to the first eligible blob). This must be sequential, but the
-		// actual SetBlobTags calls are then parallelised below.
-		for i := range blobs {
-			blobs[i].Tags["isDeleted"] = "false"
+		var errors []string
+		for _, blob := range blobs {
+			blob.Tags["isDeleted"] = "false"
 
+			// Re-assign collectionImage to the first blob overall.
 			if !collectionImageAssigned {
-				blobs[i].Tags["collectionImage"] = "true"
+				blob.Tags["collectionImage"] = "true"
 				collectionImageAssigned = true
 			}
 
-			album := blobs[i].Tags["album"]
+			// Re-assign albumImage to the first blob per album.
+			album := blob.Tags["album"]
 			if album != "" && !albumImageAssigned[album] {
-				blobs[i].Tags["albumImage"] = "true"
+				blob.Tags["albumImage"] = "true"
 				albumImageAssigned[album] = true
 			}
-		}
 
-		var (
-			mu     sync.Mutex
-			errors []string
-			wg     sync.WaitGroup
-		)
-		for i := range blobs {
-			wg.Add(1)
-			go func(idx int) {
-				defer wg.Done()
-				if err := store.SetBlobTags(ctx, blobs[idx].Name, cfg.ImagesContainerName, blobs[idx].Tags); err != nil {
-					mu.Lock()
-					errors = append(errors, fmt.Sprintf("set tags %s: %v", blobs[idx].Name, err))
-					mu.Unlock()
-				}
-			}(i)
+			if err := store.SetBlobTags(ctx, blob.Name, cfg.ImagesContainerName, blob.Tags); err != nil {
+				errors = append(errors, fmt.Sprintf("set tags %s: %v", blob.Name, err))
+			}
 		}
-		wg.Wait()
 
 		if len(errors) > 0 {
 			w.Header().Set("Content-Type", "application/json")

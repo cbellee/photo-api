@@ -111,6 +111,16 @@ func AlbumHandler(store storage.BlobStore, cfg *Config) http.HandlerFunc {
 			return
 		}
 
+		// Refresh tags for all blobs.
+		for i, b := range markedBlobs {
+			tags, err := store.GetBlobTags(ctx, b.Name, cfg.ImagesContainerName)
+			if err != nil {
+				slog.ErrorContext(ctx, "error getting blob tags", "error", err, "blobpath", b.Path)
+				continue
+			}
+			markedBlobs[i].Tags = tags
+		}
+
 		photos := BlobsToPhotos(markedBlobs)
 
 		w.Header().Set("Content-Type", "application/json")
