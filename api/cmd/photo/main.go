@@ -130,6 +130,7 @@ func main() {
 	})
 
 	api.HandleFunc("GET /api", handler.CollectionHandler(store, cfg))
+	api.HandleFunc("GET /api/albums", handler.AllAlbumsHandler(store, cfg))
 	api.HandleFunc("GET /api/{collection}", handler.AlbumHandler(store, cfg))
 	api.HandleFunc("GET /api/{collection}/{album}", handler.PhotoHandler(store, cfg))
 	api.HandleFunc("POST /api/upload", handler.RequireRole(cfg, handler.UploadHandler(store, cfg)))
