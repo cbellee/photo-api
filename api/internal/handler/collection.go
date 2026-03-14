@@ -102,16 +102,6 @@ func CollectionHandler(store storage.BlobStore, cfg *Config) http.HandlerFunc {
 			return
 		}
 
-		// Refresh tags for all blobs (may have just been updated).
-		for i, b := range markedBlobs {
-			tags, err := store.GetBlobTags(ctx, b.Name, cfg.ImagesContainerName)
-			if err != nil {
-				slog.ErrorContext(ctx, "error getting blob tags", "error", err, "blobpath", b.Path)
-				continue
-			}
-			markedBlobs[i].Tags = tags
-		}
-
 		// Final safety filter: exclude any blobs that are now marked as deleted
 		// (handles race conditions and stale collectionImage tags).
 		// When includeDeleted is set, keep deleted blobs in the result.

@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"sync"
 
 	"github.com/cbellee/photo-api/internal/storage"
 	"go.opentelemetry.io/otel/attribute"
@@ -70,36 +71,52 @@ func RenameCollectionHandler(store storage.BlobStore, cfg *Config) http.HandlerF
 
 		slog.InfoContext(ctx, "renaming collection", "from", collection, "to", req.NewName, "blobCount", len(blobs))
 
-		var errors []string
-		for _, blob := range blobs {
-			// Build new blob name: replace the collection segment.
-			// Blob names follow the pattern: collection/album/filename
-			newBlobName := replaceFirstSegment(blob.Name, req.NewName)
+		var (
+			mu     sync.Mutex
+			errors []string
+			wg     sync.WaitGroup
+		)
+		for i := range blobs {
+			wg.Add(1)
+			go func(idx int) {
+				defer wg.Done()
+				blob := blobs[idx]
+				// Build new blob name: replace the collection segment.
+				// Blob names follow the pattern: collection/album/filename
+				newBlobName := replaceFirstSegment(blob.Name, req.NewName)
 
-			// Copy blob to new location.
-			if err := store.CopyBlob(ctx, blob.Name, newBlobName, cfg.ImagesContainerName); err != nil {
-				errors = append(errors, fmt.Sprintf("copy %s: %v", blob.Name, err))
-				continue
-			}
+				// Copy blob to new location.
+				if err := store.CopyBlob(ctx, blob.Name, newBlobName, cfg.ImagesContainerName); err != nil {
+					mu.Lock()
+					errors = append(errors, fmt.Sprintf("copy %s: %v", blob.Name, err))
+					mu.Unlock()
+					return
+				}
 
-			// Update tags on the new blob.
-			newTags := make(map[string]string, len(blob.Tags))
-			for k, v := range blob.Tags {
-				newTags[k] = v
-			}
-			newTags["collection"] = req.NewName
-			newTags["name"] = newBlobName
+				// Update tags on the new blob.
+				newTags := make(map[string]string, len(blob.Tags))
+				for k, v := range blob.Tags {
+					newTags[k] = v
+				}
+				newTags["collection"] = req.NewName
+				newTags["name"] = newBlobName
 
-			if err := store.SetBlobTags(ctx, newBlobName, cfg.ImagesContainerName, newTags); err != nil {
-				errors = append(errors, fmt.Sprintf("set tags %s: %v", newBlobName, err))
-				continue
-			}
+				if err := store.SetBlobTags(ctx, newBlobName, cfg.ImagesContainerName, newTags); err != nil {
+					mu.Lock()
+					errors = append(errors, fmt.Sprintf("set tags %s: %v", newBlobName, err))
+					mu.Unlock()
+					return
+				}
 
-			// Delete old blob.
-			if err := store.DeleteBlob(ctx, blob.Name, cfg.ImagesContainerName); err != nil {
-				errors = append(errors, fmt.Sprintf("delete %s: %v", blob.Name, err))
-			}
+				// Delete old blob.
+				if err := store.DeleteBlob(ctx, blob.Name, cfg.ImagesContainerName); err != nil {
+					mu.Lock()
+					errors = append(errors, fmt.Sprintf("delete %s: %v", blob.Name, err))
+					mu.Unlock()
+				}
+			}(i)
 		}
+		wg.Wait()
 
 		if len(errors) > 0 {
 			slog.ErrorContext(ctx, "rename completed with errors", "errors", errors)
@@ -183,33 +200,49 @@ func RenameAlbumHandler(store storage.BlobStore, cfg *Config) http.HandlerFunc {
 
 		slog.InfoContext(ctx, "renaming album", "collection", collection, "from", album, "to", req.NewName, "blobCount", len(blobs))
 
-		var errors []string
-		for _, blob := range blobs {
-			// Build new blob name: replace the album segment (second path segment).
-			newBlobName := replaceSecondSegment(blob.Name, req.NewName)
+		var (
+			mu     sync.Mutex
+			errors []string
+			wg     sync.WaitGroup
+		)
+		for i := range blobs {
+			wg.Add(1)
+			go func(idx int) {
+				defer wg.Done()
+				blob := blobs[idx]
+				// Build new blob name: replace the album segment (second path segment).
+				newBlobName := replaceSecondSegment(blob.Name, req.NewName)
 
-			if err := store.CopyBlob(ctx, blob.Name, newBlobName, cfg.ImagesContainerName); err != nil {
-				errors = append(errors, fmt.Sprintf("copy %s: %v", blob.Name, err))
-				continue
-			}
+				if err := store.CopyBlob(ctx, blob.Name, newBlobName, cfg.ImagesContainerName); err != nil {
+					mu.Lock()
+					errors = append(errors, fmt.Sprintf("copy %s: %v", blob.Name, err))
+					mu.Unlock()
+					return
+				}
 
-			newTags := make(map[string]string, len(blob.Tags))
-			for k, v := range blob.Tags {
-				newTags[k] = v
-			}
-			newTags["album"] = req.NewName
-			newTags["name"] = newBlobName
+				newTags := make(map[string]string, len(blob.Tags))
+				for k, v := range blob.Tags {
+					newTags[k] = v
+				}
+				newTags["album"] = req.NewName
+				newTags["name"] = newBlobName
 
-			if err := store.SetBlobTags(ctx, newBlobName, cfg.ImagesContainerName, newTags); err != nil {
-				errors = append(errors, fmt.Sprintf("set tags %s: %v", newBlobName, err))
-				continue
-			}
+				if err := store.SetBlobTags(ctx, newBlobName, cfg.ImagesContainerName, newTags); err != nil {
+					mu.Lock()
+					errors = append(errors, fmt.Sprintf("set tags %s: %v", newBlobName, err))
+					mu.Unlock()
+					return
+				}
 
-			// Delete old blob.
-			if err := store.DeleteBlob(ctx, blob.Name, cfg.ImagesContainerName); err != nil {
-				errors = append(errors, fmt.Sprintf("delete %s: %v", blob.Name, err))
-			}
+				// Delete old blob.
+				if err := store.DeleteBlob(ctx, blob.Name, cfg.ImagesContainerName); err != nil {
+					mu.Lock()
+					errors = append(errors, fmt.Sprintf("delete %s: %v", blob.Name, err))
+					mu.Unlock()
+				}
+			}(i)
 		}
+		wg.Wait()
 
 		if len(errors) > 0 {
 			w.Header().Set("Content-Type", "application/json")
