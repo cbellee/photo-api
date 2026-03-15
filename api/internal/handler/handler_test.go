@@ -397,7 +397,8 @@ func TestCollectionHandler_FallbackQuery(t *testing.T) {
 	cfg := testConfig()
 	blobs := sampleBlobs()[:1]
 	// Blob has collectionImage='true' but there's a second collection 'sport'
-	// that has no marker yet — so the handler should auto-assign one.
+	// that has no marker yet — the handler should pick one for display
+	// WITHOUT persisting the tag (ephemeral pick to avoid race with resize pipeline).
 	sportBlob := models.Blob{
 		Name: "sport/ravens/photo1.jpg",
 		Path: "https://teststorage.blob.core.windows.net/images/sport/ravens/photo1.jpg",
@@ -419,10 +420,6 @@ func TestCollectionHandler_FallbackQuery(t *testing.T) {
 			}
 			return nil, fmt.Errorf("no blobs found")
 		},
-		SetBlobTagsFunc: func(ctx context.Context, blobName string, containerName string, tags map[string]string) error {
-			assert.Equal(t, "true", tags["collectionImage"])
-			return nil
-		},
 		GetBlobTagsFunc: func(ctx context.Context, blobName string, containerName string) (map[string]string, error) {
 			if blobName == "sport/ravens/photo1.jpg" {
 				return sportBlob.Tags, nil
@@ -438,7 +435,7 @@ func TestCollectionHandler_FallbackQuery(t *testing.T) {
 	handler.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
-	assert.Len(t, mock.SetBlobTagsCalls, 1) // should auto-assign collectionImage for 'sport'
+	assert.Len(t, mock.SetBlobTagsCalls, 0) // ephemeral pick — no tags persisted
 
 	var photos []models.Photo
 	err := json.Unmarshal(w.Body.Bytes(), &photos)

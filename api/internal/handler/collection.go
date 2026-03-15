@@ -54,8 +54,10 @@ func CollectionHandler(store storage.BlobStore, cfg *Config) http.HandlerFunc {
 			markedBlobs = append(markedBlobs, b)
 		}
 
-		// 3. For every collection that is NOT yet marked, find one image and
-		//    tag it as collectionImage so the UI can display it.
+		// 3. For every collection that is NOT yet marked, pick one image for
+		//    display WITHOUT persisting the collectionImage tag. This avoids a
+		//    race where auto-assignment overwrites the user's explicit thumbnail
+		//    choice that is still being processed by the resize pipeline.
 		for collection := range tagList {
 			if markedCollections[collection] {
 				continue
@@ -69,12 +71,7 @@ func CollectionHandler(store storage.BlobStore, cfg *Config) http.HandlerFunc {
 			}
 
 			pick := candidates[0]
-			pick.Tags["collectionImage"] = "true"
-			if err := store.SetBlobTags(ctx, pick.Name, cfg.ImagesContainerName, pick.Tags); err != nil {
-				slog.ErrorContext(ctx, "error setting collectionImage tag", "blob", pick.Name, "error", err)
-			} else {
-				slog.InfoContext(ctx, "auto-assigned collectionImage", "collection", collection, "blob", pick.Name)
-			}
+			slog.InfoContext(ctx, "using ephemeral collectionImage (not persisted)", "collection", collection, "blob", pick.Name)
 			markedBlobs = append(markedBlobs, pick)
 			markedCollections[collection] = true
 		}

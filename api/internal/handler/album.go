@@ -64,7 +64,10 @@ func AlbumHandler(store storage.BlobStore, cfg *Config) http.HandlerFunc {
 		}
 		markedBlobs = dedupBlobs
 
-		// 3. For every album that is NOT yet marked, pick one non-deleted image and tag it.
+		// 3. For every album that is NOT yet marked, pick one non-deleted image
+		//    for display WITHOUT persisting the albumImage tag. This avoids a
+		//    race where auto-assignment overwrites the user's explicit thumbnail
+		//    choice that is still being processed by the resize pipeline.
 		for _, album := range albums {
 			if markedAlbums[album] {
 				continue
@@ -78,12 +81,7 @@ func AlbumHandler(store storage.BlobStore, cfg *Config) http.HandlerFunc {
 			}
 
 			pick := candidates[0]
-			pick.Tags["albumImage"] = "true"
-			if err := store.SetBlobTags(ctx, pick.Name, cfg.ImagesContainerName, pick.Tags); err != nil {
-				slog.ErrorContext(ctx, "error setting albumImage tag", "blob", pick.Name, "error", err)
-			} else {
-				slog.InfoContext(ctx, "auto-assigned albumImage", "collection", collection, "album", album, "blob", pick.Name)
-			}
+			slog.InfoContext(ctx, "using ephemeral albumImage (not persisted)", "collection", collection, "album", album, "blob", pick.Name)
 			markedBlobs = append(markedBlobs, pick)
 			markedAlbums[album] = true
 		}
