@@ -112,7 +112,7 @@ func main() {
 		defer cancel()
 
 		_, err := store.FilterBlobsByTags(readyCtx,
-			fmt.Sprintf("@container='%s'", cfg.ImagesContainerName),
+			fmt.Sprintf("@container='%s' and collectionImage='true'", cfg.ImagesContainerName),
 			cfg.ImagesContainerName)
 		if err != nil {
 			slog.Warn("readiness check failed", "error", err)

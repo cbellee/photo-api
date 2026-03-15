@@ -156,11 +156,14 @@ module egt 'br/public:avm/res/event-grid/system-topic:0.2.6' = [
   }
 ]
 
-module containerAppEnvironment 'br/public:avm/res/app/managed-environment:0.4.5' = {
+module containerAppEnvironment 'br/public:avm/res/app/managed-environment:0.13.1' = {
   name: 'ContainerAppEnvironmentDeployment'
   params: {
     name: containerAppEnvName
-    logAnalyticsWorkspaceResourceId: workspace.outputs.resourceId
+    appLogsConfiguration: {
+      destination: 'log-analytics'
+      logAnalyticsWorkspaceResourceId: workspace.outputs.resourceId
+    }
     internal: false
     tags: tags
     zoneRedundant: false
