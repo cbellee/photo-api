@@ -173,7 +173,7 @@ func main() {
 		Addr:              port,
 		Handler:           otelHandler,
 		ReadHeaderTimeout: 10 * time.Second,
-		WriteTimeout:      60 * time.Second,
+		WriteTimeout:      300 * time.Second, // must cover full multipart body read + blob write + response
 		IdleTimeout:       120 * time.Second,
 	}
 
