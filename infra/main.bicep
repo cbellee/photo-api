@@ -1,10 +1,10 @@
 param photoApiContainerImage string
 param resizeApiContainerImage string
-param photoCpuResource string = '0.25'
-param resizeCpuResource string = '0.25'
-param coolDownPeriod int = 600 // 10 minutes
+param photoCpuResource string = '0.5'
 param photoMemoryResource string = '1.0Gi'
+param resizeCpuResource string = '0.25'
 param resizeMemoryResource string = '0.5Gi'
+param coolDownPeriod int = 600 // 10 minutes
 param zoneName string = 'bellee.net'
 param cNameRecord string = 'photo'
 param ghcrName string = 'ghcr.io'
