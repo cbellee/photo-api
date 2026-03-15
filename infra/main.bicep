@@ -1,7 +1,7 @@
 param photoApiContainerImage string
 param resizeApiContainerImage string
-param photoCpuResource string = '0.5'
-param photoMemoryResource string = '1.0Gi'
+param photoCpuResource string = '2.0'
+param photoMemoryResource string = '4.0Gi'
 param resizeCpuResource string = '0.25'
 param resizeMemoryResource string = '0.5Gi'
 param coolDownPeriod int = 600 // 10 minutes
