@@ -321,11 +321,6 @@ func TestAlbumHandler_AutoAssignsAlbumImage(t *testing.T) {
 			}
 			return nil, nil
 		},
-		SetBlobTagsFunc: func(ctx context.Context, blobName string, containerName string, tags map[string]string) error {
-			assert.Equal(t, "nature/forest/p1.jpg", blobName)
-			assert.Equal(t, "true", tags["albumImage"])
-			return nil
-		},
 		GetBlobTagsFunc: func(ctx context.Context, blobName string, containerName string) (map[string]string, error) {
 			if blobName == "nature/forest/p1.jpg" {
 				return candidate.Tags, nil
@@ -342,7 +337,12 @@ func TestAlbumHandler_AutoAssignsAlbumImage(t *testing.T) {
 	handler.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
-	assert.Len(t, mock.SetBlobTagsCalls, 1, "should auto-assign albumImage for forest")
+	assert.Len(t, mock.SetBlobTagsCalls, 0, "ephemeral pick — should NOT persist albumImage tag")
+
+	var photos []models.Photo
+	err := json.Unmarshal(w.Body.Bytes(), &photos)
+	require.NoError(t, err)
+	assert.Len(t, photos, 2, "should return both sunset + forest (ephemeral pick)")
 }
 
 // contains is a test helper (strings.Contains).

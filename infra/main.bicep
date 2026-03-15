@@ -86,7 +86,8 @@ var storageAccountName = 'stor${affix}'
 var topicName = 'egt-${affix}'
 var containerAppEnvName = 'appenv-${affix}'
 var cName = '${cNameRecord}.${zoneName}'
-var corsOrigins = 'http://localhost:5173,https://${cName}'
+var cNameDev = '${cNameRecord}-dev.${zoneName}'
+var corsOrigins = 'http://localhost:5173,https://${cName},https://${cNameDev}'
 
 targetScope = 'resourceGroup'
 
@@ -110,6 +111,7 @@ module storage './modules/stor.bicep' = {
     corsAllowedOrigins: [
       'http://localhost:5173'
       'https://${cName}'
+      'https://${cNameDev}'
     ]
   }
 }
@@ -169,6 +171,11 @@ module containerAppEnvironment 'br/public:avm/res/app/managed-environment:0.13.1
     internal: false
     tags: tags
     zoneRedundant: false
+    publicNetworkAccess: 'Enabled'
+    ingressConfiguration: {
+      requestIdleTimeout: 10
+      terminationGracePeriodSeconds: 600
+    }
   }
 }
 
@@ -446,6 +453,7 @@ resource photoApi 'Microsoft.App/containerApps@2025-10-02-preview' = {
             'http://localhost:5173'
             'https://${storage.outputs.webEndpoint}'
             'https://${cName}'
+            'https://${cNameDev}'
           ]
           allowedHeaders: [
             '*'
