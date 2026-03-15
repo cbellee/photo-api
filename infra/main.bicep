@@ -1,8 +1,10 @@
 param photoApiContainerImage string
 param resizeApiContainerImage string
-param cpuResource string = '0.25'
+param photoCpuResource string = '0.25'
+param resizeCpuResource string = '0.25'
 param coolDownPeriod int = 600 // 10 minutes
-param memoryResource string = '0.5Gi'
+param photoMemoryResource string = '1.0Gi'
+param resizeMemoryResource string = '0.5Gi'
 param zoneName string = 'bellee.net'
 param cNameRecord string = 'photo'
 param ghcrName string = 'ghcr.io'
@@ -156,11 +158,14 @@ module egt 'br/public:avm/res/event-grid/system-topic:0.2.6' = [
   }
 ]
 
-module containerAppEnvironment 'br/public:avm/res/app/managed-environment:0.4.5' = {
+module containerAppEnvironment 'br/public:avm/res/app/managed-environment:0.13.1' = {
   name: 'ContainerAppEnvironmentDeployment'
   params: {
     name: containerAppEnvName
-    logAnalyticsWorkspaceResourceId: workspace.outputs.resourceId
+    appLogsConfiguration: {
+      destination: 'log-analytics'
+      logAnalyticsWorkspaceResourceId: workspace.outputs.resourceId
+    }
     internal: false
     tags: tags
     zoneRedundant: false
@@ -271,8 +276,8 @@ resource resizeApi 'Microsoft.App/containerApps@2025-10-02-preview' = {
             }
           ]
           resources: {
-            cpu: cpuResource
-            memory: memoryResource
+            cpu: resizeCpuResource
+            memory: resizeMemoryResource
           }
           env: [
             {
@@ -470,8 +475,8 @@ resource photoApi 'Microsoft.App/containerApps@2025-10-02-preview' = {
           image: photoApiContainerImage
           name: photoApiName
           resources: {
-            cpu: cpuResource
-            memory: memoryResource
+            cpu: photoCpuResource
+            memory: photoMemoryResource
           }
           env: [
             {

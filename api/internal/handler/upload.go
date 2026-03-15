@@ -59,7 +59,8 @@ func UploadHandler(store storage.BlobStore, cfg *Config) http.HandlerFunc {
 		// Keep files in memory rather than spilling to temp disk files.
 		// The container image is FROM scratch so /tmp does not exist.
 		// With the double-buffer copy eliminated and SPA concurrency
-		// capped at 3, worst-case RSS ≈ 3 × 32 MiB = 96 MiB.
+		// capped at 3, worst-case RSS ≈ 3 × 32 MiB = 96 MiB which
+		// fits within the 0.5 Gi container memory limit.
 		memLimit := cfg.MemoryLimitMb << 20
 		slog.DebugContext(ctx, "parsing multipart form",
 			"memory_limit_bytes", memLimit,
