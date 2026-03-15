@@ -172,10 +172,6 @@ module containerAppEnvironment 'br/public:avm/res/app/managed-environment:0.13.1
     tags: tags
     zoneRedundant: false
     publicNetworkAccess: 'Enabled'
-    ingressConfiguration: {
-      requestIdleTimeout: 10
-      terminationGracePeriodSeconds: 600
-    }
   }
 }
 
