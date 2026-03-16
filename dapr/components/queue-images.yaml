@@ -1,0 +1,27 @@
+# Dapr binding component: RabbitMQ queue for face-detection events.
+#
+# The face service subscribes to this binding to process newly resized
+# images from the "images" container.
+#
+# In production this would be an Azure Storage Queue bound to Event Grid
+# events on the images container.
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: queue-images
+spec:
+  type: bindings.rabbitmq
+  version: v1
+  metadata:
+    - name: host
+      value: "amqp://guest:guest@rabbitmq:5672/"
+    - name: queueName
+      value: "face-events"
+    - name: durable
+      value: "true"
+    - name: exclusive
+      value: "false"
+    - name: direction
+      value: "input"
+    - name: prefetchCount
+      value: "1"

@@ -1,5 +1,6 @@
 param photoApiContainerImage string
 param resizeApiContainerImage string
+param faceApiContainerImage string = ''
 param photoCpuResource string = '0.5'
 param photoMemoryResource string = '1.0Gi'
 param resizeCpuResource string = '0.25'
@@ -58,6 +59,10 @@ param photoApiName string = 'photo'
 param photoApiPort string = '80'
 param resizeApiName string = 'resize'
 param resizeApiPort string = '80'
+param faceApiName string = 'face'
+param faceApiPort string = '80'
+param faceCpuResource string = '0.5'
+param faceMemoryResource string = '1.0Gi'
 param grpcMaxRequestSizeMb int = 50
 param maxThumbHeight string = '300'
 param maxThumbWidth string = '300'
@@ -76,6 +81,7 @@ param otelMemoryResource string = '0.5Gi'
 param otelCollectorConfig string
 
 var storageBlobDataOwnerRoleDefinitionID = 'b7e6dc6d-f1e8-4753-8033-0f276bb0955b'
+var storageTableDataContributorRoleDefinitionID = '0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3'
 var storageKey = storage.outputs.key
 var storageQueueCxnString = 'DefaultEndpointsProtocol=https;AccountName=${storage.outputs.name};EndpointSuffix=${environment().suffixes.storage};AccountKey=${storageKey}'
 var storageCxnString = 'DefaultEndpointsProtocol=https;AccountName=${storage.outputs.name};EndpointSuffix=${environment().suffixes.storage};AccountKey=${storageKey}'
@@ -180,6 +186,15 @@ resource storageRbac 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   properties: {
     principalId: umid.properties.principalId
     roleDefinitionId: resourceId('Microsoft.Authorization/roleDefinitions', storageBlobDataOwnerRoleDefinitionID)
+    principalType: 'ServicePrincipal'
+  }
+}
+
+resource tableRbac 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(umid.name, 'storageTableDataContributor', affix)
+  properties: {
+    principalId: umid.properties.principalId
+    roleDefinitionId: resourceId('Microsoft.Authorization/roleDefinitions', storageTableDataContributorRoleDefinitionID)
     principalType: 'ServicePrincipal'
   }
 }
@@ -523,6 +538,14 @@ resource photoApi 'Microsoft.App/containerApps@2025-10-02-preview' = {
               name: 'OTEL_EXPORTER_OTLP_ENDPOINT'
               value: 'http://localhost:4317'
             }
+            {
+              name: 'FACE_STORE_TYPE'
+              value: !empty(faceApiContainerImage) ? 'table' : ''
+            }
+            {
+              name: 'TABLE_STORE_URL'
+              value: storage.outputs.tableEndpoint
+            }
           ]
         }
         {
@@ -671,6 +694,238 @@ module daprComponentUploadsStorageBlob 'modules/daprComponent.bicep' = {
   dependsOn: [
     resizeApi
   ]
+}
+
+// ── Face detection Container App ──────────────────────────────────────
+resource faceApi 'Microsoft.App/containerApps@2025-10-02-preview' = if (!empty(faceApiContainerImage)) {
+  name: faceApiName
+  location: resourceGroup().location
+  tags: tags
+  identity: {
+    type: 'UserAssigned'
+    userAssignedIdentities: {
+      '${umid.id}': {}
+    }
+  }
+  properties: {
+    configuration: {
+      activeRevisionsMode: 'single'
+      dapr: {
+        appId: faceApiName
+        appPort: int(faceApiPort)
+        appProtocol: 'grpc'
+        enabled: true
+        httpMaxRequestSize: grpcMaxRequestSizeMb
+      }
+      secrets: [
+        {
+          name: 'storage-queue-cxn'
+          value: storageQueueCxnString
+        }
+        {
+          name: 'ghcr-pull-token'
+          value: ghcrPullToken
+        }
+      ]
+      registries: [
+        {
+          server: ghcrName
+          username: githubUsername
+          passwordSecretRef: 'ghcr-pull-token'
+        }
+      ]
+      ingress: {
+        external: false
+        targetPort: int(faceApiPort)
+        traffic: [
+          {
+            latestRevision: true
+            weight: 100
+          }
+        ]
+        transport: 'auto'
+      }
+    }
+    managedEnvironmentId: containerAppEnvironment.outputs.resourceId
+    template: {
+      containers: [
+        {
+          image: faceApiContainerImage
+          name: faceApiName
+          resources: {
+            cpu: faceCpuResource
+            memory: faceMemoryResource
+          }
+          env: [
+            {
+              name: 'SERVICE_NAME'
+              value: faceApiName
+            }
+            {
+              name: 'SERVICE_PORT'
+              value: faceApiPort
+            }
+            {
+              name: 'IMAGES_QUEUE_BINDING'
+              value: 'queue-${toLower(imagesStorageQueueName)}'
+            }
+            {
+              name: 'FACE_STORE_TYPE'
+              value: 'table'
+            }
+            {
+              name: 'TABLE_STORE_URL'
+              value: storage.outputs.tableEndpoint
+            }
+            {
+              name: 'STORAGE_ACCOUNT_NAME'
+              value: storage.outputs.name
+            }
+            {
+              name: 'STORAGE_ACCOUNT_SUFFIX'
+              value: 'blob.${environment().suffixes.storage}'
+            }
+            {
+              name: 'AZURE_CLIENT_ID'
+              value: umid.properties.clientId
+            }
+            {
+              name: 'AZURE_TENANT_ID'
+              value: tenant().tenantId
+            }
+            {
+              name: 'CASCADE_PATH'
+              value: 'cascade/facefinder'
+            }
+            {
+              name: 'PUPLOC_PATH'
+              value: 'cascade/puploc'
+            }
+            {
+              name: 'FLP_DIR'
+              value: 'cascade/lps'
+            }
+          ]
+        }
+      ]
+      scale: {
+        minReplicas: 0
+        maxReplicas: 2
+        cooldownPeriod: coolDownPeriod
+        rules: [
+          {
+            name: 'azure-queue-scaler'
+            azureQueue: {
+              queueLength: 5
+              queueName: imagesStorageQueueName
+              auth: [
+                {
+                  secretRef: 'storage-queue-cxn'
+                  triggerParameter: 'connection'
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  }
+}
+
+// ── Face detection cron job (backfill) ───────────────────────────────
+resource faceCronJob 'Microsoft.App/jobs@2025-10-02-preview' = if (!empty(faceApiContainerImage)) {
+  name: '${faceApiName}-cron'
+  location: resourceGroup().location
+  tags: tags
+  identity: {
+    type: 'UserAssigned'
+    userAssignedIdentities: {
+      '${umid.id}': {}
+    }
+  }
+  properties: {
+    configuration: {
+      registries: [
+        {
+          server: ghcrName
+          username: githubUsername
+          passwordSecretRef: 'ghcr-pull-token'
+        }
+      ]
+      secrets: [
+        {
+          name: 'ghcr-pull-token'
+          value: ghcrPullToken
+        }
+      ]
+      triggerType: 'Schedule'
+      scheduleTriggerConfig: {
+        cronExpression: '0 3 * * *' // daily at 3 AM UTC
+        parallelism: 1
+        replicaCompletionCount: 1
+      }
+      replicaRetryLimit: 1
+      replicaTimeout: 3600 // 1 hour max
+    }
+    environmentId: containerAppEnvironment.outputs.resourceId
+    template: {
+      containers: [
+        {
+          image: faceApiContainerImage
+          name: '${faceApiName}-cron'
+          command: [
+            '/facecron'
+          ]
+          resources: {
+            cpu: faceCpuResource
+            memory: faceMemoryResource
+          }
+          env: [
+            {
+              name: 'FACE_STORE_TYPE'
+              value: 'table'
+            }
+            {
+              name: 'TABLE_STORE_URL'
+              value: storage.outputs.tableEndpoint
+            }
+            {
+              name: 'STORAGE_ACCOUNT_NAME'
+              value: storage.outputs.name
+            }
+            {
+              name: 'STORAGE_ACCOUNT_SUFFIX'
+              value: 'blob.${environment().suffixes.storage}'
+            }
+            {
+              name: 'AZURE_CLIENT_ID'
+              value: umid.properties.clientId
+            }
+            {
+              name: 'AZURE_TENANT_ID'
+              value: tenant().tenantId
+            }
+            {
+              name: 'CASCADE_PATH'
+              value: 'cascade/facefinder'
+            }
+            {
+              name: 'PUPLOC_PATH'
+              value: 'cascade/puploc'
+            }
+            {
+              name: 'FLP_DIR'
+              value: 'cascade/lps'
+            }
+            {
+              name: 'IMAGES_CONTAINER'
+              value: imagesContainerName
+            }
+          ]
+        }
+      ]
+    }
+  }
 }
 
 /* resource enableCustomDomainNotProxied 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
