@@ -38,6 +38,7 @@ func main() {
 
 	// ── RabbitMQ publisher (optional) ────────────────────────────────
 	var pub *Publisher
+	var facePub *Publisher // separate publisher for face-detection events on images container
 	if amqpURL := env("RABBITMQ_URL", ""); amqpURL != "" {
 		pubCfg := &PublisherConfig{
 			URL:        amqpURL,
@@ -52,6 +53,25 @@ func main() {
 			os.Exit(1)
 		}
 		defer pub.Close()
+
+		// Create a second publisher for face-detection events on the images container.
+		faceExchange := env("RABBITMQ_FACE_EXCHANGE", "face-events")
+		faceQueue := env("RABBITMQ_FACE_QUEUE", "face-events")
+		facePubCfg := &PublisherConfig{
+			URL:        amqpURL,
+			Exchange:   faceExchange,
+			RoutingKey: env("RABBITMQ_FACE_ROUTING_KEY", "blob.created"),
+			QueueName:  faceQueue,
+			BaseURL:    env("BLOB_PUBLIC_URL", "http://blobemu:10000"),
+		}
+		facePub, err = NewPublisher(facePubCfg)
+		if err != nil {
+			slog.Error("failed to connect face publisher to RabbitMQ", "error", err)
+			// Non-fatal: face detection won't trigger automatically but everything else works.
+			facePub = nil
+		} else {
+			defer facePub.Close()
+		}
 	} else {
 		slog.Info("RABBITMQ_URL not set - event publishing disabled")
 	}
@@ -84,7 +104,8 @@ func main() {
 	mux.HandleFunc("GET /{container}", listHandler(store))
 	mux.HandleFunc("GET /{container}/{blob...}", blobGetHandler(store))
 	publishContainer := env("PUBLISH_CONTAINER", "uploads")
-	mux.HandleFunc("PUT /{container}/{blob...}", blobPutHandler(store, pub, publishContainer, maxBodySize, allowedContentTypes))
+	facePublishContainer := env("FACE_PUBLISH_CONTAINER", "images")
+	mux.HandleFunc("PUT /{container}/{blob...}", blobPutHandler(store, pub, publishContainer, facePub, facePublishContainer, maxBodySize, allowedContentTypes))
 	mux.HandleFunc("DELETE /{container}/{blob...}", blobDeleteHandler(store))
 
 	srv := &http.Server{
@@ -228,7 +249,7 @@ func blobGetHandler(store *Store) http.HandlerFunc {
 	}
 }
 
-func blobPutHandler(store *Store, pub *Publisher, publishContainer string, maxBodySize int64, allowedCT map[string]bool) http.HandlerFunc {
+func blobPutHandler(store *Store, pub *Publisher, publishContainer string, facePub *Publisher, facePublishContainer string, maxBodySize int64, allowedCT map[string]bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		container := r.PathValue("container")
 		blob := r.PathValue("blob")
@@ -295,6 +316,13 @@ func blobPutHandler(store *Store, pub *Publisher, publishContainer string, maxBo
 				if err := pub.PublishBlobCreated(container, blob, ct, len(data)); err != nil {
 					slog.Error("failed to publish blob event", "container", container, "blob", blob, "error", err)
 					// Non-fatal: the blob is saved, just the event failed.
+				}
+			}
+
+			// Publish to the face-events exchange when blobs land in the images container.
+			if facePub != nil && container == facePublishContainer {
+				if err := facePub.PublishBlobCreated(container, blob, ct, len(data)); err != nil {
+					slog.Error("failed to publish face event", "container", container, "blob", blob, "error", err)
 				}
 			}
 

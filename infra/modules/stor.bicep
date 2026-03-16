@@ -77,6 +77,27 @@ resource queueService 'Microsoft.Storage/storageAccounts/queueServices@2025-06-0
   name: 'default'
 }
 
+resource tableService 'Microsoft.Storage/storageAccounts/tableServices@2025-06-01' = {
+  parent: storage
+  name: 'default'
+}
+
+// Face detection tables
+resource personsTable 'Microsoft.Storage/storageAccounts/tableServices/tables@2025-06-01' = {
+  parent: tableService
+  name: 'persons'
+}
+
+resource facesTable 'Microsoft.Storage/storageAccounts/tableServices/tables@2025-06-01' = {
+  parent: tableService
+  name: 'faces'
+}
+
+resource photofacesTable 'Microsoft.Storage/storageAccounts/tableServices/tables@2025-06-01' = {
+  parent: tableService
+  name: 'photofaces'
+}
+
 resource blobService 'Microsoft.Storage/storageAccounts/blobServices@2025-06-01' = {
   parent: storage
   name: 'default'
@@ -151,3 +172,4 @@ output id string = storage.id
 output key string = storage.listKeys().keys[0].value
 output blobEndpoint string = replace(replace(storage.properties.primaryEndpoints.blob, 'https://', ''), '/', '')
 output webEndpoint string = replace(replace(storage.properties.primaryEndpoints.web, 'https://', ''), '/', '')
+output tableEndpoint string = storage.properties.primaryEndpoints.table

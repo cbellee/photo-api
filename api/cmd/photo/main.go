@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/cbellee/photo-api/internal/facestore"
 	"github.com/cbellee/photo-api/internal/handler"
 	"github.com/cbellee/photo-api/internal/storage"
 	"github.com/cbellee/photo-api/internal/telemetry"
@@ -95,6 +96,34 @@ func main() {
 		return
 	}
 
+	// ── Create face store (optional) ────────────────────────────────
+	faceStoreType := envOr("FACE_STORE_TYPE", "") // "sqlite" or "table"; empty = disabled
+	if faceStoreType != "" {
+		var fs facestore.FaceStore
+		switch faceStoreType {
+		case "sqlite":
+			dbPath := envOr("FACE_STORE_DB", "/data/facestore.db")
+			fs, err = facestore.NewSQLiteStore(dbPath)
+		case "table":
+			tableURL := envOr("TABLE_STORE_URL", "")
+			cred, credErr := azidentity.NewDefaultAzureCredential(nil)
+			if credErr != nil {
+				slog.Error("cannot create Azure credential for face table store", "error", credErr)
+			} else {
+				fs, err = facestore.NewTableStore(tableURL, cred)
+			}
+		default:
+			slog.Warn("unknown FACE_STORE_TYPE, face endpoints disabled", "type", faceStoreType)
+		}
+		if err != nil {
+			slog.Error("error creating face store, face endpoints disabled", "type", faceStoreType, "error", err)
+		} else if fs != nil {
+			cfg.FaceStore = fs
+			defer fs.Close()
+			slog.Info("face store initialised", "type", faceStoreType)
+		}
+	}
+
 	// ── Routes ──────────────────────────────────────────────────────
 	port := fmt.Sprintf(":%s", cfg.ServicePort)
 	api := http.NewServeMux()
@@ -156,6 +185,16 @@ func main() {
 
 	// All photos in a collection (for thumbnail picker)
 	api.HandleFunc("GET /api/photos/{collection}", handler.CollectionPhotosHandler(store, cfg))
+
+	// ── People / face endpoints ─────────────────────────────────────
+	api.HandleFunc("GET /api/people", handler.PeopleListHandler(cfg))
+	api.HandleFunc("GET /api/people/search", handler.SearchPeopleHandler(cfg))
+	api.HandleFunc("GET /api/people/{personID}", handler.PersonByIDHandler(cfg))
+	api.HandleFunc("GET /api/people/{personID}/photos", handler.PersonPhotosHandler(cfg))
+	api.HandleFunc("PUT /api/people/{personID}/name", handler.RequireRole(cfg, handler.SetPersonNameHandler(cfg)))
+	api.HandleFunc("POST /api/people/merge", handler.RequireRole(cfg, handler.MergePeopleHandler(cfg)))
+	api.HandleFunc("GET /api/faces/photo/{collection}/{album}/{name}", handler.FaceOverlaysHandler(cfg))
+	api.HandleFunc("GET /api/faces/person/{personID}", handler.FacesByPersonHandler(cfg))
 
 	slog.Info("server listening", "name", cfg.ServiceName, "port", port)
 

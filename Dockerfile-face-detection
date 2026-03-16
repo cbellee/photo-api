@@ -1,25 +1,28 @@
-FROM golang:latest AS builder
+# Pigo-based face detection service — pure Go, no CGO/dlib required.
+FROM golang:1.26 AS builder
 
-ARG SERVICE_NAME=""
-ARG SERVICE_PORT=""
+ARG SERVICE_NAME="face"
+ARG SERVICE_PORT="8082"
 
 RUN mkdir /build
 WORKDIR /build
-COPY ./cmd .
+COPY ./api .
 
+WORKDIR /build/cmd
 RUN go mod download
-RUN CGO_ENABLED=0 GOOS=linux go build -o server ./${SERVICE_NAME}/main.go
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o server ./${SERVICE_NAME}/
 
-FROM golang:latest AS release
+FROM scratch
 
-ARG SERVICE_NAME=""
-ARG SERVICE_PORT=""
+ARG SERVICE_NAME="face"
+ARG SERVICE_PORT="8082"
 
 WORKDIR /app
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
-COPY --from=builder /build/server .
-RUN apt-get install libdlib-dev libblas-dev libatlas-base-dev liblapack-dev libjpeg-turbo8-dev
+COPY --from=builder /build/cmd/server .
 
-# run server
+# Copy Pigo cascade files (~7 MB total).
+COPY ./api/cmd/face/cascade ./cascade
+
 EXPOSE $SERVICE_PORT
 CMD ["./server"]

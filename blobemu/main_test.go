@@ -35,7 +35,7 @@ func newTestMux(store *Store) *http.ServeMux {
 		"image/jpeg":               true,
 		"application/octet-stream": true,
 	}
-	mux.HandleFunc("PUT /{container}/{blob...}", blobPutHandler(store, nil, "uploads", 100<<20, allowedCT))
+	mux.HandleFunc("PUT /{container}/{blob...}", blobPutHandler(store, nil, "uploads", nil, "", 100<<20, allowedCT))
 	mux.HandleFunc("DELETE /{container}/{blob...}", blobDeleteHandler(store))
 	return mux
 }
