@@ -13,6 +13,9 @@ type FaceStore interface {
 	// yet exist, the implementation must create it.
 	SaveFace(ctx context.Context, f Face) error
 
+	// GetFaceByID returns a single face by its ID.
+	GetFaceByID(ctx context.Context, faceID string) (Face, error)
+
 	// GetFacesByPerson returns all faces belonging to a person.
 	GetFacesByPerson(ctx context.Context, personID string) ([]Face, error)
 
@@ -30,9 +33,16 @@ type FaceStore interface {
 	// SetPersonName updates the display name for a person.
 	SetPersonName(ctx context.Context, personID string, name string) error
 
+	// DeletePerson deletes a person and all their associated faces.
+	DeletePerson(ctx context.Context, personID string) error
+
 	// MergePeople moves all faces from sourcePersonID into targetPersonID
 	// and deletes the source person.
 	MergePeople(ctx context.Context, sourcePersonID, targetPersonID string) error
+
+	// FindPersonByName returns the first person with an exact (case-insensitive)
+	// name match, or an error if none found.
+	FindPersonByName(ctx context.Context, name string) (Person, error)
 
 	// SearchPeople returns persons whose name matches the given prefix
 	// (case-insensitive). Pass an empty string to list all named persons.

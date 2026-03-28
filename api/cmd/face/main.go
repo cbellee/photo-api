@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -137,18 +138,15 @@ func faceHandler(ctx context.Context, in *common.BindingEvent) (out []byte, err 
 
 	// Parse blob path from event URL.
 	// URL format: http(s)://<host>/<container>/<collection>/<album>/<filename>
-	parts := strings.SplitN(evt.Data.URL, "//", 2)
-	if len(parts) < 2 {
-		return nil, fmt.Errorf("invalid blob URL: %s", evt.Data.URL)
+	parsedURL, err := url.Parse(evt.Data.URL)
+	if err != nil {
+		return nil, fmt.Errorf("invalid blob URL %q: %w", evt.Data.URL, err)
 	}
-	pathParts := strings.SplitN(parts[1], "/", 2)
-	if len(pathParts) < 2 {
-		return nil, fmt.Errorf("invalid blob path: %s", evt.Data.URL)
-	}
-	fullPath := pathParts[1] // "container/collection/album/filename"
-	segments := strings.SplitN(fullPath, "/", 4)
+	// Path is automatically percent-decoded by url.Parse.
+	trimmed := strings.TrimPrefix(parsedURL.Path, "/")
+	segments := strings.SplitN(trimmed, "/", 4)
 	if len(segments) < 4 {
-		return nil, fmt.Errorf("expected container/collection/album/name, got %q", fullPath)
+		return nil, fmt.Errorf("expected /container/collection/album/name, got %q", parsedURL.Path)
 	}
 	container := segments[0]
 	collection := segments[1]

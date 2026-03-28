@@ -145,6 +145,23 @@ func (ts *TableStore) SaveFace(ctx context.Context, f Face) error {
 	return ts.recalcFaceCount(ctx, f.PersonID)
 }
 
+// ── GetFaceByID ─────────────────────────────────────────────────────────────
+
+func (ts *TableStore) GetFaceByID(ctx context.Context, faceID string) (Face, error) {
+	// Face entities are partitioned by personID. Since we only have faceID
+	// we must scan all faces. For a small dataset this is acceptable;
+	// for scale, consider a secondary index table.
+	filter := fmt.Sprintf("RowKey eq '%s'", escapeOData(faceID))
+	faces, err := ts.queryFaces(ctx, filter)
+	if err != nil {
+		return Face{}, err
+	}
+	if len(faces) == 0 {
+		return Face{}, fmt.Errorf("facestore: face %q not found", faceID)
+	}
+	return faces[0], nil
+}
+
 // ── GetFacesByPerson ────────────────────────────────────────────────────────
 
 func (ts *TableStore) GetFacesByPerson(ctx context.Context, personID string) ([]Face, error) {
@@ -224,6 +241,25 @@ func (ts *TableStore) SetPersonName(ctx context.Context, personID, name string) 
 	return err
 }
 
+// ── DeletePerson ────────────────────────────────────────────────────────────
+
+func (ts *TableStore) DeletePerson(ctx context.Context, personID string) error {
+	// 1. Delete all face entities belonging to this person.
+	faces, err := ts.GetFacesByPerson(ctx, personID)
+	if err != nil {
+		return err
+	}
+	for _, f := range faces {
+		_, _ = ts.faces.DeleteEntity(ctx, personID, f.FaceID, nil)
+		// Also clean up the photofaces reverse index.
+		_, _ = ts.photofaces.DeleteEntity(ctx, f.PhotoRef.Key(), f.FaceID, nil)
+	}
+
+	// 2. Delete the person entity.
+	_, err = ts.persons.DeleteEntity(ctx, "person", personID, nil)
+	return err
+}
+
 // ── MergePeople ─────────────────────────────────────────────────────────────
 
 func (ts *TableStore) MergePeople(ctx context.Context, sourceID, targetID string) error {
@@ -259,6 +295,20 @@ func (ts *TableStore) MergePeople(ctx context.Context, sourceID, targetID string
 
 	// 4. Recount target.
 	return ts.recalcFaceCount(ctx, targetID)
+}
+
+// ── FindPersonByName ────────────────────────────────────────────────────────
+
+func (ts *TableStore) FindPersonByName(ctx context.Context, name string) (Person, error) {
+	filter := fmt.Sprintf("PartitionKey eq 'person' and Name eq '%s'", escapeOData(name))
+	persons, err := ts.queryPersons(ctx, filter)
+	if err != nil {
+		return Person{}, err
+	}
+	if len(persons) == 0 {
+		return Person{}, fmt.Errorf("facestore: no person named %q", name)
+	}
+	return persons[0], nil
 }
 
 // ── SearchPeople ────────────────────────────────────────────────────────────

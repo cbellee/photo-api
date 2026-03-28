@@ -88,6 +88,7 @@ jobs:
             docker build --tag "${{ needs.gen-image-names-job.outputs.photoApiImage }}" \
             --build-arg SERVICE_NAME=${{ env.PHOTO_API_NAME }} \
             --build-arg SERVICE_PORT=${{ env.PHOTO_API_PORT }} \
+            --platform linux/amd64 \
             -f ./Dockerfile .
 
             docker push "${{ needs.gen-image-names-job.outputs.photoApiImage }}"
@@ -113,6 +114,7 @@ jobs:
             docker build --tag "${{ needs.gen-image-names-job.outputs.resizeApiImage }}" \
             --build-arg SERVICE_NAME=${{ env.RESIZE_API_NAME }} \
             --build-arg SERVICE_PORT=${{ env.RESIZE_API_PORT }} \
+            --platform linux/amd64 \
             -f ./Dockerfile .
 
             docker push "${{ needs.gen-image-names-job.outputs.resizeApiImage }}"

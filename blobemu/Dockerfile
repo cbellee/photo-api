@@ -1,7 +1,7 @@
 FROM golang:1.26-alpine AS builder
 WORKDIR /build
 COPY . .
-RUN go mod tidy && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o blobemu .
+RUN go mod tidy && CGO_ENABLED=0 go build -o blobemu .
 
 FROM alpine:latest
 RUN apk --no-cache add ca-certificates

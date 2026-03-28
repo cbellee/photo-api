@@ -192,7 +192,9 @@ func main() {
 	api.HandleFunc("GET /api/people/{personID}", handler.PersonByIDHandler(cfg))
 	api.HandleFunc("GET /api/people/{personID}/photos", handler.PersonPhotosHandler(cfg))
 	api.HandleFunc("PUT /api/people/{personID}/name", handler.RequireRole(cfg, handler.SetPersonNameHandler(cfg)))
+	api.HandleFunc("DELETE /api/people/{personID}", handler.RequireRole(cfg, handler.DeletePersonHandler(cfg)))
 	api.HandleFunc("POST /api/people/merge", handler.RequireRole(cfg, handler.MergePeopleHandler(cfg)))
+	api.HandleFunc("GET /api/faces/{faceID}", handler.FaceByIDHandler(cfg))
 	api.HandleFunc("GET /api/faces/photo/{collection}/{album}/{name}", handler.FaceOverlaysHandler(cfg))
 	api.HandleFunc("GET /api/faces/person/{personID}", handler.FacesByPersonHandler(cfg))
 

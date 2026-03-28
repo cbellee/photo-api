@@ -123,14 +123,64 @@ func SetPersonNameHandler(cfg *Config) http.HandlerFunc {
 			return
 		}
 
+		// Set the name first.
 		if err := cfg.FaceStore.SetPersonName(ctx, personID, body.Name); err != nil {
 			slog.ErrorContext(ctx, "error setting person name", "personID", personID, "error", err)
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 			return
 		}
 
+		// Auto-merge: if another person already has this exact name, merge into them.
+		resultPersonID := personID
+		merged := false
+		existing, err := cfg.FaceStore.FindPersonByName(ctx, body.Name)
+		if err == nil && existing.PersonID != personID {
+			// Merge the just-named person into the pre-existing one.
+			if mergeErr := cfg.FaceStore.MergePeople(ctx, personID, existing.PersonID); mergeErr != nil {
+				slog.WarnContext(ctx, "auto-merge failed", "source", personID, "target", existing.PersonID, "error", mergeErr)
+			} else {
+				slog.InfoContext(ctx, "auto-merged persons by name", "source", personID, "target", existing.PersonID, "name", body.Name)
+				resultPersonID = existing.PersonID
+				merged = true
+			}
+		}
+
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"message": "ok", "personID": personID, "name": body.Name})
+		json.NewEncoder(w).Encode(map[string]any{
+			"message":  "ok",
+			"personID": resultPersonID,
+			"name":     body.Name,
+			"merged":   merged,
+		})
+	}
+}
+
+// DeletePersonHandler deletes a person and all their faces. Requires auth.
+// DELETE /api/people/{personID}
+func DeletePersonHandler(cfg *Config) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, span := tracer.Start(r.Context(), "handler.DeletePerson")
+		defer span.End()
+
+		if cfg.FaceStore == nil {
+			http.Error(w, "face detection not configured", http.StatusServiceUnavailable)
+			return
+		}
+
+		personID := r.PathValue("personID")
+		if personID == "" {
+			http.Error(w, "personID is required", http.StatusBadRequest)
+			return
+		}
+
+		if err := cfg.FaceStore.DeletePerson(ctx, personID); err != nil {
+			slog.ErrorContext(ctx, "error deleting person", "personID", personID, "error", err)
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"message": "deleted", "personID": personID})
 	}
 }
 

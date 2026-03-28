@@ -18,6 +18,10 @@ services:
       OTEL_LOGS_ENABLED: "true"
       EMULATED_STORAGE_URL: http://localhost:10000
       BLOB_EMULATOR_URL: http://blobemu:10000
+      FACE_STORE_TYPE: sqlite
+      FACE_STORE_DB: /data/facestore.db
+    volumes:
+      - ./data:/data
     depends_on:
       - otel-collector
       - blobemu
@@ -40,7 +44,7 @@ services:
       STORAGE_ACCOUNT_NAME: blobemu
       STORAGE_ACCOUNT_SUFFIX: "localhost:10000"
       BLOB_EMULATOR_URL: http://blobemu:10000
-      EMULATED_STORAGE_URL: http://blobemu:10000
+      EMULATED_STORAGE_URL: http://localhost:10000
       IMAGES_CONTAINER_NAME: images
       MAX_IMAGE_HEIGHT: "1200"
       MAX_IMAGE_WIDTH: "1600"

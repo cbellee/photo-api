@@ -127,6 +127,37 @@ func (s *SQLiteStore) SaveFace(ctx context.Context, f Face) error {
 	return tx.Commit()
 }
 
+// ── GetFaceByID ─────────────────────────────────────────────────────────────
+
+func (s *SQLiteStore) GetFaceByID(ctx context.Context, faceID string) (Face, error) {
+	row := s.db.QueryRowContext(ctx, `
+		SELECT id, person_id, photo_collection, photo_album, photo_name,
+			bbox_x, bbox_y, bbox_w, bbox_h, landmark_fp, face_hash, confidence, created_at
+		FROM faces WHERE id = ?
+	`, faceID)
+
+	var f Face
+	var fpJSON string
+	var createdAt time.Time
+	err := row.Scan(
+		&f.FaceID, &f.PersonID,
+		&f.PhotoRef.Collection, &f.PhotoRef.Album, &f.PhotoRef.Name,
+		&f.BBox.X, &f.BBox.Y, &f.BBox.W, &f.BBox.H,
+		&fpJSON, &f.FaceHash, &f.Confidence, &createdAt,
+	)
+	if err == sql.ErrNoRows {
+		return f, fmt.Errorf("facestore: face %q not found", faceID)
+	}
+	if err != nil {
+		return f, err
+	}
+	f.CreatedAt = createdAt
+	if err := json.Unmarshal([]byte(fpJSON), &f.LandmarkFingerprint); err != nil {
+		f.LandmarkFingerprint = nil
+	}
+	return f, nil
+}
+
 // ── GetFacesByPerson ────────────────────────────────────────────────────────
 
 func (s *SQLiteStore) GetFacesByPerson(ctx context.Context, personID string) ([]Face, error) {
@@ -202,6 +233,33 @@ func (s *SQLiteStore) SetPersonName(ctx context.Context, personID, name string) 
 	return nil
 }
 
+// ── DeletePerson ────────────────────────────────────────────────────────────
+
+func (s *SQLiteStore) DeletePerson(ctx context.Context, personID string) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	// Delete all faces belonging to this person.
+	_, err = tx.ExecContext(ctx, `DELETE FROM faces WHERE person_id = ?`, personID)
+	if err != nil {
+		return fmt.Errorf("facestore: delete faces: %w", err)
+	}
+
+	// Delete the person.
+	res, err := tx.ExecContext(ctx, `DELETE FROM persons WHERE id = ?`, personID)
+	if err != nil {
+		return fmt.Errorf("facestore: delete person: %w", err)
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return fmt.Errorf("facestore: person %q not found", personID)
+	}
+	return tx.Commit()
+}
+
 // ── MergePeople ─────────────────────────────────────────────────────────────
 
 func (s *SQLiteStore) MergePeople(ctx context.Context, sourceID, targetID string) error {
@@ -232,6 +290,21 @@ func (s *SQLiteStore) MergePeople(ctx context.Context, sourceID, targetID string
 	}
 
 	return tx.Commit()
+}
+
+// ── FindPersonByName ────────────────────────────────────────────────────────
+
+func (s *SQLiteStore) FindPersonByName(ctx context.Context, name string) (Person, error) {
+	row := s.db.QueryRowContext(ctx, `
+		SELECT id, name, face_count, thumbnail_face_id
+		FROM persons WHERE name = ? COLLATE NOCASE LIMIT 1
+	`, name)
+	var p Person
+	err := row.Scan(&p.PersonID, &p.Name, &p.FaceCount, &p.ThumbnailFaceID)
+	if err == sql.ErrNoRows {
+		return p, fmt.Errorf("facestore: no person named %q", name)
+	}
+	return p, err
 }
 
 // ── SearchPeople ────────────────────────────────────────────────────────────

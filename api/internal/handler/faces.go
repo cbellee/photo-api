@@ -8,6 +8,36 @@ import (
 	"github.com/cbellee/photo-api/internal/facestore"
 )
 
+// FaceByIDHandler returns a single face by its ID.
+// GET /api/faces/{faceID}
+func FaceByIDHandler(cfg *Config) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, span := tracer.Start(r.Context(), "handler.FaceByID")
+		defer span.End()
+
+		if cfg.FaceStore == nil {
+			http.Error(w, "face detection not configured", http.StatusServiceUnavailable)
+			return
+		}
+
+		faceID := r.PathValue("faceID")
+		if faceID == "" {
+			http.Error(w, "faceID is required", http.StatusBadRequest)
+			return
+		}
+
+		face, err := cfg.FaceStore.GetFaceByID(ctx, faceID)
+		if err != nil {
+			slog.ErrorContext(ctx, "face not found", "faceID", faceID, "error", err)
+			http.Error(w, "Face not found", http.StatusNotFound)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(face)
+	}
+}
+
 // FaceOverlaysHandler returns the face overlays for a specific photo.
 // GET /api/faces/photo/{collection}/{album}/{name}
 func FaceOverlaysHandler(cfg *Config) http.HandlerFunc {
