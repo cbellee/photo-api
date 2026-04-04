@@ -139,16 +139,29 @@ func ResizeImage(imgBytes []byte, imageFormat string, blobName string, maxHeight
 
 func ConvertToEvent(b *common.BindingEvent) (models.Event, error) {
 	var evt models.Event
-
-	byt := make([]byte, base64.StdEncoding.DecodedLen(len(b.Data)))
-	l, err := base64.StdEncoding.Decode(byt, b.Data)
-	if err != nil {
-		return evt, err
+	if b == nil {
+		return evt, fmt.Errorf("binding event is nil")
+	}
+	if len(b.Data) == 0 {
+		return evt, fmt.Errorf("binding event data is empty")
 	}
 
-	err = json.Unmarshal(byt[:l], &evt)
-	if err != nil {
-		return evt, err
+	// Azure Queue / Dapr delivery can surface either base64-encoded JSON or raw
+	// JSON depending on the producer and binding configuration. Accept both.
+	decoded := make([]byte, base64.StdEncoding.DecodedLen(len(b.Data)))
+	decodedLen, decodeErr := base64.StdEncoding.Decode(decoded, b.Data)
+	if decodeErr == nil {
+		if err := json.Unmarshal(decoded[:decodedLen], &evt); err == nil {
+			slog.Info("unmarshalled event", "event_url", evt.Data.URL)
+			return evt, nil
+		}
+	}
+
+	if err := json.Unmarshal(b.Data, &evt); err != nil {
+		if decodeErr != nil {
+			return evt, fmt.Errorf("parsing binding event payload: base64 decode failed: %w; raw json unmarshal failed: %v", decodeErr, err)
+		}
+		return evt, fmt.Errorf("parsing binding event payload as raw json: %w", err)
 	}
 	slog.Info("unmarshalled event", "event_url", evt.Data.URL)
 

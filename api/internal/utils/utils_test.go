@@ -331,6 +331,44 @@ func TestConvertToEvent(t *testing.T) {
 		}
 	})
 
+	t.Run("Happy path - raw JSON event data", func(t *testing.T) {
+		originalEvent := models.Event{
+			Topic:           "Microsoft.Storage.BlobCreated",
+			Subject:         "/blobServices/default/containers/uploads/blobs/nature/sunset/photo1.jpg",
+			EventType:       "Microsoft.Storage.BlobCreated",
+			ID:              "raw-json-event-id",
+			DataVersion:     "1.0",
+			MetadataVersion: "1",
+			EventTime:       "2023-01-01T12:00:00Z",
+			Data: models.EventData{
+				ContentType:   "image/jpeg",
+				ContentLength: 1024000,
+				URL:           "https://example.blob.core.windows.net/uploads/nature/sunset/photo1.jpg",
+			},
+		}
+
+		jsonData, err := json.Marshal(originalEvent)
+		if err != nil {
+			t.Fatalf("Failed to marshal test data: %v", err)
+		}
+
+		bindingEvent := &common.BindingEvent{
+			Data: jsonData,
+		}
+
+		result, err := ConvertToEvent(bindingEvent)
+
+		if err != nil {
+			t.Errorf("Expected no error, got: %v", err)
+		}
+		if result.ID != originalEvent.ID {
+			t.Errorf("Expected ID %s, got %s", originalEvent.ID, result.ID)
+		}
+		if result.Data.URL != originalEvent.Data.URL {
+			t.Errorf("Expected Data.URL %s, got %s", originalEvent.Data.URL, result.Data.URL)
+		}
+	})
+
 	t.Run("Edge case - empty JSON object", func(t *testing.T) {
 		base64Data := base64.StdEncoding.EncodeToString([]byte("{}"))
 		bindingEvent := &common.BindingEvent{
@@ -432,6 +470,13 @@ func TestConvertToEvent(t *testing.T) {
 		_, err := ConvertToEvent(bindingEvent)
 		if err == nil {
 			t.Error("Expected error for empty data, got nil")
+		}
+	})
+
+	t.Run("Error case - nil binding event", func(t *testing.T) {
+		_, err := ConvertToEvent(nil)
+		if err == nil {
+			t.Error("Expected error for nil binding event, got nil")
 		}
 	})
 
