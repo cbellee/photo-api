@@ -1,6 +1,8 @@
 param photoApiContainerImage string
 param resizeApiContainerImage string
 param faceApiContainerImage string = ''
+@description('Deploy the face detection and recognition stack to Azure. Defaults to false so the feature remains local-only unless explicitly enabled.')
+param deployFaceSystem bool = false
 param photoCpuResource string = '0.5'
 param photoMemoryResource string = '1.0Gi'
 param resizeCpuResource string = '0.25'
@@ -94,6 +96,43 @@ var containerAppEnvName = 'appenv-${affix}'
 var cName = '${cNameRecord}.${zoneName}'
 var cNameDev = '${cNameRecord}-dev.${zoneName}'
 var corsOrigins = 'http://localhost:5173,https://${cName},https://${cNameDev}'
+var faceSystemEnabled = deployFaceSystem && !empty(faceApiContainerImage)
+var storageQueueDefinitions = concat(
+  [
+    {
+      name: uploadsStorageQueueName
+    }
+    {
+      name: 'telemetry'
+    }
+  ],
+  faceSystemEnabled ? [
+    {
+      name: imagesStorageQueueName
+    }
+  ] : []
+)
+var blobEventSubscriptions = concat(
+  [
+    {
+      name: uploadsContainerName
+      queueName: uploadsStorageQueueName
+      subjectBeginsWith: '/blobServices/default/containers/${uploadsContainerName}/'
+    }
+    {
+      name: 'telemetry'
+      queueName: 'telemetry'
+      subjectBeginsWith: '/blobServices/default/containers/telemetry/'
+    }
+  ],
+  faceSystemEnabled ? [
+    {
+      name: imagesContainerName
+      queueName: imagesStorageQueueName
+      subjectBeginsWith: '/blobServices/default/containers/${imagesContainerName}/'
+    }
+  ] : []
+)
 
 targetScope = 'resourceGroup'
 
@@ -119,6 +158,8 @@ module storage './modules/stor.bicep' = {
       'https://${cName}'
       'https://${cNameDev}'
     ]
+    queues: storageQueueDefinitions
+    createFaceTables: faceSystemEnabled
   }
 }
 
@@ -132,8 +173,8 @@ module workspace 'br/public:avm/res/operational-insights/workspace:0.3.4' = {
 
 @batchSize(1)
 module egt 'br/public:avm/res/event-grid/system-topic:0.2.6' = [
-  for container in containers: {
-    name: 'EventGridDeployment-${container.name}'
+  for subscription in blobEventSubscriptions: {
+    name: 'EventGridDeployment-${subscription.name}'
     params: {
       tags: tags
       name: topicName
@@ -141,11 +182,11 @@ module egt 'br/public:avm/res/event-grid/system-topic:0.2.6' = [
       topicType: 'Microsoft.Storage.StorageAccounts'
       eventSubscriptions: [
         {
-          name: container.name
+          name: subscription.name
           destination: {
             endpointType: 'StorageQueue'
             properties: {
-              queueName: container.name
+              queueName: subscription.queueName
               queueMessageTimeToLiveInSeconds: 600
               resourceId: storage.outputs.id
             }
@@ -156,7 +197,7 @@ module egt 'br/public:avm/res/event-grid/system-topic:0.2.6' = [
             maxDeliveryAttempts: 10
           }
           filter: {
-            subjectBeginsWith: '/blobServices/default/containers/${container.name}/'
+            subjectBeginsWith: subscription.subjectBeginsWith
             includedEventTypes: eventTypes
             enableAdvancedFilteringOnArrays: false
           }
@@ -190,7 +231,7 @@ resource storageRbac 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   }
 }
 
-resource tableRbac 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+resource tableRbac 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (faceSystemEnabled) {
   name: guid(umid.name, 'storageTableDataContributor', affix)
   properties: {
     principalId: umid.properties.principalId
@@ -540,7 +581,7 @@ resource photoApi 'Microsoft.App/containerApps@2025-10-02-preview' = {
             }
             {
               name: 'FACE_STORE_TYPE'
-              value: !empty(faceApiContainerImage) ? 'table' : ''
+              value: faceSystemEnabled ? 'table' : ''
             }
             {
               name: 'TABLE_STORE_URL'
@@ -618,7 +659,7 @@ module daprComponentUploadsStorageQueue 'modules/daprComponent.bicep' = {
   ]
 }
 
-module daprComponentImagesStorageQueue 'modules/daprComponent.bicep' = {
+module daprComponentImagesStorageQueue 'modules/daprComponent.bicep' = if (faceSystemEnabled) {
   name: 'daprComponentImagesStorageQueueDeployment'
   params: {
     containerAppEnvName: containerAppEnvironment.outputs.name
@@ -697,7 +738,7 @@ module daprComponentUploadsStorageBlob 'modules/daprComponent.bicep' = {
 }
 
 // ── Face detection Container App ──────────────────────────────────────
-resource faceApi 'Microsoft.App/containerApps@2025-10-02-preview' = if (!empty(faceApiContainerImage)) {
+resource faceApi 'Microsoft.App/containerApps@2025-10-02-preview' = if (faceSystemEnabled) {
   name: faceApiName
   location: resourceGroup().location
   tags: tags
@@ -833,7 +874,7 @@ resource faceApi 'Microsoft.App/containerApps@2025-10-02-preview' = if (!empty(f
 }
 
 // ── Face detection cron job (backfill) ───────────────────────────────
-resource faceCronJob 'Microsoft.App/jobs@2025-10-02-preview' = if (!empty(faceApiContainerImage)) {
+resource faceCronJob 'Microsoft.App/jobs@2025-10-02-preview' = if (faceSystemEnabled) {
   name: '${faceApiName}-cron'
   location: resourceGroup().location
   tags: tags

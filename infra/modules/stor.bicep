@@ -10,6 +10,8 @@ param utcValue string = utcNow()
 param customDomainName string = ''
 param setCustomDomain bool = false
 param corsAllowedOrigins array = []
+param queues array = []
+param createFaceTables bool = false
 
 @allowed([
   'Storage'
@@ -83,17 +85,17 @@ resource tableService 'Microsoft.Storage/storageAccounts/tableServices@2025-06-0
 }
 
 // Face detection tables
-resource personsTable 'Microsoft.Storage/storageAccounts/tableServices/tables@2025-06-01' = {
+resource personsTable 'Microsoft.Storage/storageAccounts/tableServices/tables@2025-06-01' = if (createFaceTables) {
   parent: tableService
   name: 'persons'
 }
 
-resource facesTable 'Microsoft.Storage/storageAccounts/tableServices/tables@2025-06-01' = {
+resource facesTable 'Microsoft.Storage/storageAccounts/tableServices/tables@2025-06-01' = if (createFaceTables) {
   parent: tableService
   name: 'faces'
 }
 
-resource photofacesTable 'Microsoft.Storage/storageAccounts/tableServices/tables@2025-06-01' = {
+resource photofacesTable 'Microsoft.Storage/storageAccounts/tableServices/tables@2025-06-01' = if (createFaceTables) {
   parent: tableService
   name: 'photofaces'
 }
@@ -127,9 +129,9 @@ resource blobService 'Microsoft.Storage/storageAccounts/blobServices@2025-06-01'
 }
 
 resource storageQueues 'Microsoft.Storage/storageAccounts/queueServices/queues@2025-06-01' = [
-  for container in containers: {
+  for queue in queues: {
     parent: queueService
-    name: container.name
+    name: queue.name
   }
 ]
 
