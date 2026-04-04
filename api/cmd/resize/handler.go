@@ -57,6 +57,7 @@ func (h *Handler) Resize(ctx context.Context, in *common.BindingEvent) (out []by
 	if in == nil {
 		return nil, fmt.Errorf("received nil binding event")
 	}
+	slog.InfoContext(ctx, "resize binding invoked", "binding", h.cfg.UploadsQueueBinding, "data_len", len(in.Data), "metadata", in.Metadata)
 
 	// Parse the incoming event.
 	evt, err := utils.ConvertToEvent(in)
