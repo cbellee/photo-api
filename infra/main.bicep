@@ -349,7 +349,7 @@ resource resizeApi 'Microsoft.App/containerApps@2025-10-02-preview' = {
             }
             {
               name: 'UPLOADS_QUEUE_BINDING'
-              value: 'queue-${uploadsContainerName}'
+              value: 'queue-${uploadsStorageQueueName}'
             }
             {
               name: 'IMAGES_CONTAINER_BINDING'
@@ -446,7 +446,7 @@ resource resizeApi 'Microsoft.App/containerApps@2025-10-02-preview' = {
             name: 'azure-queue-scaler'
             azureQueue: {
               queueLength: 5
-              queueName: 'uploads'
+              queueName: uploadsStorageQueueName
               auth: [
                 {
                   secretRef: 'storage-queue-cxn'
@@ -641,16 +641,20 @@ module daprComponentUploadsStorageQueue 'modules/daprComponent.bicep' = {
     type: 'bindings.azure.storagequeues'
     metadata: [
       {
-        name: 'storageAccount'
+        name: 'accountName'
         value: storage.outputs.name
       }
       {
-        name: 'storageAccessKey'
+        name: 'accountKey'
         value: storageKey
       }
       {
-        name: 'queue'
+        name: 'queueName'
         value: uploadsStorageQueueName
+      }
+      {
+        name: 'direction'
+        value: 'input'
       }
     ]
   }
@@ -667,16 +671,20 @@ module daprComponentImagesStorageQueue 'modules/daprComponent.bicep' = if (faceS
     type: 'bindings.azure.storagequeues'
     metadata: [
       {
-        name: 'storageAccount'
+        name: 'accountName'
         value: storage.outputs.name
       }
       {
-        name: 'storageAccessKey'
+        name: 'accountKey'
         value: storageKey
       }
       {
-        name: 'queue'
+        name: 'queueName'
         value: imagesStorageQueueName
+      }
+      {
+        name: 'direction'
+        value: 'input'
       }
     ]
   }
