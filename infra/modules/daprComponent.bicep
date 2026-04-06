@@ -4,6 +4,7 @@ param name string
 param type string
 param version string = 'v1'
 param timeout string = '60s'
+param scopes array
 
 resource uploadsStorageQueueDaprComponent 'Microsoft.App/managedEnvironments/daprComponents@2025-10-02-preview' = {
   name: '${containerAppEnvName}/${name}'
@@ -13,5 +14,6 @@ resource uploadsStorageQueueDaprComponent 'Microsoft.App/managedEnvironments/dap
     ignoreErrors: false
     initTimeout: timeout
     metadata: metadata
+    scopes: scopes
   }
 }
