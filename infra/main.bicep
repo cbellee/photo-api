@@ -102,9 +102,9 @@ var storageQueueDefinitions = concat(
     {
       name: uploadsStorageQueueName
     }
-    {
+/*     {
       name: 'telemetry'
-    }
+    } */
   ],
   faceSystemEnabled ? [
     {
@@ -119,11 +119,11 @@ var blobEventSubscriptions = concat(
       queueName: uploadsStorageQueueName
       subjectBeginsWith: '/blobServices/default/containers/${uploadsContainerName}/'
     }
-    {
+    /* {
       name: 'telemetry'
       queueName: 'telemetry'
       subjectBeginsWith: '/blobServices/default/containers/telemetry/'
-    }
+    } */
   ],
   faceSystemEnabled ? [
     {
@@ -259,7 +259,7 @@ resource resizeApi 'Microsoft.App/containerApps@2025-10-02-preview' = {
       dapr: {
         appId: resizeApiName
         appPort: int(resizeApiPort)
-        appProtocol: 'http'
+        appProtocol: 'grpc'
         enabled: true
         httpMaxRequestSize: grpcMaxRequestSizeMb
       }
