@@ -640,7 +640,7 @@ module daprComponentUploadsStorageQueue 'modules/daprComponent.bicep' = {
     name: 'queue-${toLower(uploadsStorageQueueName)}'
     type: 'bindings.azure.storagequeues'
     scopes: [
-      'resize'
+      resizeApiName
     ]
     metadata: [
       {
@@ -670,7 +670,7 @@ module daprComponentImagesStorageQueue 'modules/daprComponent.bicep' = if (faceS
     name: 'queue-${toLower(imagesStorageQueueName)}'
     type: 'bindings.azure.storagequeues'
     scopes: [
-      faceApi
+      faceApiName
     ]
     metadata: [
       {
@@ -703,7 +703,7 @@ module daprComponentImagesStorageBlob 'modules/daprComponent.bicep' = {
     name: 'blob-${toLower(imagesContainerName)}'
     type: 'bindings.azure.blobstorage'
     scopes: [
-      resizeApi
+      resizeApiName
     ]
     metadata: [
       {
@@ -729,7 +729,7 @@ module daprComponentUploadsStorageBlob 'modules/daprComponent.bicep' = {
     name: 'blob-${toLower(uploadsContainerName)}'
     type: 'bindings.azure.blobstorage'
     scopes: [
-      resizeApi
+      resizeApiName
     ]
     metadata: [
       {
