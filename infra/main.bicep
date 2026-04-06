@@ -748,7 +748,7 @@ module daprComponentImagesStorageBlob 'modules/daprComponent.bicep' = {
   }
 }
 
-module daprComponentUploadsStorageBlob 'modules/daprComponent.bicep' = {
+/* module daprComponentUploadsStorageBlob 'modules/daprComponent.bicep' = {
   name: 'daprComponentUploadsStorageBlobDeployment'
   params: {
     containerAppEnvName: containerAppEnvironment.outputs.name
@@ -772,7 +772,7 @@ module daprComponentUploadsStorageBlob 'modules/daprComponent.bicep' = {
       }
     ]
   }
-}
+} */
 
 // ── Face detection Container App ──────────────────────────────────────
 resource faceApi 'Microsoft.App/containerApps@2025-10-02-preview' = if (faceSystemEnabled) {
