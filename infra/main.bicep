@@ -639,6 +639,9 @@ module daprComponentUploadsStorageQueue 'modules/daprComponent.bicep' = {
     containerAppEnvName: containerAppEnvironment.outputs.name
     name: 'queue-${toLower(uploadsStorageQueueName)}'
     type: 'bindings.azure.storagequeues'
+    scopes: [
+      'resize'
+    ]
     metadata: [
       {
         name: 'accountName'
@@ -658,9 +661,6 @@ module daprComponentUploadsStorageQueue 'modules/daprComponent.bicep' = {
       }
     ]
   }
-  dependsOn: [
-    resizeApi
-  ]
 }
 
 module daprComponentImagesStorageQueue 'modules/daprComponent.bicep' = if (faceSystemEnabled) {
@@ -669,6 +669,9 @@ module daprComponentImagesStorageQueue 'modules/daprComponent.bicep' = if (faceS
     containerAppEnvName: containerAppEnvironment.outputs.name
     name: 'queue-${toLower(imagesStorageQueueName)}'
     type: 'bindings.azure.storagequeues'
+    scopes: [
+      faceApi
+    ]
     metadata: [
       {
         name: 'accountName'
@@ -699,6 +702,9 @@ module daprComponentImagesStorageBlob 'modules/daprComponent.bicep' = {
     containerAppEnvName: containerAppEnvironment.outputs.name
     name: 'blob-${toLower(imagesContainerName)}'
     type: 'bindings.azure.blobstorage'
+    scopes: [
+      resizeApi
+    ]
     metadata: [
       {
         name: 'storageAccount'
@@ -714,9 +720,6 @@ module daprComponentImagesStorageBlob 'modules/daprComponent.bicep' = {
       }
     ]
   }
-  dependsOn: [
-    resizeApi
-  ]
 }
 
 module daprComponentUploadsStorageBlob 'modules/daprComponent.bicep' = {
@@ -725,6 +728,9 @@ module daprComponentUploadsStorageBlob 'modules/daprComponent.bicep' = {
     containerAppEnvName: containerAppEnvironment.outputs.name
     name: 'blob-${toLower(uploadsContainerName)}'
     type: 'bindings.azure.blobstorage'
+    scopes: [
+      resizeApi
+    ]
     metadata: [
       {
         name: 'storageAccount'
@@ -740,9 +746,6 @@ module daprComponentUploadsStorageBlob 'modules/daprComponent.bicep' = {
       }
     ]
   }
-  dependsOn: [
-    resizeApi
-  ]
 }
 
 // ── Face detection Container App ──────────────────────────────────────
