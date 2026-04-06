@@ -663,7 +663,7 @@ module daprComponentUploadsStorageQueue 'modules/daprComponent.bicep' = {
   }
 }
 
-module daprComponentImagesStorageQueue 'modules/daprComponent.bicep' = {
+/* module daprComponentImagesStorageQueue 'modules/daprComponent.bicep' = {
   name: 'daprComponentImagesStorageQueueDeployment'
   params: {
     containerAppEnvName: containerAppEnvironment.outputs.name
@@ -683,15 +683,15 @@ module daprComponentImagesStorageQueue 'modules/daprComponent.bicep' = {
       }
       {
         name: 'queueName'
-        value: uploadsStorageQueueName
+        value: imagesStorageQueueName
       }
       {
         name: 'direction'
-        value: 'input'
+        value: 'output'
       }
     ]
   }
-}
+} */
 
 module daprComponentFaceImagesStorageQueue 'modules/daprComponent.bicep' = if (faceSystemEnabled) {
   name: 'daprComponentImagesStorageQueueDeployment'
