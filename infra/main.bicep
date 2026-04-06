@@ -259,7 +259,7 @@ resource resizeApi 'Microsoft.App/containerApps@2025-10-02-preview' = {
       dapr: {
         appId: resizeApiName
         appPort: int(resizeApiPort)
-        appProtocol: 'grpc'
+        appProtocol: 'http'
         enabled: true
         httpMaxRequestSize: grpcMaxRequestSizeMb
       }
@@ -663,7 +663,37 @@ module daprComponentUploadsStorageQueue 'modules/daprComponent.bicep' = {
   }
 }
 
-module daprComponentImagesStorageQueue 'modules/daprComponent.bicep' = if (faceSystemEnabled) {
+module daprComponentImagesStorageQueue 'modules/daprComponent.bicep' = {
+  name: 'daprComponentImagesStorageQueueDeployment'
+  params: {
+    containerAppEnvName: containerAppEnvironment.outputs.name
+    name: 'queue-${toLower(uploadsStorageQueueName)}'
+    type: 'bindings.azure.storagequeues'
+    scopes: [
+      resizeApiName
+    ]
+    metadata: [
+      {
+        name: 'accountName'
+        value: storage.outputs.name
+      }
+      {
+        name: 'accountKey'
+        value: storageKey
+      }
+      {
+        name: 'queueName'
+        value: uploadsStorageQueueName
+      }
+      {
+        name: 'direction'
+        value: 'input'
+      }
+    ]
+  }
+}
+
+module daprComponentFaceImagesStorageQueue 'modules/daprComponent.bicep' = if (faceSystemEnabled) {
   name: 'daprComponentImagesStorageQueueDeployment'
   params: {
     containerAppEnvName: containerAppEnvironment.outputs.name
@@ -691,9 +721,6 @@ module daprComponentImagesStorageQueue 'modules/daprComponent.bicep' = if (faceS
       }
     ]
   }
-  dependsOn: [
-    resizeApi
-  ]
 }
 
 module daprComponentImagesStorageBlob 'modules/daprComponent.bicep' = {
@@ -703,7 +730,6 @@ module daprComponentImagesStorageBlob 'modules/daprComponent.bicep' = {
     name: 'blob-${toLower(imagesContainerName)}'
     type: 'bindings.azure.blobstorage'
     scopes: [
-      resizeApiName
     ]
     metadata: [
       {
