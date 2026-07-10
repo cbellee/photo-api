@@ -24,7 +24,15 @@ func AllAlbumsHandler(store storage.BlobStore, cfg *Config) http.HandlerFunc {
 
 		includeDeleted := r.URL.Query().Get("includeDeleted") == "true"
 
-		// Single query: fetch all blobs marked as album thumbnails.
+		// 1. Get the tag-list so we know every collection/album pair.
+		tagList, err := store.GetBlobTagList(ctx, cfg.ImagesContainerName)
+		if err != nil {
+			slog.ErrorContext(ctx, "error getting blob tag list", "error", err)
+			http.Error(w, "No albums found", http.StatusNotFound)
+			return
+		}
+
+		// 2. Fetch all blobs already marked as album thumbnails.
 		query := fmt.Sprintf(
 			"@container='%s' and albumImage='true' and isDeleted='false'",
 			cfg.ImagesContainerName,
@@ -49,20 +57,54 @@ func AllAlbumsHandler(store storage.BlobStore, cfg *Config) http.HandlerFunc {
 			deduped = append(deduped, b)
 		}
 
-		// Optionally include soft-deleted album thumbnails.
-		if includeDeleted {
-			delQuery := fmt.Sprintf(
-				"@container='%s' and albumImage='true' and isDeleted='true'",
-				cfg.ImagesContainerName,
-			)
-			deletedMarked, _ := store.FilterBlobsByTags(ctx, delQuery, cfg.ImagesContainerName)
-			for _, b := range deletedMarked {
-				key := collAlbum{b.Tags["collection"], b.Tags["album"]}
+		// 3. For every collection/album pair that is not explicitly marked,
+		// pick one non-deleted blob as an ephemeral representative.
+		for collection, albums := range tagList {
+			for _, album := range albums {
+				key := collAlbum{collection, album}
 				if seen[key] {
 					continue
 				}
+
+				pickQuery := fmt.Sprintf(
+					"@container='%s' and collection='%s' and album='%s' and isDeleted='false'",
+					cfg.ImagesContainerName,
+					collection,
+					album,
+				)
+				candidates, err := store.FilterBlobsByTags(ctx, pickQuery, cfg.ImagesContainerName)
+				if err != nil || len(candidates) == 0 {
+					continue
+				}
+
 				seen[key] = true
-				deduped = append(deduped, b)
+				deduped = append(deduped, candidates[0])
+			}
+		}
+
+		// 4. Optionally include deleted albums that still have no representative.
+		if includeDeleted {
+			for collection, albums := range tagList {
+				for _, album := range albums {
+					key := collAlbum{collection, album}
+					if seen[key] {
+						continue
+					}
+
+					delQuery := fmt.Sprintf(
+						"@container='%s' and collection='%s' and album='%s' and isDeleted='true'",
+						cfg.ImagesContainerName,
+						collection,
+						album,
+					)
+					deletedMarked, err := store.FilterBlobsByTags(ctx, delQuery, cfg.ImagesContainerName)
+					if err != nil || len(deletedMarked) == 0 {
+						continue
+					}
+
+					seen[key] = true
+					deduped = append(deduped, deletedMarked[0])
+				}
 			}
 		}
 
